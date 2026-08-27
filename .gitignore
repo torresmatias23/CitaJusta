@@ -30,3 +30,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# CodeGraph local index
+.codegraph/
