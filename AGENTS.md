@@ -22,7 +22,7 @@
 
 ```text
 apps/
-  backend/   # API y lógica de negocio
+  api/       # API y lógica de negocio
   web/       # cliente React/Vite
   desktop/   # cliente Tauri/React
 packages/    # código compartido solo cuando exista una necesidad real
