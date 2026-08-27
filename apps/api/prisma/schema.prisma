@@ -7,3 +7,167 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum UserStatus {
+  PENDING  @map("PENDIENTE")
+  ACTIVE   @map("ACTIVO")
+  INACTIVE @map("INACTIVO")
+  BLOCKED  @map("BLOQUEADO")
+
+  @@map("estado_usuario")
+}
+
+enum RoleScope {
+  GLOBAL      @map("GLOBAL")
+  INSTITUTION @map("INSTITUCION")
+  BRANCH      @map("SEDE")
+
+  @@map("alcance_rol")
+}
+
+enum InstitutionStatus {
+  ACTIVE    @map("ACTIVA")
+  INACTIVE  @map("INACTIVA")
+  SUSPENDED @map("SUSPENDIDA")
+
+  @@map("estado_institucion")
+}
+
+enum BranchStatus {
+  ACTIVE   @map("ACTIVA")
+  INACTIVE @map("INACTIVA")
+
+  @@map("estado_sede")
+}
+
+model User {
+  id                      String      @id @db.Uuid
+  email                   String      @unique @db.VarChar(254)
+  passwordHash            String      @map("password_hash") @db.VarChar(255)
+  firstNames              String      @map("nombres") @db.VarChar(120)
+  lastNames               String      @map("apellidos") @db.VarChar(120)
+  phone                   String?     @map("telefono") @db.VarChar(30)
+  nationalIdentifier      String?     @unique @map("rut") @db.VarChar(20)
+  status                  UserStatus  @default(PENDING) @map("estado")
+  emailVerifiedAt         DateTime?   @map("email_verificado_at") @db.Timestamp(6)
+  lastLoginAt             DateTime?   @map("ultimo_login_at") @db.Timestamp(6)
+  createdAt               DateTime    @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt               DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt               DateTime?   @map("deleted_at") @db.Timestamp(6)
+  roleAssignments         UserRole[]  @relation("UserRoleUser")
+  assignedRoleAssignments UserRole[]  @relation("UserRoleAssignedBy")
+
+  @@index([status])
+  @@index([lastNames, firstNames])
+  @@map("usuarios")
+}
+
+model Role {
+  id              String           @id @db.Uuid
+  code            String           @unique @map("codigo") @db.VarChar(80)
+  name            String           @map("nombre") @db.VarChar(120)
+  description     String?          @map("descripcion") @db.Text
+  scope           RoleScope        @map("alcance")
+  isSystem        Boolean          @default(false) @map("es_sistema")
+  active          Boolean          @default(true) @map("activo")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  userAssignments UserRole[]
+  permissions     RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @db.Uuid
+  code        String           @unique @map("codigo") @db.VarChar(120)
+  module      String           @map("modulo") @db.VarChar(80)
+  action      String           @map("accion") @db.VarChar(80)
+  description String?          @map("descripcion") @db.Text
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
+  roles       RolePermission[]
+
+  @@unique([module, action])
+  @@map("permisos")
+}
+
+model Institution {
+  id                String            @id @db.Uuid
+  name              String            @map("nombre") @db.VarChar(180)
+  legalName         String?           @map("nombre_legal") @db.VarChar(220)
+  taxIdentifier     String?           @unique @map("identificador_tributario") @db.VarChar(30)
+  contactEmail      String?           @map("email_contacto") @db.VarChar(254)
+  phone             String?           @map("telefono") @db.VarChar(30)
+  timeZone          String            @default("America/Santiago") @map("zona_horaria") @db.VarChar(80)
+  status            InstitutionStatus @default(ACTIVE) @map("estado")
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt         DateTime?         @map("deleted_at") @db.Timestamp(6)
+  branches          Branch[]
+  roleAssignments   UserRole[]
+
+  @@index([name])
+  @@map("instituciones")
+}
+
+model Branch {
+  id              String       @id @db.Uuid
+  institutionId   String       @map("institucion_id") @db.Uuid
+  code            String       @map("codigo") @db.VarChar(50)
+  name            String       @map("nombre") @db.VarChar(160)
+  addressLine1    String?      @map("direccion_linea1") @db.VarChar(220)
+  addressLine2    String?      @map("direccion_linea2") @db.VarChar(220)
+  municipality    String?      @map("comuna") @db.VarChar(120)
+  region          String?      @db.VarChar(120)
+  country         String       @default("Chile") @map("pais") @db.VarChar(80)
+  latitude        Decimal?     @map("latitud") @db.Decimal(10, 7)
+  longitude       Decimal?     @map("longitud") @db.Decimal(10, 7)
+  phone           String?      @map("telefono") @db.VarChar(30)
+  email           String?      @db.VarChar(254)
+  status          BranchStatus @default(ACTIVE) @map("estado")
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt       DateTime?    @map("deleted_at") @db.Timestamp(6)
+  institution     Institution  @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  roleAssignments UserRole[]
+
+  @@unique([institutionId, code])
+  @@index([institutionId])
+  @@index([status])
+  @@map("sedes")
+}
+
+model UserRole {
+  id               String       @id @db.Uuid
+  userId           String       @map("usuario_id") @db.Uuid
+  roleId           String       @map("rol_id") @db.Uuid
+  institutionId    String?      @map("institucion_id") @db.Uuid
+  branchId         String?      @map("sede_id") @db.Uuid
+  assignedByUserId String?      @map("asignado_por_usuario_id") @db.Uuid
+  active           Boolean      @default(true) @map("activo")
+  validFrom        DateTime?    @map("valid_from") @db.Timestamp(6)
+  validTo          DateTime?    @map("valid_to") @db.Timestamp(6)
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+  user             User         @relation("UserRoleUser", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  role             Role         @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  institution      Institution? @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  branch           Branch?      @relation(fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  assignedByUser   User?        @relation("UserRoleAssignedBy", fields: [assignedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId])
+  @@index([roleId])
+  @@index([institutionId])
+  @@index([branchId])
+  @@map("usuarios_roles")
+}
+
+model RolePermission {
+  roleId       String     @map("rol_id") @db.Uuid
+  permissionId String     @map("permiso_id") @db.Uuid
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("roles_permisos")
+}
