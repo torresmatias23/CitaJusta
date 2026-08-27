@@ -33,3 +33,5 @@ Thumbs.db
 
 # CodeGraph local index
 .codegraph/
+
+/apps/api/src/generated/prisma/
