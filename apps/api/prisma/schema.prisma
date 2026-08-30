@@ -120,6 +120,7 @@ model User {
   actorHistoryEntries     AppointmentHistory[] @relation("AppointmentHistoryActorUser")
   performedCancellations  Cancellation[]
   confirmations           Confirmation[]
+  waitlistEntries         WaitlistEntry[]
 
   @@index([status])
   @@index([lastNames, firstNames])
@@ -176,6 +177,8 @@ model Institution {
   holidays          Holiday[]
   appointments      Appointment[]
   cancellationReasons CancellationReason[]
+  priorities        Priority[]
+  waitlistEntries   WaitlistEntry[]
 
   @@index([name])
   @@map("instituciones")
@@ -209,6 +212,8 @@ model Branch {
   scheduleBlocks          ScheduleBlock[]
   holidays                Holiday[]
   appointments            Appointment[]
+  waitlistEntries         WaitlistEntry[]
+  preferredWaitlistEntries WaitlistPreferredBranch[]
 
   @@unique([institutionId, code])
   @@index([institutionId])
@@ -291,6 +296,7 @@ model Service {
   professionalAssignments ProfessionalService[]
   availabilities          Availability[]
   appointments            Appointment[]
+  waitlistEntries         WaitlistEntry[]
 
   @@unique([institutionId, code])
   @@index([institutionId])
@@ -662,4 +668,123 @@ model Confirmation {
   @@index([userId])
   @@index([confirmedAt])
   @@map("confirmaciones")
+}
+
+model WaitlistStatus {
+  id          String   @id @db.Uuid
+  code        String   @unique @map("codigo") @db.VarChar(60)
+  name        String   @map("nombre") @db.VarChar(120)
+  description String?  @map("descripcion") @db.Text
+  isFinal     Boolean  @default(false) @map("es_final")
+  active      Boolean  @default(true) @map("activo")
+  order       Int      @default(0) @map("orden")
+
+  entries WaitlistEntry[]
+
+  @@map("estados_lista_espera")
+}
+
+model Priority {
+  id            String   @id @db.Uuid
+  institutionId String?  @map("institucion_id") @db.Uuid
+  code          String   @map("codigo") @db.VarChar(60)
+  name          String   @map("nombre") @db.VarChar(120)
+  level         Int      @map("nivel")
+  description   String?  @map("descripcion") @db.Text
+  active        Boolean  @default(true) @map("activo")
+
+  institution Institution?  @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  entries     WaitlistEntry[]
+
+  @@unique([institutionId, code])
+  @@unique([institutionId, level])
+  @@map("prioridades")
+}
+
+model WaitlistEntry {
+  id                   String    @id @db.Uuid
+  institutionId        String    @map("institucion_id") @db.Uuid
+  userId               String    @map("usuario_id") @db.Uuid
+  serviceId            String    @map("servicio_id") @db.Uuid
+  branchId             String?   @map("sede_id") @db.Uuid
+  priorityId           String    @map("prioridad_id") @db.Uuid
+  statusId             String    @map("estado_id") @db.Uuid
+  enteredAt            DateTime  @default(now()) @map("fecha_ingreso_at") @db.Timestamp(6)
+  deadlineDate         DateTime? @map("fecha_limite") @db.Date
+  allowsOtherBranches  Boolean   @default(false) @map("permite_otras_sedes")
+  minimumNoticeMinutes Int       @default(0) @map("aviso_minimo_minutos")
+  operationalNote      String?   @map("observacion_operativa") @db.Text
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt            DateTime? @map("deleted_at") @db.Timestamp(6)
+
+  institution      Institution              @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user             User                     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  service          Service                  @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  branch           Branch?                  @relation(fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  priority         Priority                 @relation(fields: [priorityId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  status           WaitlistStatus           @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  preference       WaitlistPreference?
+  preferredBranches WaitlistPreferredBranch[]
+
+  @@index([institutionId])
+  @@index([userId])
+  @@index([serviceId])
+  @@index([branchId])
+  @@index([priorityId])
+  @@index([statusId])
+  @@index([enteredAt])
+  @@map("listas_espera")
+}
+
+model WaitlistPreference {
+  id                     String   @id @db.Uuid
+  waitlistEntryId        String   @unique @map("lista_espera_id") @db.Uuid
+  acceptsAnyProfessional Boolean  @default(true) @map("acepta_cualquier_profesional")
+  acceptsAnyTime         Boolean  @default(false) @map("acepta_cualquier_hora")
+  acceptsWeekend         Boolean  @default(false) @map("acepta_fin_de_semana")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  waitlistEntry WaitlistEntry          @relation(fields: [waitlistEntryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  preferredDays WaitlistPreferredDay[]
+  timeRanges    WaitlistTimeRange[]
+
+  @@map("preferencias_lista_espera")
+}
+
+model WaitlistPreferredDay {
+  id           String @id @db.Uuid
+  preferenceId String @map("preferencia_id") @db.Uuid
+  dayOfWeek    Int    @map("dia_semana")
+
+  preference WaitlistPreference @relation(fields: [preferenceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([preferenceId, dayOfWeek])
+  @@map("dias_preferencia_lista_espera")
+}
+
+model WaitlistTimeRange {
+  id           String   @id @db.Uuid
+  preferenceId String   @map("preferencia_id") @db.Uuid
+  startTime    DateTime @map("hora_inicio") @db.Time(6)
+  endTime      DateTime @map("hora_fin") @db.Time(6)
+
+  preference WaitlistPreference @relation(fields: [preferenceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([preferenceId])
+  @@map("rangos_horarios_lista_espera")
+}
+
+model WaitlistPreferredBranch {
+  waitlistEntryId String @map("lista_espera_id") @db.Uuid
+  branchId        String @map("sede_id") @db.Uuid
+  preferenceOrder Int    @default(1) @map("orden_preferencia")
+
+  waitlistEntry WaitlistEntry @relation(fields: [waitlistEntryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  branch        Branch        @relation(fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@id([waitlistEntryId, branchId])
+  @@unique([waitlistEntryId, preferenceOrder])
+  @@map("sedes_preferidas_lista_espera")
 }
