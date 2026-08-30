@@ -40,6 +40,14 @@ enum BranchStatus {
   @@map("estado_sede")
 }
 
+enum ProfessionalStatus {
+  ACTIVE    @map("ACTIVO")
+  INACTIVE  @map("INACTIVO")
+  SUSPENDED @map("SUSPENDIDO")
+
+  @@map("estado_profesional")
+}
+
 model User {
   id                      String      @id @db.Uuid
   email                   String      @unique @db.VarChar(254)
@@ -56,6 +64,7 @@ model User {
   deletedAt               DateTime?   @map("deleted_at") @db.Timestamp(6)
   roleAssignments         UserRole[]  @relation("UserRoleUser")
   assignedRoleAssignments UserRole[]  @relation("UserRoleAssignedBy")
+  professionalProfiles    Professional[]
 
   @@index([status])
   @@index([lastNames, firstNames])
@@ -105,6 +114,9 @@ model Institution {
   deletedAt         DateTime?         @map("deleted_at") @db.Timestamp(6)
   branches          Branch[]
   roleAssignments   UserRole[]
+  serviceCategories ServiceCategory[]
+  services          Service[]
+  professionals     Professional[]
 
   @@index([name])
   @@map("instituciones")
@@ -130,6 +142,8 @@ model Branch {
   deletedAt       DateTime?    @map("deleted_at") @db.Timestamp(6)
   institution     Institution  @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   roleAssignments UserRole[]
+  serviceAssignments      ServiceBranch[]
+  professionalAssignments ProfessionalBranch[]
 
   @@unique([institutionId, code])
   @@index([institutionId])
@@ -170,4 +184,130 @@ model RolePermission {
 
   @@id([roleId, permissionId])
   @@map("roles_permisos")
+}
+
+model ServiceCategory {
+  id            String   @id @db.Uuid
+  institutionId String   @map("institucion_id") @db.Uuid
+  name          String   @map("nombre") @db.VarChar(140)
+  description   String?  @map("descripcion") @db.Text
+  active        Boolean  @default(true) @map("activo")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  services    Service[]
+
+  @@unique([institutionId, name])
+  @@map("categorias_servicio")
+}
+
+model Service {
+  id                    String    @id @db.Uuid
+  institutionId         String    @map("institucion_id") @db.Uuid
+  categoryId            String?   @map("categoria_id") @db.Uuid
+  code                  String    @map("codigo") @db.VarChar(50)
+  name                  String    @map("nombre") @db.VarChar(180)
+  description           String?   @map("descripcion") @db.Text
+  durationMinutes       Int       @map("duracion_minutos")
+  minimumAdvanceMinutes Int       @default(0) @map("anticipacion_minima_minutos")
+  maximumAdvanceDays    Int?      @map("anticipacion_maxima_dias")
+  allowsWaitlist        Boolean   @default(true) @map("permite_lista_espera")
+  requiresConfirmation  Boolean   @default(false) @map("requiere_confirmacion")
+  active                Boolean   @default(true) @map("activo")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt             DateTime? @map("deleted_at") @db.Timestamp(6)
+
+  institution             Institution           @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  category                ServiceCategory?       @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  branchAssignments       ServiceBranch[]
+  requirements            ServiceRequirement[]
+  professionalAssignments ProfessionalService[]
+
+  @@unique([institutionId, code])
+  @@index([institutionId])
+  @@index([categoryId])
+  @@index([active])
+  @@map("servicios")
+}
+
+model ServiceBranch {
+  serviceId String   @map("servicio_id") @db.Uuid
+  branchId  String   @map("sede_id") @db.Uuid
+  active    Boolean  @default(true) @map("activo")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@id([serviceId, branchId])
+  @@map("servicios_sedes")
+}
+
+model ServiceRequirement {
+  id          String   @id @db.Uuid
+  serviceId   String   @map("servicio_id") @db.Uuid
+  name        String   @map("nombre") @db.VarChar(180)
+  description String?  @map("descripcion") @db.Text
+  required    Boolean  @default(false) @map("obligatorio")
+  order       Int      @default(0) @map("orden")
+  active      Boolean  @default(true) @map("activo")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([serviceId])
+  @@map("requisitos_servicio")
+}
+
+model Professional {
+  id              String             @id @db.Uuid
+  institutionId   String             @map("institucion_id") @db.Uuid
+  userId          String             @map("usuario_id") @db.Uuid
+  internalCode    String?            @map("codigo_interno") @db.VarChar(60)
+  titleOrFunction String?            @map("titulo_o_funcion") @db.VarChar(160)
+  description     String?            @map("descripcion") @db.Text
+  status          ProfessionalStatus @default(ACTIVE) @map("estado")
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt       DateTime?          @map("deleted_at") @db.Timestamp(6)
+
+  institution       Institution          @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  serviceAssignments ProfessionalService[]
+  branchAssignments  ProfessionalBranch[]
+
+  @@unique([institutionId, userId])
+  @@unique([institutionId, internalCode])
+  @@index([status])
+  @@map("profesionales")
+}
+
+model ProfessionalService {
+  professionalId        String   @map("profesional_id") @db.Uuid
+  serviceId             String   @map("servicio_id") @db.Uuid
+  customDurationMinutes Int?     @map("duracion_personalizada_minutos")
+  active                Boolean  @default(true) @map("activo")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  service      Service      @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@id([professionalId, serviceId])
+  @@map("profesionales_servicios")
+}
+
+model ProfessionalBranch {
+  professionalId String   @map("profesional_id") @db.Uuid
+  branchId       String   @map("sede_id") @db.Uuid
+  active         Boolean  @default(true) @map("activo")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@id([professionalId, branchId])
+  @@map("profesionales_sedes")
 }
