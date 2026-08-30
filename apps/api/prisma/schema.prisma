@@ -48,6 +48,35 @@ enum ProfessionalStatus {
   @@map("estado_profesional")
 }
 
+enum AvailabilityOrigin {
+  BASE_SCHEDULE @map("HORARIO_BASE")
+  EXCEPTION     @map("EXCEPCION")
+  MANUAL        @map("MANUAL")
+
+  @@map("origen_disponibilidad")
+}
+
+enum ScheduleBlockType {
+  VACATION    @map("VACACIONES")
+  LEAVE       @map("LICENCIA")
+  MEETING     @map("REUNION")
+  MAINTENANCE @map("MANTENCION")
+  MANUAL      @map("MANUAL")
+  OTHER       @map("OTRO")
+
+  @@map("tipo_bloqueo_agenda")
+}
+
+enum SlotStatus {
+  AVAILABLE @map("DISPONIBLE")
+  RESERVED  @map("RESERVADO")
+  BLOCKED   @map("BLOQUEADO")
+  RELEASED  @map("LIBERADO")
+  EXPIRED   @map("EXPIRADO")
+
+  @@map("estado_cupo")
+}
+
 model User {
   id                      String      @id @db.Uuid
   email                   String      @unique @db.VarChar(254)
@@ -65,6 +94,7 @@ model User {
   roleAssignments         UserRole[]  @relation("UserRoleUser")
   assignedRoleAssignments UserRole[]  @relation("UserRoleAssignedBy")
   professionalProfiles    Professional[]
+  createdScheduleBlocks   ScheduleBlock[]
 
   @@index([status])
   @@index([lastNames, firstNames])
@@ -117,6 +147,8 @@ model Institution {
   serviceCategories ServiceCategory[]
   services          Service[]
   professionals     Professional[]
+  scheduleBlocks    ScheduleBlock[]
+  holidays          Holiday[]
 
   @@index([name])
   @@map("instituciones")
@@ -144,6 +176,11 @@ model Branch {
   roleAssignments UserRole[]
   serviceAssignments      ServiceBranch[]
   professionalAssignments ProfessionalBranch[]
+  attentionPoints         AttentionPoint[]
+  professionalSchedules   ProfessionalSchedule[]
+  availabilities          Availability[]
+  scheduleBlocks          ScheduleBlock[]
+  holidays                Holiday[]
 
   @@unique([institutionId, code])
   @@index([institutionId])
@@ -224,6 +261,7 @@ model Service {
   branchAssignments       ServiceBranch[]
   requirements            ServiceRequirement[]
   professionalAssignments ProfessionalService[]
+  availabilities          Availability[]
 
   @@unique([institutionId, code])
   @@index([institutionId])
@@ -278,6 +316,9 @@ model Professional {
   user              User                 @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   serviceAssignments ProfessionalService[]
   branchAssignments  ProfessionalBranch[]
+  schedules          ProfessionalSchedule[]
+  availabilities     Availability[]
+  scheduleBlocks     ScheduleBlock[]
 
   @@unique([institutionId, userId])
   @@unique([institutionId, internalCode])
@@ -310,4 +351,142 @@ model ProfessionalBranch {
 
   @@id([professionalId, branchId])
   @@map("profesionales_sedes")
+}
+
+model AttentionPoint {
+  id          String   @id @db.Uuid
+  branchId    String   @map("sede_id") @db.Uuid
+  code        String   @map("codigo") @db.VarChar(50)
+  name        String   @map("nombre") @db.VarChar(120)
+  capacity    Int      @default(1) @map("capacidad")
+  description String?  @map("descripcion") @db.Text
+  active      Boolean  @default(true) @map("activo")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  branch        Branch                 @relation(fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  schedules     ProfessionalSchedule[]
+  availabilities Availability[]
+  scheduleBlocks ScheduleBlock[]
+
+  @@unique([branchId, code])
+  @@index([branchId])
+  @@map("boxes_atencion")
+}
+
+model ProfessionalSchedule {
+  id               String    @id @db.Uuid
+  professionalId   String    @map("profesional_id") @db.Uuid
+  branchId         String    @map("sede_id") @db.Uuid
+  attentionPointId String?   @map("box_id") @db.Uuid
+  dayOfWeek        Int       @map("dia_semana")
+  startTime        DateTime  @map("hora_inicio") @db.Time(6)
+  endTime          DateTime  @map("hora_fin") @db.Time(6)
+  validFrom        DateTime  @map("valido_desde") @db.Date
+  validUntil       DateTime? @map("valido_hasta") @db.Date
+  active           Boolean   @default(true) @map("activo")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  professional  Professional    @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  branch        Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  attentionPoint AttentionPoint? @relation(fields: [attentionPointId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([professionalId])
+  @@index([branchId])
+  @@index([professionalId, branchId, dayOfWeek])
+  @@map("horarios_profesional")
+}
+
+model Availability {
+  id               String             @id @db.Uuid
+  professionalId   String             @map("profesional_id") @db.Uuid
+  serviceId        String             @map("servicio_id") @db.Uuid
+  branchId         String             @map("sede_id") @db.Uuid
+  attentionPointId String?            @map("box_id") @db.Uuid
+  date             DateTime           @map("fecha") @db.Date
+  startTime        DateTime           @map("hora_inicio") @db.Time(6)
+  endTime          DateTime           @map("hora_fin") @db.Time(6)
+  origin           AvailabilityOrigin @default(BASE_SCHEDULE) @map("origen")
+  capacity         Int                @default(1) @map("capacidad")
+  active           Boolean            @default(true) @map("activo")
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  professional   Professional    @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  service        Service         @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  attentionPoint AttentionPoint? @relation(fields: [attentionPointId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  slots          AgendaSlot[]
+
+  @@unique([professionalId, date, startTime, endTime])
+  @@index([professionalId])
+  @@index([serviceId])
+  @@index([branchId])
+  @@index([date])
+  @@map("disponibilidades")
+}
+
+model ScheduleBlock {
+  id                String            @id @db.Uuid
+  institutionId     String            @map("institucion_id") @db.Uuid
+  branchId          String?           @map("sede_id") @db.Uuid
+  professionalId    String?           @map("profesional_id") @db.Uuid
+  attentionPointId  String?           @map("box_id") @db.Uuid
+  type              ScheduleBlockType @map("tipo")
+  startsAt          DateTime          @map("inicio_at") @db.Timestamp(6)
+  endsAt            DateTime          @map("fin_at") @db.Timestamp(6)
+  reason            String?           @map("motivo") @db.Text
+  createdByUserId   String            @map("creado_por_usuario_id") @db.Uuid
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamp(6)
+
+  institution   Institution    @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  branch        Branch?        @relation(fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  professional  Professional?  @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  attentionPoint AttentionPoint? @relation(fields: [attentionPointId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdByUser User           @relation(fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([institutionId])
+  @@index([branchId])
+  @@index([professionalId])
+  @@index([startsAt, endsAt])
+  @@map("bloqueos_agenda")
+}
+
+model Holiday {
+  id              String    @id @db.Uuid
+  institutionId   String    @map("institucion_id") @db.Uuid
+  branchId        String?   @map("sede_id") @db.Uuid
+  date            DateTime  @map("fecha") @db.Date
+  name            String    @map("nombre") @db.VarChar(180)
+  blocksEntireDay Boolean   @default(true) @map("bloquea_todo_el_dia")
+  startTime       DateTime? @map("hora_inicio") @db.Time(6)
+  endTime         DateTime? @map("hora_fin") @db.Time(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  branch      Branch?     @relation(fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([institutionId, branchId, date, name])
+  @@index([date])
+  @@map("feriados")
+}
+
+model AgendaSlot {
+  id             String     @id @db.Uuid
+  availabilityId String     @map("disponibilidad_id") @db.Uuid
+  startsAt       DateTime   @map("inicio_at") @db.Timestamp(6)
+  endsAt         DateTime   @map("fin_at") @db.Timestamp(6)
+  status         SlotStatus @default(AVAILABLE) @map("estado")
+  blockedUntilAt DateTime?  @map("bloqueado_hasta_at") @db.Timestamp(6)
+  lockVersion    Int        @default(0) @map("version_lock")
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  availability Availability @relation(fields: [availabilityId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([availabilityId, startsAt, endsAt])
+  @@index([status])
+  @@index([startsAt])
+  @@map("cupos_agenda")
 }
