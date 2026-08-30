@@ -77,6 +77,24 @@ enum SlotStatus {
   @@map("estado_cupo")
 }
 
+enum AppointmentOrigin {
+  WEB          @map("WEB")
+  DESKTOP      @map("ESCRITORIO")
+  REASSIGNMENT @map("REASIGNACION")
+  SYSTEM       @map("SISTEMA")
+
+  @@map("origen_cita")
+}
+
+enum NotificationChannel {
+  INTERNAL @map("INTERNA")
+  EMAIL    @map("EMAIL")
+  SMS      @map("SMS")
+  WHATSAPP @map("WHATSAPP")
+
+  @@map("canal_notificacion")
+}
+
 model User {
   id                      String      @id @db.Uuid
   email                   String      @unique @db.VarChar(254)
@@ -95,6 +113,13 @@ model User {
   assignedRoleAssignments UserRole[]  @relation("UserRoleAssignedBy")
   professionalProfiles    Professional[]
   createdScheduleBlocks   ScheduleBlock[]
+  appointments            Appointment[]        @relation("AppointmentUser")
+  createdAppointments     Appointment[]        @relation("AppointmentCreatedByUser")
+  previousHistoryEntries  AppointmentHistory[] @relation("AppointmentHistoryPreviousUser")
+  newHistoryEntries       AppointmentHistory[] @relation("AppointmentHistoryNewUser")
+  actorHistoryEntries     AppointmentHistory[] @relation("AppointmentHistoryActorUser")
+  performedCancellations  Cancellation[]
+  confirmations           Confirmation[]
 
   @@index([status])
   @@index([lastNames, firstNames])
@@ -149,6 +174,8 @@ model Institution {
   professionals     Professional[]
   scheduleBlocks    ScheduleBlock[]
   holidays          Holiday[]
+  appointments      Appointment[]
+  cancellationReasons CancellationReason[]
 
   @@index([name])
   @@map("instituciones")
@@ -181,6 +208,7 @@ model Branch {
   availabilities          Availability[]
   scheduleBlocks          ScheduleBlock[]
   holidays                Holiday[]
+  appointments            Appointment[]
 
   @@unique([institutionId, code])
   @@index([institutionId])
@@ -262,6 +290,7 @@ model Service {
   requirements            ServiceRequirement[]
   professionalAssignments ProfessionalService[]
   availabilities          Availability[]
+  appointments            Appointment[]
 
   @@unique([institutionId, code])
   @@index([institutionId])
@@ -319,6 +348,7 @@ model Professional {
   schedules          ProfessionalSchedule[]
   availabilities     Availability[]
   scheduleBlocks     ScheduleBlock[]
+  appointments       Appointment[]
 
   @@unique([institutionId, userId])
   @@unique([institutionId, internalCode])
@@ -368,6 +398,7 @@ model AttentionPoint {
   schedules     ProfessionalSchedule[]
   availabilities Availability[]
   scheduleBlocks ScheduleBlock[]
+  appointments   Appointment[]
 
   @@unique([branchId, code])
   @@index([branchId])
@@ -484,9 +515,151 @@ model AgendaSlot {
   updatedAt      DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
 
   availability Availability @relation(fields: [availabilityId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment  Appointment?
 
   @@unique([availabilityId, startsAt, endsAt])
   @@index([status])
   @@index([startsAt])
   @@map("cupos_agenda")
+}
+
+model AppointmentStatus {
+  id                 String  @id @db.Uuid
+  code               String  @unique @map("codigo") @db.VarChar(60)
+  name               String  @map("nombre") @db.VarChar(120)
+  description        String? @map("descripcion") @db.Text
+  isFinal            Boolean @default(false) @map("es_final")
+  allowsCancellation Boolean @default(true) @map("permite_cancelar")
+  allowsConfirmation Boolean @default(false) @map("permite_confirmar")
+  active             Boolean @default(true) @map("activo")
+  order              Int     @default(0) @map("orden")
+
+  appointments                 Appointment[]
+  previousStatusHistoryEntries AppointmentHistory[] @relation("AppointmentHistoryPreviousStatus")
+  newStatusHistoryEntries      AppointmentHistory[] @relation("AppointmentHistoryNewStatus")
+
+  @@map("estados_cita")
+}
+
+model Appointment {
+  id                 String            @id @db.Uuid
+  institutionId      String            @map("institucion_id") @db.Uuid
+  branchId           String            @map("sede_id") @db.Uuid
+  serviceId          String            @map("servicio_id") @db.Uuid
+  professionalId     String            @map("profesional_id") @db.Uuid
+  attentionPointId   String?           @map("box_id") @db.Uuid
+  agendaSlotId       String            @unique @map("cupo_id") @db.Uuid
+  userId             String            @map("usuario_id") @db.Uuid
+  statusId           String            @map("estado_id") @db.Uuid
+  origin             AppointmentOrigin @map("origen")
+  startsAt           DateTime          @map("inicio_at") @db.Timestamp(6)
+  endsAt             DateTime          @map("fin_at") @db.Timestamp(6)
+  operationalNote    String?           @map("observacion_operativa") @db.Text
+  createdByUserId    String?           @map("creada_por_usuario_id") @db.Uuid
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt          DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt          DateTime?         @map("deleted_at") @db.Timestamp(6)
+
+  institution   Institution      @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  branch        Branch           @relation(fields: [branchId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  service       Service          @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  professional  Professional     @relation(fields: [professionalId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  attentionPoint AttentionPoint? @relation(fields: [attentionPointId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  agendaSlot    AgendaSlot       @relation(fields: [agendaSlotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user          User             @relation("AppointmentUser", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  status        AppointmentStatus @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdByUser User?            @relation("AppointmentCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  historyEntries AppointmentHistory[]
+  cancellations  Cancellation[]
+  confirmations  Confirmation[]
+
+  @@index([institutionId])
+  @@index([branchId])
+  @@index([serviceId])
+  @@index([professionalId])
+  @@index([userId])
+  @@index([statusId])
+  @@index([startsAt])
+  @@index([userId, startsAt])
+  @@index([professionalId, startsAt])
+  @@map("citas")
+}
+
+model AppointmentHistory {
+  id               String    @id @db.Uuid
+  appointmentId    String    @map("cita_id") @db.Uuid
+  previousStatusId String?   @map("estado_anterior_id") @db.Uuid
+  newStatusId      String    @map("estado_nuevo_id") @db.Uuid
+  previousUserId   String?   @map("usuario_anterior_id") @db.Uuid
+  newUserId        String?   @map("usuario_nuevo_id") @db.Uuid
+  actorUserId      String?   @map("actor_usuario_id") @db.Uuid
+  reason           String?   @map("motivo") @db.VarChar(200)
+  details          Json?     @map("detalle_json") @db.JsonB
+  occurredAt       DateTime  @default(now()) @map("ocurrido_at") @db.Timestamp(6)
+
+  appointment   Appointment       @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  previousStatus AppointmentStatus? @relation("AppointmentHistoryPreviousStatus", fields: [previousStatusId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  newStatus      AppointmentStatus  @relation("AppointmentHistoryNewStatus", fields: [newStatusId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  previousUser   User?              @relation("AppointmentHistoryPreviousUser", fields: [previousUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  newUser        User?              @relation("AppointmentHistoryNewUser", fields: [newUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  actorUser      User?              @relation("AppointmentHistoryActorUser", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([appointmentId])
+  @@index([newStatusId])
+  @@index([occurredAt])
+  @@map("historial_cambios_cita")
+}
+
+model CancellationReason {
+  id                   String   @id @db.Uuid
+  institutionId        String?  @map("institucion_id") @db.Uuid
+  code                 String   @map("codigo") @db.VarChar(60)
+  name                 String   @map("nombre") @db.VarChar(160)
+  description          String?  @map("descripcion") @db.Text
+  appliesToUser        Boolean  @default(true) @map("aplica_usuario")
+  appliesToInstitution Boolean  @default(true) @map("aplica_institucion")
+  active               Boolean  @default(true) @map("activo")
+
+  institution  Institution?  @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cancellations Cancellation[]
+
+  @@unique([institutionId, code])
+  @@map("motivos_cancelacion")
+}
+
+model Cancellation {
+  id                   String   @id @db.Uuid
+  appointmentId        String   @map("cita_id") @db.Uuid
+  cancellationReasonId String?  @map("motivo_cancelacion_id") @db.Uuid
+  cancelledByUserId    String?  @map("cancelada_por_usuario_id") @db.Uuid
+  comment              String?  @map("comentario") @db.Text
+  releasesSlot         Boolean  @default(true) @map("libera_cupo")
+  cancelledAt          DateTime @default(now()) @map("cancelada_at") @db.Timestamp(6)
+
+  appointment       Appointment        @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cancellationReason CancellationReason? @relation(fields: [cancellationReasonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cancelledByUser   User?              @relation(fields: [cancelledByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([appointmentId])
+  @@index([cancelledAt])
+  @@map("cancelaciones")
+}
+
+model Confirmation {
+  id            String              @id @db.Uuid
+  appointmentId String              @map("cita_id") @db.Uuid
+  userId        String              @map("usuario_id") @db.Uuid
+  confirmed     Boolean             @map("confirmada")
+  channel       NotificationChannel @default(INTERNAL) @map("canal")
+  confirmedAt   DateTime            @default(now()) @map("confirmada_at") @db.Timestamp(6)
+  comment       String?             @map("comentario") @db.Text
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([appointmentId])
+  @@index([userId])
+  @@index([confirmedAt])
+  @@map("confirmaciones")
 }
