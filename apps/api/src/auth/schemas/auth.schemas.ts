@@ -38,9 +38,16 @@ const refreshTokenClaimsSchema = z.object({
   jti: z.string().uuid(),
 });
 
+const accessTokenClaimsSchema = z.object({
+  sub: z.string().uuid(),
+  sid: z.string().uuid(),
+  exp: z.number().int().positive(),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshTokenClaims = z.infer<typeof refreshTokenClaimsSchema>;
+export type AccessTokenClaims = z.infer<typeof accessTokenClaimsSchema>;
 
 function parseBody<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value);
@@ -74,4 +81,8 @@ export function parseRefreshTokenClaims(
   value: unknown,
 ): RefreshTokenClaims {
   return refreshTokenClaimsSchema.parse(value);
+}
+
+export function parseAccessTokenClaims(value: unknown): AccessTokenClaims {
+  return accessTokenClaimsSchema.parse(value);
 }
