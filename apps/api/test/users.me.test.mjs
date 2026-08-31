@@ -6,7 +6,7 @@ import { UsersService } from '../dist/users/users.service.js';
 
 const userId = randomUUID();
 
-test('/users/me returns a controlled profile without sensitive fields', async () => {
+test('/api/v1/users/me returns a controlled profile without sensitive fields', async () => {
   const findFirst = mock.fn(async () => ({
     id: userId,
     email: 'person@example.com',
@@ -54,7 +54,7 @@ test('/users/me returns a controlled profile without sensitive fields', async ()
   assert.equal(serialized.includes('refreshToken'), false);
 });
 
-test('/users/me controller delegates only the authenticated principal and resolved context', async () => {
+test('/api/v1/users/me controller delegates only the authenticated principal and resolved context', async () => {
   const expected = { data: { id: userId } };
   const getMe = mock.fn(async () => expected);
   const controller = new UsersController({ getMe });

@@ -17,7 +17,11 @@ before(async () => {
   Object.assign(process.env, environmentValues);
 
   const { AppModule } = await import('../dist/app.module.js');
+  const { configureApplication } = await import(
+    '../dist/app.configuration.js'
+  );
   app = await NestFactory.create(AppModule, { logger: false });
+  configureApplication(app);
   await app.listen(0, '127.0.0.1');
 
   const address = app.getHttpServer().address();
@@ -41,4 +45,33 @@ test('GET /health returns an ok status', async () => {
 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { status: 'ok' });
+});
+
+test('GET /api/v1/health is not a route', async () => {
+  const response = await fetch(`${baseUrl}/api/v1/health`);
+
+  assert.equal(response.status, 404);
+});
+
+test('auth routes use only the /api/v1 prefix', async () => {
+  for (const action of ['register', 'login', 'refresh', 'logout']) {
+    const versionedResponse = await fetch(
+      `${baseUrl}/api/v1/auth/${action}`,
+      { method: 'POST' },
+    );
+    const legacyResponse = await fetch(`${baseUrl}/auth/${action}`, {
+      method: 'POST',
+    });
+
+    assert.equal(versionedResponse.status, 400);
+    assert.equal(legacyResponse.status, 404);
+  }
+});
+
+test('users/me uses only the /api/v1 prefix', async () => {
+  const versionedResponse = await fetch(`${baseUrl}/api/v1/users/me`);
+  const legacyResponse = await fetch(`${baseUrl}/users/me`);
+
+  assert.equal(versionedResponse.status, 401);
+  assert.equal(legacyResponse.status, 404);
 });
