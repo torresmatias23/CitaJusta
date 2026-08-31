@@ -4,11 +4,17 @@ import { NestFactory } from '@nestjs/core';
 
 let app;
 let baseUrl;
-const originalDatabaseUrl = process.env.DATABASE_URL;
+const environmentValues = {
+  DATABASE_URL: 'postgresql://USER:PASSWORD@localhost:5432/DATABASE',
+  JWT_ACCESS_SECRET: 'test-access-secret-with-at-least-32-characters',
+  JWT_REFRESH_SECRET: 'test-refresh-secret-with-at-least-32-characters',
+};
+const originalEnvironment = Object.fromEntries(
+  Object.keys(environmentValues).map((key) => [key, process.env[key]]),
+);
 
 before(async () => {
-  process.env.DATABASE_URL =
-    'postgresql://USER:PASSWORD@localhost:5432/DATABASE';
+  Object.assign(process.env, environmentValues);
 
   const { AppModule } = await import('../dist/app.module.js');
   app = await NestFactory.create(AppModule, { logger: false });
@@ -21,10 +27,12 @@ before(async () => {
 after(async () => {
   await app.close();
 
-  if (originalDatabaseUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDatabaseUrl;
+  for (const [key, value] of Object.entries(originalEnvironment)) {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
   }
 });
 
