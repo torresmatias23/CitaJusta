@@ -95,6 +95,37 @@ enum NotificationChannel {
   @@map("canal_notificacion")
 }
 
+enum ReassignmentStatus {
+  PENDING    @map("PENDIENTE")
+  EVALUATING @map("EVALUANDO")
+  OFFERING   @map("OFERTANDO")
+  COMPLETED  @map("COMPLETADA")
+  EXHAUSTED  @map("AGOTADA")
+  CANCELLED  @map("CANCELADA")
+  FAILED     @map("FALLIDA")
+
+  @@map("estado_reasignacion")
+}
+
+enum CandidateEvaluationStatus {
+  PENDING  @map("PENDIENTE")
+  ELIGIBLE @map("ELEGIBLE")
+  EXCLUDED @map("EXCLUIDO")
+
+  @@map("resultado_evaluacion_candidato")
+}
+
+enum OfferStatus {
+  PENDING     @map("PENDIENTE")
+  ACCEPTED    @map("ACEPTADA")
+  REJECTED    @map("RECHAZADA")
+  EXPIRED     @map("EXPIRADA")
+  INVALIDATED @map("INVALIDADA")
+  CANCELLED   @map("CANCELADA")
+
+  @@map("estado_oferta")
+}
+
 model User {
   id                      String      @id @db.Uuid
   email                   String      @unique @db.VarChar(254)
@@ -121,6 +152,9 @@ model User {
   performedCancellations  Cancellation[]
   confirmations           Confirmation[]
   waitlistEntries         WaitlistEntry[]
+  sourceReassignments     Reassignment[]          @relation("ReassignmentSourceUser")
+  reassignmentCandidates  ReassignmentCandidate[]
+  respondedOffers         AppointmentOffer[]      @relation("AppointmentOfferRespondedByUser")
 
   @@index([status])
   @@index([lastNames, firstNames])
@@ -179,6 +213,7 @@ model Institution {
   cancellationReasons CancellationReason[]
   priorities        Priority[]
   waitlistEntries   WaitlistEntry[]
+  reassignments     Reassignment[]
 
   @@index([name])
   @@map("instituciones")
@@ -297,6 +332,7 @@ model Service {
   availabilities          Availability[]
   appointments            Appointment[]
   waitlistEntries         WaitlistEntry[]
+  reassignments           Reassignment[]
 
   @@unique([institutionId, code])
   @@index([institutionId])
@@ -522,6 +558,7 @@ model AgendaSlot {
 
   availability Availability @relation(fields: [availabilityId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   appointment  Appointment?
+  reassignments Reassignment[]
 
   @@unique([availabilityId, startsAt, endsAt])
   @@index([status])
@@ -579,6 +616,7 @@ model Appointment {
   historyEntries AppointmentHistory[]
   cancellations  Cancellation[]
   confirmations  Confirmation[]
+  reassignments  Reassignment[]
 
   @@index([institutionId])
   @@index([branchId])
@@ -646,6 +684,7 @@ model Cancellation {
   appointment       Appointment        @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   cancellationReason CancellationReason? @relation(fields: [cancellationReasonId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   cancelledByUser   User?              @relation(fields: [cancelledByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reassignment      Reassignment?
 
   @@index([appointmentId])
   @@index([cancelledAt])
@@ -695,6 +734,7 @@ model Priority {
 
   institution Institution?  @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   entries     WaitlistEntry[]
+  reassignmentCandidates ReassignmentCandidate[]
 
   @@unique([institutionId, code])
   @@unique([institutionId, level])
@@ -726,6 +766,7 @@ model WaitlistEntry {
   status           WaitlistStatus           @relation(fields: [statusId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   preference       WaitlistPreference?
   preferredBranches WaitlistPreferredBranch[]
+  reassignmentCandidates ReassignmentCandidate[]
 
   @@index([institutionId])
   @@index([userId])
@@ -787,4 +828,106 @@ model WaitlistPreferredBranch {
   @@id([waitlistEntryId, branchId])
   @@unique([waitlistEntryId, preferenceOrder])
   @@map("sedes_preferidas_lista_espera")
+}
+
+model Reassignment {
+  id                   String             @id @db.Uuid
+  institutionId        String             @map("institucion_id") @db.Uuid
+  originCancellationId String             @unique @map("cancelacion_origen_id") @db.Uuid
+  appointmentId        String             @map("cita_id") @db.Uuid
+  agendaSlotId         String             @map("cupo_id") @db.Uuid
+  serviceId            String             @map("servicio_id") @db.Uuid
+  sourceUserId         String             @map("usuario_origen_id") @db.Uuid
+  status               ReassignmentStatus @default(PENDING) @map("estado")
+  initialSlotVersion   Int                @map("version_cupo_inicial")
+  ruleCode             String             @map("regla_codigo") @db.VarChar(60)
+  scoringVersion       String             @map("version_scoring") @db.VarChar(80)
+  criteriaSnapshot     Json               @map("criterios_snapshot") @db.JsonB
+  closureReasonCode    String?            @map("motivo_cierre_codigo") @db.VarChar(80)
+  closureDetails       Json?              @map("detalle_cierre") @db.JsonB
+  lockVersion          Int                @default(0) @map("version_lock")
+  detectedAt           DateTime           @default(now()) @map("detectada_at") @db.Timestamp(6)
+  startedAt            DateTime?          @map("iniciada_at") @db.Timestamp(6)
+  finishedAt           DateTime?          @map("finalizada_at") @db.Timestamp(6)
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt            DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  institution       Institution           @relation(fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  originCancellation Cancellation          @relation(fields: [originCancellationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointment       Appointment           @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  agendaSlot        AgendaSlot            @relation(fields: [agendaSlotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  service           Service               @relation(fields: [serviceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  sourceUser        User                  @relation("ReassignmentSourceUser", fields: [sourceUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  candidates        ReassignmentCandidate[]
+  offers            AppointmentOffer[]
+
+  @@unique([id, agendaSlotId])
+  @@index([institutionId, status])
+  @@index([agendaSlotId, status])
+  @@index([appointmentId])
+  @@index([serviceId])
+  @@index([detectedAt])
+  @@map("reasignaciones")
+}
+
+model ReassignmentCandidate {
+  id                          String                    @id @db.Uuid
+  reassignmentId              String                    @map("reasignacion_id") @db.Uuid
+  waitlistEntryId             String                    @map("lista_espera_id") @db.Uuid
+  userId                      String                    @map("usuario_id") @db.Uuid
+  priorityId                  String                    @map("prioridad_id") @db.Uuid
+  evaluationStatus            CandidateEvaluationStatus @default(PENDING) @map("estado_evaluacion")
+  priorityLevelSnapshot       Int                       @map("prioridad_nivel_snapshot")
+  entryUpdatedAtSnapshot      DateTime                  @map("entrada_actualizada_at_snapshot") @db.Timestamp(6)
+  totalScore                  Decimal?                  @map("score_total") @db.Decimal(18, 6)
+  rankingPosition             Int?                      @map("posicion_ranking")
+  scoreFactors                Json                      @default("[]") @map("factores_score") @db.JsonB
+  evaluationContext           Json                      @default("{}") @map("contexto_evaluacion") @db.JsonB
+  exclusionReasonCode         String?                   @map("motivo_exclusion_codigo") @db.VarChar(80)
+  exclusionDetails            Json?                     @map("detalle_exclusion") @db.JsonB
+  evaluatedAt                 DateTime?                 @map("evaluado_at") @db.Timestamp(6)
+  createdAt                   DateTime                  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt                   DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  reassignment Reassignment     @relation(fields: [reassignmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  waitlistEntry WaitlistEntry    @relation(fields: [waitlistEntryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  priority      Priority         @relation(fields: [priorityId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  offers        AppointmentOffer[]
+
+  @@unique([reassignmentId, waitlistEntryId])
+  @@unique([reassignmentId, rankingPosition])
+  @@unique([id, reassignmentId])
+  @@index([reassignmentId, evaluationStatus, rankingPosition])
+  @@index([waitlistEntryId])
+  @@index([userId])
+  @@map("candidatos_reasignacion")
+}
+
+model AppointmentOffer {
+  id                       String      @id @db.Uuid
+  reassignmentId           String      @map("reasignacion_id") @db.Uuid
+  candidateId              String      @unique @map("candidato_id") @db.Uuid
+  agendaSlotId             String      @map("cupo_id") @db.Uuid
+  attemptNumber            Int         @map("numero_intento")
+  status                   OfferStatus @default(PENDING) @map("estado")
+  expectedSlotVersion      Int         @map("version_cupo_esperada")
+  respondedByUserId        String?     @map("respondida_por_usuario_id") @db.Uuid
+  createdAt                DateTime    @default(now()) @map("created_at") @db.Timestamp(6)
+  expiresAt                DateTime    @map("expira_at") @db.Timestamp(6)
+  respondedAt              DateTime?   @map("respondida_at") @db.Timestamp(6)
+  resolvedAt               DateTime?   @map("resuelta_at") @db.Timestamp(6)
+  resolutionReasonCode     String?     @map("motivo_resolucion_codigo") @db.VarChar(80)
+  resolutionDetails        Json?       @map("detalle_resolucion") @db.JsonB
+  lockVersion              Int         @default(0) @map("version_lock")
+
+  reassignment   Reassignment          @relation(fields: [reassignmentId, agendaSlotId], references: [id, agendaSlotId], onDelete: Restrict, onUpdate: Cascade)
+  candidate      ReassignmentCandidate @relation(fields: [candidateId, reassignmentId], references: [id, reassignmentId], onDelete: Restrict, onUpdate: Cascade)
+  respondedByUser User?                @relation("AppointmentOfferRespondedByUser", fields: [respondedByUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([reassignmentId, attemptNumber])
+  @@index([reassignmentId, status, attemptNumber])
+  @@index([status, expiresAt])
+  @@index([agendaSlotId])
+  @@map("ofertas_cita")
 }
