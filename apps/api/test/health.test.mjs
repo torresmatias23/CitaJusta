@@ -85,6 +85,11 @@ test('catalog routes require an access token', async () => {
     `/api/v1/branches/${id}/services`,
     '/api/v1/services',
     `/api/v1/services/${id}`,
+    '/api/v1/professionals',
+    `/api/v1/professionals/${id}`,
+    `/api/v1/branches/${id}/professionals`,
+    `/api/v1/services/${id}/professionals`,
+    `/api/v1/branches/${id}/services/${id}/professionals`,
   ];
 
   for (const path of paths) {
