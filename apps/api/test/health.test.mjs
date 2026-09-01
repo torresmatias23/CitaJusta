@@ -75,3 +75,21 @@ test('users/me uses only the /api/v1 prefix', async () => {
   assert.equal(versionedResponse.status, 401);
   assert.equal(legacyResponse.status, 404);
 });
+
+test('catalog routes require an access token', async () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  const paths = [
+    '/api/v1/institutions',
+    `/api/v1/institutions/${id}`,
+    `/api/v1/institutions/${id}/branches`,
+    `/api/v1/branches/${id}/services`,
+    '/api/v1/services',
+    `/api/v1/services/${id}`,
+  ];
+
+  for (const path of paths) {
+    const response = await fetch(`${baseUrl}${path}`);
+
+    assert.equal(response.status, 401, path);
+  }
+});
