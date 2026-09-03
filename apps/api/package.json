@@ -8,7 +8,8 @@
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "start": "node dist/main.js",
-    "test": "npm run build && node --test test/*.test.mjs"
+    "test": "npm run build && node --test test/*.test.mjs",
+    "test:e2e:checkpoint": "npm run build && node --test --test-concurrency=1 test/e2e/backend-checkpoint.e2e.test.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
