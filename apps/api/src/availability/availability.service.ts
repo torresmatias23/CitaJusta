@@ -7,12 +7,10 @@ import {
   SlotStatus,
 } from '../generated/prisma/client.js';
 import type { AvailabilityRange } from './schemas/availability-query.schemas.js';
-
-interface AvailabilityContext {
-  institutionId: string;
-  branchId: string;
-  serviceId: string;
-}
+import {
+  availableAvailabilityWhere,
+  type AvailabilityContext,
+} from './availability.policy.js';
 
 interface InstitutionAvailabilityRecord {
   id: string;
@@ -281,71 +279,7 @@ export class AgendaAvailabilityService {
           { blockedUntilAt: null },
           { blockedUntilAt: { lte: now } },
         ],
-        availability: {
-          active: true,
-          branchId: context.branchId,
-          serviceId: context.serviceId,
-          ...(professionalId ? { professionalId } : {}),
-          branch: {
-            id: context.branchId,
-            institutionId: context.institutionId,
-            status: BranchStatus.ACTIVE,
-            deletedAt: null,
-            institution: {
-              status: InstitutionStatus.ACTIVE,
-              deletedAt: null,
-            },
-          },
-          service: {
-            id: context.serviceId,
-            institutionId: context.institutionId,
-            active: true,
-            deletedAt: null,
-            branchAssignments: {
-              some: {
-                branchId: context.branchId,
-                active: true,
-              },
-            },
-            institution: {
-              status: InstitutionStatus.ACTIVE,
-              deletedAt: null,
-            },
-          },
-          professional: {
-            ...(professionalId ? { id: professionalId } : {}),
-            institutionId: context.institutionId,
-            status: ProfessionalStatus.ACTIVE,
-            deletedAt: null,
-            institution: {
-              status: InstitutionStatus.ACTIVE,
-              deletedAt: null,
-            },
-            branchAssignments: {
-              some: {
-                branchId: context.branchId,
-                active: true,
-              },
-            },
-            serviceAssignments: {
-              some: {
-                serviceId: context.serviceId,
-                active: true,
-              },
-            },
-          },
-          OR: [
-            { attentionPointId: null },
-            {
-              attentionPoint: {
-                is: {
-                  branchId: context.branchId,
-                  active: true,
-                },
-              },
-            },
-          ],
-        },
+        availability: availableAvailabilityWhere(context, professionalId),
       },
       orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
       select: {

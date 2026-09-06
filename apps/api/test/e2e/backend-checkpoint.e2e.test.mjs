@@ -1,7 +1,5 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { loadEnvFile } from 'node:process';
-import { fileURLToPath } from 'node:url';
 import { NestFactory } from '@nestjs/core';
 import { test } from 'node:test';
 import {
@@ -14,63 +12,7 @@ import {
   rbac,
   slotIds,
 } from './fixture.mjs';
-
-const API_ENV_PATH = fileURLToPath(new URL('../../.env', import.meta.url));
-const LOCAL_DATABASE_NAMES = /^citajusta_(dev|test|e2e)(_[a-z0-9-]+)?$/i;
-
-function loadApiEnvironment() {
-  try {
-    loadEnvFile(API_ENV_PATH);
-  } catch (error) {
-    if (error?.code !== 'ENOENT' || !process.env.DATABASE_URL) {
-      throw new Error('E2E environment could not be loaded');
-    }
-  }
-}
-
-function assertSafeLocalDatabaseUrl(connectionString) {
-  if (typeof connectionString !== 'string') {
-    throw new Error('E2E safety check failed: DATABASE_URL is required');
-  }
-
-  let url;
-
-  try {
-    url = new URL(connectionString);
-  } catch {
-    throw new Error('E2E safety check failed: DATABASE_URL is invalid');
-  }
-
-  const localHosts = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
-  const databaseName = decodeURIComponent(url.pathname.slice(1));
-  const isPostgresql =
-    url.protocol === 'postgresql:' || url.protocol === 'postgres:';
-
-  if (
-    !isPostgresql ||
-    !localHosts.has(url.hostname.toLowerCase()) ||
-    !LOCAL_DATABASE_NAMES.test(databaseName) ||
-    process.env.NODE_ENV === 'production'
-  ) {
-    throw new Error(
-      'E2E safety check failed: only an allowlisted local PostgreSQL database is accepted',
-    );
-  }
-}
-
-function getE2ePort() {
-  if (process.env.E2E_PORT === undefined) {
-    return 0;
-  }
-
-  const port = Number(process.env.E2E_PORT);
-
-  if (!Number.isInteger(port) || port < 1 || port > 65_535 || port === 3_000) {
-    throw new Error('E2E_PORT must be a valid non-3000 port');
-  }
-
-  return port;
-}
+import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
 
 async function request(baseUrl, endpoint, options = {}) {
   const headers = { ...options.headers };

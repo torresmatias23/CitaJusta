@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AppointmentsModule } from './appointments/appointments.module.js';
 import { AvailabilityModule } from './availability/availability.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { validateEnvironment } from './config/environment.validation.js';
@@ -18,6 +19,7 @@ import { UsersModule } from './users/users.module.js';
     }),
     DatabaseModule,
     AuthModule,
+    AppointmentsModule,
     AvailabilityModule,
     InstitutionsModule,
     ProfessionalsModule,
