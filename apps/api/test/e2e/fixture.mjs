@@ -290,6 +290,14 @@ async function findFixtureUserIds(prisma) {
 export async function cleanupCheckpointFixtures(prisma) {
   await assertFixtureOwnership(prisma);
 
+  const appointments = await prisma.appointment.findMany({
+    where: { agendaSlotId: { in: slotIds } },
+    select: { id: true, user: { select: { email: true } } },
+  });
+  if (appointments.some((row) => !isFixtureEmail(row.user.email))) {
+    throw new Error('E2E safety check failed: appointment belongs to non-checkpoint data');
+  }
+  const appointmentIds = appointments.map((row) => row.id);
   const fixtureUserIds = await findFixtureUserIds(prisma);
   const relatedProfessionals = await prisma.professional.findMany({
     where: {
@@ -317,6 +325,10 @@ export async function cleanupCheckpointFixtures(prisma) {
   const relatedAvailabilityIds = relatedAvailabilities.map(({ id }) => id);
 
   await prisma.$transaction([
+    prisma.appointmentHistory.deleteMany({
+      where: { appointmentId: { in: appointmentIds } },
+    }),
+    prisma.appointment.deleteMany({ where: { id: { in: appointmentIds } } }),
     prisma.authSession.deleteMany({
       where: { userId: { in: fixtureUserIds } },
     }),
@@ -898,6 +910,7 @@ export async function createCheckpointFixtures(prisma, registeredUserId) {
 
 export async function assertCheckpointIsClean(prisma) {
   const counts = await Promise.all([
+    prisma.appointment.count({ where: { agendaSlotId: { in: slotIds } } }),
     prisma.user.count({
       where: {
         OR: [
