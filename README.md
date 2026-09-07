@@ -20,7 +20,7 @@ Centralizar el catálogo y la disponibilidad, y preparar una reasignación segur
 
 | Componente | Estado verificable |
 | --- | --- |
-| API backend | En desarrollo: salud, autenticación/sesiones, base RBAC, catálogos, consulta de disponibilidad y reserva directa transaccional (HU-004) |
+| API backend | En desarrollo: salud, autenticación/sesiones, base RBAC, catálogos, consulta de disponibilidad, reserva directa transaccional (HU-004) y consulta de mis citas (HU-005) |
 | Persistencia | PostgreSQL y Prisma; 37 modelos y migraciones versionadas |
 | Aplicación web | Pendiente; `apps/web` aún no existe |
 | Aplicación de escritorio | Pendiente; `apps/desktop` aún no existe |
@@ -50,7 +50,9 @@ Web y escritorio consumirán el mismo backend. La autenticación, autorización,
 
 La API funcional usa el prefijo `/api/v1`; el endpoint técnico `GET /health` permanece sin prefijo.
 
-HU-004: `POST /api/v1/appointments` requiere Bearer token y recibe únicamente `{ "agendaSlotId": "UUID" }`. Devuelve `201` con `{ data: { id, agendaSlotId, institutionId, branchId, serviceId, professionalId, startsAt, endsAt, origin, status } }`. El backend fija usuario, origen `WEB` y estado `AGENDADA`; un conflicto de disponibilidad/concurrencia devuelve `409`. No ofrece aún consulta de mis citas ni cancelación.
+HU-004: `POST /api/v1/appointments` requiere Bearer token y recibe únicamente `{ "agendaSlotId": "UUID" }`. Devuelve `201` con `{ data: { id, agendaSlotId, institutionId, branchId, serviceId, professionalId, startsAt, endsAt, origin, status } }`. El backend fija usuario, origen `WEB` y estado `AGENDADA`; un conflicto de disponibilidad/concurrencia devuelve `409`. No ofrece aún cancelación.
+
+HU-005: `GET /api/v1/appointments/me` requiere Bearer token. No admite campos de query ni body (`400`); el usuario se obtiene exclusivamente del principal autenticado (`401` sin autenticación válida). Devuelve `200` con `{ data: [{ id, institutionId, status, startsAt, endsAt, origin, branch: { id, name }, service: { id, name }, professional: { id, firstNames, lastNames } }] }`, o `{ data: [] }`. `status` es el código almacenado; fechas ISO 8601 UTC. Orden: `startsAt ASC, id ASC`, sin paginación ni filtro temporal. Incluye citas propias pasadas y futuras sin cambiar estados; excluye citas eliminadas lógicamente y relaciones institucionales incoherentes. Conserva el historial aunque los catálogos estén inactivos. Los headers institucionales no seleccionan otro usuario ni amplían el acceso.
 
 ## Estructura del monorepo
 
@@ -140,13 +142,13 @@ npm run --workspace @citajusta/api test:e2e:checkpoint
 
 El checkpoint E2E requiere PostgreSQL local accesible, esquema vigente y variables de entorno válidas. No usa mocks de Prisma ni de HTTP.
 
-E2E de HU-004, después del bootstrap:
+E2E de HU-004 y HU-005, después del bootstrap:
 
 ```powershell
 npm run --workspace @citajusta/api test:e2e:appointments
 ```
 
-Verifica reserva, concurrencia real y rollback mediante inyección controlada de fallo en el historial. Ambos E2E comparten fixtures y deben ejecutarse secuencialmente sobre una base local permitida; limpian sus propios datos al finalizar.
+Verifica reserva, concurrencia real y rollback mediante inyección controlada de fallo en el historial; también consulta propia, aislamiento por usuario, DTO público, ordenamiento y ausencia de escrituras al consultar. Ambos E2E comparten fixtures y deben ejecutarse secuencialmente sobre una base local permitida; limpian sus propios datos al finalizar.
 
 ## Docker
 

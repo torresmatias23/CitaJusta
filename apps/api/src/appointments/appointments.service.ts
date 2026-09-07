@@ -22,6 +22,56 @@ import {
 export class AppointmentsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async findMine(principal: AuthenticatedPrincipal) {
+    const appointments = await this.prisma.appointment.findMany({
+      where: { userId: principal.userId, deletedAt: null },
+      orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true,
+        institutionId: true,
+        startsAt: true,
+        endsAt: true,
+        origin: true,
+        status: { select: { code: true } },
+        branch: { select: { id: true, institutionId: true, name: true } },
+        service: { select: { id: true, institutionId: true, name: true } },
+        professional: {
+          select: {
+            id: true,
+            institutionId: true,
+            user: { select: { firstNames: true, lastNames: true } },
+          },
+        },
+      },
+    });
+
+    return {
+      data: appointments
+        // Historical appointments remain visible when catalogs become inactive.
+        // Inconsistent tenant relations must never expose another tenant's data.
+        .filter((appointment) =>
+          appointment.branch.institutionId === appointment.institutionId &&
+          appointment.service.institutionId === appointment.institutionId &&
+          appointment.professional.institutionId === appointment.institutionId,
+        )
+        .map((appointment) => ({
+          id: appointment.id,
+          institutionId: appointment.institutionId,
+          status: appointment.status.code,
+          startsAt: appointment.startsAt.toISOString(),
+          endsAt: appointment.endsAt.toISOString(),
+          origin: appointment.origin,
+          branch: { id: appointment.branch.id, name: appointment.branch.name },
+          service: { id: appointment.service.id, name: appointment.service.name },
+          professional: {
+            id: appointment.professional.id,
+            firstNames: appointment.professional.user.firstNames,
+            lastNames: appointment.professional.user.lastNames,
+          },
+        })),
+    };
+  }
+
   async reserve(agendaSlotId: string, principal: AuthenticatedPrincipal) {
     try {
       return await this.prisma.$transaction(async (tx) => {

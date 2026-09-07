@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { request as httpRequest } from 'node:http';
 import { test } from 'node:test';
 import { NestFactory } from '@nestjs/core';
 import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
@@ -8,7 +9,7 @@ import {
   createCheckpointFixtures, assertCheckpointIsClean,
 } from './fixture.mjs';
 
-test('HU-004 real HTTP and PostgreSQL booking', { timeout: 120_000 }, async (t) => {
+test('HU-004/HU-005 real HTTP and PostgreSQL appointments', { timeout: 120_000 }, async (t) => {
   loadApiEnvironment();
   assertSafeLocalDatabaseUrl(process.env.DATABASE_URL);
   process.env.NODE_ENV = 'test';
@@ -66,6 +67,34 @@ test('HU-004 real HTTP and PostgreSQL booking', { timeout: 120_000 }, async (t) 
     const originalSlot = await slot();
     const initialStatus = await prisma.appointmentStatus.findUnique({ where: { code: 'AGENDADA' } });
     assert.ok(initialStatus?.active && !initialStatus.isFinal, 'Run bootstrap:appointment-status before booking E2E');
+
+    function getMine(token, { query = '', body, headers = {} } = {}) {
+      // node:http also permits testing forbidden GET bodies, unlike fetch.
+      const payload = body === undefined ? undefined : JSON.stringify(body);
+      return new Promise((resolve, reject) => {
+        const request = httpRequest(`${baseUrl}/api/v1/appointments/me${query}`, {
+          method: 'GET',
+          headers: {
+            ...(token ? { authorization: `Bearer ${token}` } : {}),
+            ...(payload === undefined ? {} : {
+              'content-type': 'application/json', 'content-length': Buffer.byteLength(payload),
+            }),
+            ...headers,
+          },
+        }, (response) => {
+          let text = '';
+          response.setEncoding('utf8');
+          response.on('data', (chunk) => { text += chunk; });
+          response.on('error', reject);
+          response.on('end', () => {
+            try { resolve({ status: response.statusCode, body: JSON.parse(text) }); }
+            catch (error) { reject(error); }
+          });
+        });
+        request.on('error', reject);
+        request.end(payload);
+      });
+    }
 
     await t.test('bootstrap repeated against PostgreSQL preserves existing AGENDADA', async () => {
       await bootstrapAppointmentStatus(prisma);
@@ -194,6 +223,172 @@ test('HU-004 real HTTP and PostgreSQL booking', { timeout: 120_000 }, async (t) 
       finally { await prisma.agendaSlot.update({ where: { id: ids.slotAvailable }, data: { status: 'RESERVED' } }); }
       assert.deepEqual(await appointments(), [existing]);
       assert.equal(await prisma.appointmentHistory.count({ where: { appointmentId: existing.id } }), 1);
+    });
+
+    await t.test('HU-005 requires authentication and rejects query/body identity or filter overrides', async () => {
+      assert.equal((await getMine()).status, 401);
+      assert.equal((await getMine('invalid-token')).status, 401);
+      for (const fields of [
+        { userId: second.id }, { institutionId: ids.institutionB },
+        { branchId: ids.branchB1 }, { status: 'AGENDADA' }, { orderBy: 'desc' },
+      ]) {
+        assert.equal((await getMine(first.token, { query: `?${new URLSearchParams(fields)}` })).status, 400);
+        assert.equal((await getMine(first.token, { body: fields })).status, 400);
+      }
+    });
+
+    const listingUser = await register();
+    await t.test('HU-005 returns an empty list without exposing another user appointments', async () => {
+      assert.equal((await appointments()).length, 1);
+      assert.deepEqual(await getMine(listingUser.token), { status: 200, body: { data: [] } });
+    });
+
+    async function createListingFixture(agendaSlotId, overrides = {}) {
+      return prisma.$transaction(async (tx) => {
+        const source = await tx.agendaSlot.findUniqueOrThrow({
+          where: { id: agendaSlotId },
+          include: { availability: { include: { branch: true } } },
+        });
+        const created = await tx.appointment.create({
+          data: {
+            id: randomUUID(), agendaSlotId, userId: listingUser.id,
+            createdByUserId: listingUser.id, statusId: initialStatus.id, origin: 'WEB',
+            institutionId: source.availability.branch.institutionId,
+            branchId: source.availability.branchId, serviceId: source.availability.serviceId,
+            professionalId: source.availability.professionalId,
+            startsAt: source.startsAt, endsAt: source.endsAt,
+            operationalNote: 'E2E_CHECKPOINT private appointment note',
+            ...overrides,
+          },
+        });
+        await tx.agendaSlot.update({
+          where: { id: agendaSlotId },
+          data: {
+            status: 'RESERVED', lockVersion: { increment: 1 },
+            startsAt: created.startsAt, endsAt: created.endsAt,
+          },
+        });
+        await tx.appointmentHistory.create({
+          data: {
+            id: randomUUID(), appointmentId: created.id,
+            previousStatusId: null, newStatusId: initialStatus.id,
+            previousUserId: null, newUserId: listingUser.id, actorUserId: listingUser.id,
+          },
+        });
+        return created;
+      });
+    }
+
+    const future = await createListingFixture(ids.slotReserved);
+    const past = await createListingFixture(ids.slotPast);
+    const tied = await createListingFixture(ids.slotOtherContext, {
+      startsAt: future.startsAt, endsAt: future.endsAt,
+    });
+    const deleted = await createListingFixture(ids.slotBlocked, { deletedAt: new Date() });
+    const visible = [past, future, tied].sort((a, b) =>
+      a.startsAt - b.startsAt || a.id.localeCompare(b.id));
+    const visibleIds = visible.map(({ id }) => id);
+
+    await t.test('HU-005 returns only owned public DTOs, past/future dates and stable ordering without writes', async () => {
+      const ownedWhere = { userId: listingUser.id };
+      const snapshot = async () => Promise.all([
+        prisma.appointment.findMany({ where: ownedWhere, orderBy: { id: 'asc' } }),
+        prisma.appointmentHistory.findMany({
+          where: { appointment: ownedWhere }, orderBy: { id: 'asc' },
+        }),
+        prisma.agendaSlot.findMany({
+          where: { appointment: ownedWhere }, orderBy: { id: 'asc' },
+        }),
+      ]);
+      const before = await snapshot();
+      const response = await getMine(listingUser.token);
+      assert.equal(response.status, 200);
+      assert.deepEqual(Object.keys(response.body), ['data']);
+      assert.deepEqual(response.body.data.map(({ id }) => id), visibleIds);
+      assert.ok(past.endsAt < new Date());
+      assert.ok(future.startsAt > new Date());
+      assert.equal(response.body.data.some(({ id }) => id === deleted.id), false);
+      for (const [index, item] of response.body.data.entries()) {
+        assert.deepEqual(Object.keys(item).sort(), [
+          'id', 'institutionId', 'status', 'startsAt', 'endsAt', 'origin',
+          'branch', 'service', 'professional',
+        ].sort());
+        assert.deepEqual(Object.keys(item.branch).sort(), ['id', 'name']);
+        assert.deepEqual(Object.keys(item.service).sort(), ['id', 'name']);
+        assert.deepEqual(Object.keys(item.professional).sort(), ['firstNames', 'id', 'lastNames']);
+        assert.equal(item.startsAt, visible[index].startsAt.toISOString());
+        assert.equal(item.endsAt, visible[index].endsAt.toISOString());
+        assert.equal(item.status, 'AGENDADA');
+        assert.equal(item.origin, 'WEB');
+        assert.equal(item.institutionId, ids.institutionA);
+        assert.equal(item.branch.id, visible[index].branchId);
+        assert.equal(item.service.id, visible[index].serviceId);
+        assert.equal(item.professional.id, visible[index].professionalId);
+        assert.ok(item.branch.name && item.service.name && item.professional.firstNames);
+      }
+      assert.deepEqual(await getMine(listingUser.token, {
+        headers: { 'x-institution-id': ids.institutionB, 'x-branch-id': ids.branchB1 },
+      }), response);
+      for (const user of [first, second]) {
+        const other = await getMine(user.token);
+        assert.equal(other.status, 200);
+        assert.equal(other.body.data.some(({ id }) => visibleIds.includes(id)), false);
+      }
+      assert.deepEqual(await getMine(listingUser.token), response);
+      assert.deepEqual(await snapshot(), before);
+    });
+
+    await t.test('HU-005 retains owned history when catalogs become inactive', async () => {
+      const scenarios = [
+        ['institution', { id: ids.institutionA }, { status: 'INACTIVE' }, { status: 'ACTIVE' }],
+        ['branch', { id: ids.branchA1 }, { status: 'INACTIVE' }, { status: 'ACTIVE' }],
+        ['service', { id: ids.serviceA }, { active: false }, { active: true }],
+        ['professional', { id: ids.professionalA }, { status: 'INACTIVE' }, { status: 'ACTIVE' }],
+      ];
+      for (const [model, where, data, restore] of scenarios) {
+        await prisma[model].update({ where, data });
+        try {
+          const response = await getMine(listingUser.token);
+          assert.equal(response.status, 200);
+          assert.deepEqual(response.body.data.map(({ id }) => id), visibleIds);
+        } finally { await prisma[model].update({ where, data: restore }); }
+      }
+    });
+
+    await t.test('HU-005 hides cross-tenant appointment relations instead of exposing foreign catalogs', async () => {
+      for (const data of [
+        { institutionId: ids.institutionB }, { branchId: ids.branchB1 },
+        { serviceId: ids.serviceB }, { professionalId: ids.professionalB },
+      ]) {
+        await prisma.appointment.update({ where: { id: past.id }, data });
+        try {
+          const response = await getMine(listingUser.token);
+          assert.equal(response.status, 200);
+          assert.deepEqual(response.body.data.map(({ id }) => id), visibleIds.filter((id) => id !== past.id));
+        } finally {
+          await prisma.appointment.update({
+            where: { id: past.id },
+            data: {
+              institutionId: past.institutionId, branchId: past.branchId,
+              serviceId: past.serviceId, professionalId: past.professionalId,
+            },
+          });
+        }
+      }
+    });
+
+    await t.test('HU-005 ownership follows current userId, not creator or history', async () => {
+      await prisma.appointment.update({ where: { id: past.id }, data: { userId: first.id } });
+      try {
+        const originalOwner = await getMine(listingUser.token);
+        const currentOwner = await getMine(first.token);
+        assert.equal(originalOwner.status, 200);
+        assert.equal(currentOwner.status, 200);
+        assert.equal(originalOwner.body.data.some(({ id }) => id === past.id), false);
+        assert.equal(currentOwner.body.data.some(({ id }) => id === past.id), true);
+      } finally {
+        await prisma.appointment.update({ where: { id: past.id }, data: { userId: listingUser.id } });
+      }
     });
   } finally {
     try {
