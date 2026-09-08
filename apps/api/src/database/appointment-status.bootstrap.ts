@@ -13,10 +13,22 @@ export async function bootstrapAppointmentStatus(
       isFinal: false,
       allowsCancellation: true,
       active: true,
+    }, {
+      id: randomUUID(),
+      code: 'CANCELADA',
+      name: 'Cancelada',
+      isFinal: true,
+      allowsCancellation: false,
+      allowsConfirmation: false,
+      active: true,
     }],
     skipDuplicates: true,
   });
 
+  await prisma.appointmentStatus.findUniqueOrThrow({
+    where: { code: 'CANCELADA' },
+    select: { code: true },
+  });
   return prisma.appointmentStatus.findUniqueOrThrow({
     where: { code: 'AGENDADA' },
     select: { code: true },

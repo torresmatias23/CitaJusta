@@ -2,6 +2,9 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
+  Param,
   Post,
   Query,
   Req,
@@ -11,7 +14,11 @@ import {
 import { AccessTokenGuard } from '../auth/guards/access-token.guard.js';
 import type { AuthenticatedRequest } from '../auth/types/authenticated-principal.js';
 import { AppointmentsService } from './appointments.service.js';
-import { parseBookingInput, parseMyAppointmentsInput } from './appointments.schemas.js';
+import {
+  parseBookingInput,
+  parseCancellationInput,
+  parseMyAppointmentsInput,
+} from './appointments.schemas.js';
 
 @Controller('appointments')
 @UseGuards(AccessTokenGuard)
@@ -34,5 +41,18 @@ export class AppointmentsController {
     if (!request.principal) throw new UnauthorizedException('Unauthorized');
     const { agendaSlotId } = parseBookingInput(body);
     return this.appointmentsService.reserve(agendaSlotId, request.principal);
+  }
+
+  @Post(':appointmentId/cancel')
+  @HttpCode(HttpStatus.OK)
+  cancel(
+    @Param() params: unknown,
+    @Query() query: unknown,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    if (!request.principal) throw new UnauthorizedException('Unauthorized');
+    const { appointmentId } = parseCancellationInput(params, query, body);
+    return this.appointmentsService.cancel(appointmentId, request.principal);
   }
 }

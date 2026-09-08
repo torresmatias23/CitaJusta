@@ -18,6 +18,44 @@ import {
   UserStatus,
 } from '../generated/prisma/client.js';
 
+const appointmentSummarySelect = {
+  id: true,
+  institutionId: true,
+  startsAt: true,
+  endsAt: true,
+  origin: true,
+  status: { select: { code: true } },
+  branch: { select: { id: true, institutionId: true, name: true } },
+  service: { select: { id: true, institutionId: true, name: true } },
+  professional: {
+    select: {
+      id: true,
+      institutionId: true,
+      user: { select: { firstNames: true, lastNames: true } },
+    },
+  },
+} as const satisfies Prisma.AppointmentSelect;
+
+type AppointmentSummaryRecord = Prisma.AppointmentGetPayload<{ select: typeof appointmentSummarySelect }>;
+
+function mapAppointmentSummary(appointment: AppointmentSummaryRecord) {
+  return {
+    id: appointment.id,
+    institutionId: appointment.institutionId,
+    status: appointment.status.code,
+    startsAt: appointment.startsAt.toISOString(),
+    endsAt: appointment.endsAt.toISOString(),
+    origin: appointment.origin,
+    branch: { id: appointment.branch.id, name: appointment.branch.name },
+    service: { id: appointment.service.id, name: appointment.service.name },
+    professional: {
+      id: appointment.professional.id,
+      firstNames: appointment.professional.user.firstNames,
+      lastNames: appointment.professional.user.lastNames,
+    },
+  };
+}
+
 @Injectable()
 export class AppointmentsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -26,23 +64,7 @@ export class AppointmentsService {
     const appointments = await this.prisma.appointment.findMany({
       where: { userId: principal.userId, deletedAt: null },
       orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
-      select: {
-        id: true,
-        institutionId: true,
-        startsAt: true,
-        endsAt: true,
-        origin: true,
-        status: { select: { code: true } },
-        branch: { select: { id: true, institutionId: true, name: true } },
-        service: { select: { id: true, institutionId: true, name: true } },
-        professional: {
-          select: {
-            id: true,
-            institutionId: true,
-            user: { select: { firstNames: true, lastNames: true } },
-          },
-        },
-      },
+      select: appointmentSummarySelect,
     });
 
     return {
@@ -54,22 +76,144 @@ export class AppointmentsService {
           appointment.service.institutionId === appointment.institutionId &&
           appointment.professional.institutionId === appointment.institutionId,
         )
-        .map((appointment) => ({
-          id: appointment.id,
-          institutionId: appointment.institutionId,
-          status: appointment.status.code,
-          startsAt: appointment.startsAt.toISOString(),
-          endsAt: appointment.endsAt.toISOString(),
-          origin: appointment.origin,
-          branch: { id: appointment.branch.id, name: appointment.branch.name },
-          service: { id: appointment.service.id, name: appointment.service.name },
-          professional: {
-            id: appointment.professional.id,
-            firstNames: appointment.professional.user.firstNames,
-            lastNames: appointment.professional.user.lastNames,
-          },
-        })),
+        .map(mapAppointmentSummary),
     };
+  }
+
+  async cancel(appointmentId: string, principal: AuthenticatedPrincipal) {
+    return this.cancelWithRetry(appointmentId, principal, true);
+  }
+
+  private async cancelWithRetry(
+    appointmentId: string,
+    principal: AuthenticatedPrincipal,
+    retrySerializationConflict: boolean,
+  ): Promise<{ data: ReturnType<typeof mapAppointmentSummary> }> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.findFirst({
+          where: { id: principal.userId, status: UserStatus.ACTIVE, deletedAt: null },
+          select: { id: true },
+        });
+        if (!user) throw new UnauthorizedException('Unauthorized');
+
+        const appointment = await tx.appointment.findFirst({
+          where: { id: appointmentId, userId: principal.userId, deletedAt: null },
+          select: {
+            ...appointmentSummarySelect,
+            statusId: true,
+            branchId: true,
+            serviceId: true,
+            professionalId: true,
+            status: { select: { code: true, active: true, isFinal: true, allowsCancellation: true } },
+            agendaSlot: {
+              select: {
+                id: true,
+                status: true,
+                lockVersion: true,
+                availability: {
+                  select: {
+                    branchId: true, serviceId: true, professionalId: true,
+                    branch: { select: { institutionId: true } },
+                  },
+                },
+              },
+            },
+          },
+        });
+        if (!appointment) throw new NotFoundException('Appointment not found');
+
+        const slot = appointment.agendaSlot;
+        if (
+          appointment.branch.institutionId !== appointment.institutionId ||
+          appointment.service.institutionId !== appointment.institutionId ||
+          appointment.professional.institutionId !== appointment.institutionId ||
+          slot.availability.branch.institutionId !== appointment.institutionId ||
+          slot.availability.branchId !== appointment.branchId ||
+          slot.availability.serviceId !== appointment.serviceId ||
+          slot.availability.professionalId !== appointment.professionalId
+        ) {
+          throw new NotFoundException('Appointment not found');
+        }
+
+        // A retry must not release again or create another cancellation/history.
+        if (appointment.status.code === 'CANCELADA') {
+          return { data: mapAppointmentSummary(appointment) };
+        }
+        if (
+          appointment.status.code !== 'AGENDADA' || !appointment.status.active ||
+          appointment.status.isFinal || !appointment.status.allowsCancellation ||
+          slot.status !== SlotStatus.RESERVED
+        ) {
+          throw new ConflictException('Appointment cannot be cancelled');
+        }
+        const cancelledStatus = await tx.appointmentStatus.findUnique({
+          where: { code: 'CANCELADA' },
+          select: { id: true, code: true, active: true, isFinal: true, allowsCancellation: true, allowsConfirmation: true },
+        });
+        if (
+          !cancelledStatus || !cancelledStatus.active || !cancelledStatus.isFinal ||
+          cancelledStatus.allowsCancellation || cancelledStatus.allowsConfirmation
+        ) {
+          throw new ServiceUnavailableException('Cancellation status unavailable');
+        }
+
+        const released = await tx.agendaSlot.updateMany({
+          where: {
+            id: slot.id, status: SlotStatus.RESERVED, lockVersion: slot.lockVersion,
+            appointment: { is: {
+              id: appointmentId, userId: principal.userId,
+              deletedAt: null, statusId: appointment.statusId,
+            } },
+          },
+          // RELEASED is not public availability; the unique appointment remains attached.
+          data: { status: SlotStatus.RELEASED, lockVersion: { increment: 1 } },
+        });
+        if (released.count !== 1) throw new ConflictException('Appointment changed; retry cancellation');
+
+        const cancelled = await tx.appointment.updateMany({
+          where: {
+            id: appointmentId, userId: principal.userId, deletedAt: null,
+            agendaSlotId: slot.id, statusId: appointment.statusId,
+            status: { code: 'AGENDADA', active: true, isFinal: false, allowsCancellation: true },
+          },
+          data: { statusId: cancelledStatus.id },
+        });
+        if (cancelled.count !== 1) throw new ConflictException('Appointment changed; retry cancellation');
+
+        await tx.cancellation.create({
+          data: {
+            id: randomUUID(), appointmentId,
+            cancelledByUserId: principal.userId, releasesSlot: true,
+          },
+          select: { id: true },
+        });
+        await tx.appointmentHistory.create({
+          data: {
+            id: randomUUID(), appointmentId,
+            previousStatusId: appointment.statusId, newStatusId: cancelledStatus.id,
+            previousUserId: principal.userId, newUserId: principal.userId,
+            actorUserId: principal.userId,
+          },
+          select: { id: true },
+        });
+        return {
+          data: mapAppointmentSummary({ ...appointment, status: { code: cancelledStatus.code } }),
+        };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      const code = typeof error === 'object' && error !== null && 'code' in error
+        ? error.code : undefined;
+      if (code === 'P2034' && retrySerializationConflict) {
+        // A fresh transaction can observe a concurrent cancellation as an idempotent success.
+        return this.cancelWithRetry(appointmentId, principal, false);
+      }
+      if (code === 'P2002' || code === 'P2034' || code === 'P2003') {
+        throw new ConflictException('Cancellation conflict; retry cancellation');
+      }
+      throw new InternalServerErrorException('Unable to cancel appointment');
+    }
   }
 
   async reserve(agendaSlotId: string, principal: AuthenticatedPrincipal) {

@@ -20,7 +20,7 @@ Centralizar el catálogo y la disponibilidad, y preparar una reasignación segur
 
 | Componente | Estado verificable |
 | --- | --- |
-| API backend | En desarrollo: salud, autenticación/sesiones, base RBAC, catálogos, consulta de disponibilidad, reserva directa transaccional (HU-004) y consulta de mis citas (HU-005) |
+| API backend | En desarrollo: salud, autenticación/sesiones, base RBAC, catálogos, disponibilidad, reserva transaccional (HU-004), consulta propia (HU-005) y cancelación (HU-006) |
 | Persistencia | PostgreSQL y Prisma; 37 modelos y migraciones versionadas |
 | Aplicación web | Pendiente; `apps/web` aún no existe |
 | Aplicación de escritorio | Pendiente; `apps/desktop` aún no existe |
@@ -50,9 +50,13 @@ Web y escritorio consumirán el mismo backend. La autenticación, autorización,
 
 La API funcional usa el prefijo `/api/v1`; el endpoint técnico `GET /health` permanece sin prefijo.
 
-HU-004: `POST /api/v1/appointments` requiere Bearer token y recibe únicamente `{ "agendaSlotId": "UUID" }`. Devuelve `201` con `{ data: { id, agendaSlotId, institutionId, branchId, serviceId, professionalId, startsAt, endsAt, origin, status } }`. El backend fija usuario, origen `WEB` y estado `AGENDADA`; un conflicto de disponibilidad/concurrencia devuelve `409`. No ofrece aún cancelación.
+HU-004: `POST /api/v1/appointments` requiere Bearer token y recibe únicamente `{ "agendaSlotId": "UUID" }`. Devuelve `201` con `{ data: { id, agendaSlotId, institutionId, branchId, serviceId, professionalId, startsAt, endsAt, origin, status } }`. El backend fija usuario, origen `WEB` y estado `AGENDADA`; un conflicto de disponibilidad/concurrencia devuelve `409`.
 
 HU-005: `GET /api/v1/appointments/me` requiere Bearer token. No admite campos de query ni body (`400`); el usuario se obtiene exclusivamente del principal autenticado (`401` sin autenticación válida). Devuelve `200` con `{ data: [{ id, institutionId, status, startsAt, endsAt, origin, branch: { id, name }, service: { id, name }, professional: { id, firstNames, lastNames } }] }`, o `{ data: [] }`. `status` es el código almacenado; fechas ISO 8601 UTC. Orden: `startsAt ASC, id ASC`, sin paginación ni filtro temporal. Incluye citas propias pasadas y futuras sin cambiar estados; excluye citas eliminadas lógicamente y relaciones institucionales incoherentes. Conserva el historial aunque los catálogos estén inactivos. Los headers institucionales no seleccionan otro usuario ni amplían el acceso.
+
+HU-006: `POST /api/v1/appointments/:appointmentId/cancel` requiere Bearer token, UUID válido y no admite campos de query/body. Devuelve `200` con `{ data: appointment }` tanto al cancelar como al repetir una cancelación propia ya completada; `appointment` contiene exactamente los campos públicos de cada elemento de HU-005, con `status: "CANCELADA"`. Errores: `400` para input inválido, `401` sin autenticación válida, `404` indistinguible para cita inexistente/eliminada/ajena o relaciones incoherentes, `409` para estado no cancelable o conflicto concurrente no resuelto y `503` si el catálogo de cancelación falta o es incompatible. Sólo transiciona `AGENDADA` activa, no final y con `allowsCancellation: true` a `CANCELADA`. No se añade una ventana temporal ni se exige que los catálogos institucionales sigan activos para cancelar una cita propia coherente.
+
+La cancelación usa una transacción `Serializable`, cambios condicionales y `lockVersion`: `AgendaSlot` pasa de `RESERVED` a `RELEASED`, nunca a `AVAILABLE`. Conserva `Appointment.agendaSlotId UNIQUE`, propietario y cita; crea una `Cancellation` con actor y `releasesSlot: true` (liberación lógica, no disponibilidad pública), además del historial con estados anterior/nuevo y actor. Una cita ya cancelada devuelve su DTO sin nuevas escrituras. Ante `P2034` se reintenta una sola vez en una transacción nueva: si otra solicitud ya canceló, responde `200` sin duplicar efectos; si persiste el conflicto, responde `409`. HU-004 no reutiliza la cita cancelada; HU-005 sigue mostrándola a su dueño. No se crean reasignaciones ni ofertas: la futura reasignación podrá referenciar esta cancelación y transferir la cita existente.
 
 ## Estructura del monorepo
 
@@ -105,7 +109,7 @@ Con las migraciones aplicadas y `DATABASE_URL` configurada, provisionar el estad
 npm run --workspace @citajusta/api bootstrap:appointment-status
 ```
 
-El bootstrap es idempotente por código `AGENDADA` y conserva toda configuración existente. Omite `allowsConfirmation`, cuyo default del modelo es `false`. El endpoint no ejecuta el bootstrap: si el estado falta, está inactivo o es final, responde `503`.
+El bootstrap es idempotente por códigos `AGENDADA` y `CANCELADA` y conserva toda configuración existente. Para `AGENDADA` omite `allowsConfirmation`, cuyo default del modelo es `false`; `CANCELADA` se crea activa y final, con `allowsCancellation` y `allowsConfirmation` en `false`. Los endpoints no ejecutan el bootstrap: la reserva responde `503` si `AGENDADA` falta, está inactiva o es final; la cancelación responde `503` si `CANCELADA` falta, está inactiva, no es final o permite cancelar/confirmar.
 
 ## Variables de entorno
 
@@ -142,13 +146,13 @@ npm run --workspace @citajusta/api test:e2e:checkpoint
 
 El checkpoint E2E requiere PostgreSQL local accesible, esquema vigente y variables de entorno válidas. No usa mocks de Prisma ni de HTTP.
 
-E2E de HU-004 y HU-005, después del bootstrap:
+E2E de HU-004, HU-005 y HU-006, después del bootstrap:
 
 ```powershell
 npm run --workspace @citajusta/api test:e2e:appointments
 ```
 
-Verifica reserva, concurrencia real y rollback mediante inyección controlada de fallo en el historial; también consulta propia, aislamiento por usuario, DTO público, ordenamiento y ausencia de escrituras al consultar. Ambos E2E comparten fixtures y deben ejecutarse secuencialmente sobre una base local permitida; limpian sus propios datos al finalizar.
+Verifica reserva, concurrencia real y rollback mediante inyección controlada de fallo; también consulta propia, aislamiento por usuario, DTO público, ordenamiento, cancelación, historial, reintentos sin efectos y exclusión de cupos liberados de la disponibilidad pública. Ambos E2E comparten fixtures y deben ejecutarse secuencialmente sobre una base local permitida; limpian sus propios datos, incluidas cancelaciones, al finalizar.
 
 ## Docker
 
