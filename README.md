@@ -22,7 +22,7 @@ Centralizar el catálogo y la disponibilidad, y preparar una reasignación segur
 | --- | --- |
 | API backend | En desarrollo: salud, autenticación/sesiones, base RBAC, catálogos, disponibilidad, reserva transaccional (HU-004), consulta propia (HU-005) y cancelación (HU-006) |
 | Persistencia | PostgreSQL y Prisma; 37 modelos y migraciones versionadas |
-| Aplicación web | Pendiente; `apps/web` aún no existe |
+| Aplicación web | Fundación React/Vite en `apps/web`: Home responsive de demostración, todavía sin sesión ni conexión al backend |
 | Aplicación de escritorio | Pendiente; `apps/desktop` aún no existe |
 | Docker | Obligatorio para Capstone, pendiente de implementación |
 | Funciones críticas de citas, lista de espera y reasignación | Modelado de base presente; implementación funcional incompleta |
@@ -34,14 +34,14 @@ Centralizar el catálogo y la disponibilidad, y preparar una reasignación segur
 - NestJS y TypeScript para la API REST.
 - PostgreSQL con Prisma ORM.
 - JWT Access Token y Refresh Token; base de autorización RBAC.
-- React, Vite y TypeScript planificados para web.
+- React, Vite, TypeScript, Tailwind CSS, Lucide e Inter para web.
 - Tauri, React y TypeScript planificados para escritorio.
 - Git y GitHub.
 
 ## Arquitectura resumida
 
 ```text
-Web React/Vite (pendiente) ---------\
+Web React/Vite (base visual) -------\
                                       > API REST NestJS -> Prisma -> PostgreSQL
 Desktop Tauri/React (pendiente) ----/
 ```
@@ -63,7 +63,7 @@ La cancelación usa una transacción `Serializable`, cambios condicionales y `lo
 ```text
 apps/
   api/          # backend implementado
-  web/          # pendiente
+  web/          # fundación visual; integración API pendiente
   desktop/      # pendiente
 packages/       # reservado para necesidades compartidas reales
 docs/
@@ -131,6 +131,8 @@ npm run --workspace @citajusta/api start
 ```
 
 ## Pruebas
+
+Fundación web y comandos de desarrollo/validación: [apps/web/README.md](apps/web/README.md). Arranque local desde la raíz: `npm run --workspace @citajusta/web dev`. Home usa datos sintéticos señalizados; no inicia sesión ni consulta/reserva/cancela citas.
 
 Suite unitaria, aislada de PostgreSQL:
 
