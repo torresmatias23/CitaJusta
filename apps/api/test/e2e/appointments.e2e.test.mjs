@@ -9,7 +9,7 @@ import {
   createCheckpointFixtures, assertCheckpointIsClean,
 } from './fixture.mjs';
 
-test('HU-004/HU-005 real HTTP and PostgreSQL appointments', { timeout: 120_000 }, async (t) => {
+test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 120_000 }, async (t) => {
   loadApiEnvironment();
   assertSafeLocalDatabaseUrl(process.env.DATABASE_URL);
   process.env.NODE_ENV = 'test';
@@ -67,6 +67,10 @@ test('HU-004/HU-005 real HTTP and PostgreSQL appointments', { timeout: 120_000 }
     const originalSlot = await slot();
     const initialStatus = await prisma.appointmentStatus.findUnique({ where: { code: 'AGENDADA' } });
     assert.ok(initialStatus?.active && !initialStatus.isFinal, 'Run bootstrap:appointment-status before booking E2E');
+    const cancelledStatus = await prisma.appointmentStatus.findUnique({ where: { code: 'CANCELADA' } });
+    assert.ok(cancelledStatus?.active && cancelledStatus.isFinal &&
+      !cancelledStatus.allowsCancellation && !cancelledStatus.allowsConfirmation,
+    'Run bootstrap:appointment-status before cancellation E2E');
 
     function getMine(token, { query = '', body, headers = {} } = {}) {
       // node:http also permits testing forbidden GET bodies, unlike fetch.
@@ -96,11 +100,13 @@ test('HU-004/HU-005 real HTTP and PostgreSQL appointments', { timeout: 120_000 }
       });
     }
 
-    await t.test('bootstrap repeated against PostgreSQL preserves existing AGENDADA', async () => {
+    await t.test('bootstrap repeated against PostgreSQL preserves existing AGENDADA and CANCELADA', async () => {
       await bootstrapAppointmentStatus(prisma);
       await bootstrapAppointmentStatus(prisma);
       assert.equal(await prisma.appointmentStatus.count({ where: { code: 'AGENDADA' } }), 1);
       assert.deepEqual(await prisma.appointmentStatus.findUnique({ where: { code: 'AGENDADA' } }), initialStatus);
+      assert.equal(await prisma.appointmentStatus.count({ where: { code: 'CANCELADA' } }), 1);
+      assert.deepEqual(await prisma.appointmentStatus.findUnique({ where: { code: 'CANCELADA' } }), cancelledStatus);
     });
 
     await t.test('endpoint requires authentication and rejects body identity and origin', async () => {
@@ -388,6 +394,198 @@ test('HU-004/HU-005 real HTTP and PostgreSQL appointments', { timeout: 120_000 }
         assert.equal(currentOwner.body.data.some(({ id }) => id === past.id), true);
       } finally {
         await prisma.appointment.update({ where: { id: past.id }, data: { userId: listingUser.id } });
+      }
+    });
+
+    const cancel = (id, token = listingUser.token, body, query = '') =>
+      post(`/api/v1/appointments/${id}/cancel${query}`, body, token);
+    const cancellationSnapshot = async (id) => ({
+      appointment: await prisma.appointment.findUniqueOrThrow({ where: { id } }),
+      slot: await prisma.agendaSlot.findFirstOrThrow({ where: { appointment: { id } } }),
+      history: await prisma.appointmentHistory.findMany({ where: { appointmentId: id }, orderBy: { id: 'asc' } }),
+      cancellations: await prisma.cancellation.findMany({ where: { appointmentId: id }, orderBy: { id: 'asc' } }),
+    });
+
+    await t.test('HU-006 requires authentication and rejects identity or functional fields in every input', async () => {
+      const before = await cancellationSnapshot(future.id);
+      assert.equal((await cancel(future.id, null)).status, 401);
+      assert.equal((await cancel(future.id, 'invalid-token')).status, 401);
+      assert.equal((await cancel('invalid-id')).status, 400);
+      for (const fields of [
+        { userId: first.id }, { institutionId: ids.institutionB },
+        { status: 'CANCELADA' }, { reason: 'not-supported' },
+      ]) {
+        assert.equal((await cancel(future.id, listingUser.token, fields)).status, 400);
+        assert.equal((await cancel(future.id, listingUser.token, undefined, `?${new URLSearchParams(fields)}`)).status, 400);
+      }
+      assert.deepEqual(await cancellationSnapshot(future.id), before);
+    });
+
+    await t.test('HU-006 missing, soft-deleted and foreign appointments have the same non-disclosing 404', async () => {
+      const before = await cancellationSnapshot(future.id);
+      const outcomes = [await cancel(ids.missing), await cancel(deleted.id), await cancel(future.id, first.token)];
+      assert.deepEqual(outcomes.map(({ status }) => status), [404, 404, 404]);
+      assert.deepEqual(outcomes[0].body, outcomes[1].body);
+      assert.deepEqual(outcomes[0].body, outcomes[2].body);
+      assert.equal(outcomes[0].body.message, 'Appointment not found');
+      assert.deepEqual(await cancellationSnapshot(future.id), before);
+    });
+
+    await t.test('HU-006 rejects a non-cancelable state and non-RESERVED slot without side effects', async () => {
+      const otherStatus = await prisma.appointmentStatus.create({
+        data: {
+          id: randomUUID(), code: `E2E_CHECKPOINT_${randomUUID()}`, name: 'E2E_CHECKPOINT final',
+          active: true, isFinal: true, allowsCancellation: false,
+        },
+      });
+      try {
+        await prisma.appointment.update({ where: { id: future.id }, data: { statusId: otherStatus.id } });
+        const before = await cancellationSnapshot(future.id);
+        assert.equal((await cancel(future.id)).status, 409);
+        assert.deepEqual(await cancellationSnapshot(future.id), before);
+      } finally {
+        await prisma.appointment.update({ where: { id: future.id }, data: { statusId: initialStatus.id } });
+        await prisma.appointmentStatus.delete({ where: { id: otherStatus.id } });
+      }
+      await prisma.agendaSlot.update({ where: { id: future.agendaSlotId }, data: { status: 'BLOCKED' } });
+      try {
+        const before = await cancellationSnapshot(future.id);
+        assert.equal((await cancel(future.id)).status, 409);
+        assert.deepEqual(await cancellationSnapshot(future.id), before);
+      } finally {
+        await prisma.agendaSlot.update({ where: { id: future.agendaSlotId }, data: { status: 'RESERVED' } });
+      }
+    });
+
+    await t.test('HU-006 never modifies a slot through incoherent tenant or appointment relations', async () => {
+      for (const data of [
+        { institutionId: ids.institutionB }, { branchId: ids.branchB1 },
+        { serviceId: ids.serviceB }, { professionalId: ids.professionalB },
+        { branchId: ids.branchA2 },
+      ]) {
+        await prisma.appointment.update({ where: { id: future.id }, data });
+        try {
+          const before = await cancellationSnapshot(future.id);
+          assert.equal((await cancel(future.id)).status, 404);
+          assert.deepEqual(await cancellationSnapshot(future.id), before);
+        } finally {
+          await prisma.appointment.update({
+            where: { id: future.id },
+            data: {
+              institutionId: future.institutionId, branchId: future.branchId,
+              serviceId: future.serviceId, professionalId: future.professionalId,
+            },
+          });
+        }
+      }
+    });
+
+    await t.test('HU-006 PostgreSQL rolls back slot, appointment and cancellation when an intermediate write fails', async () => {
+      const originalTransaction = prisma.$transaction.bind(prisma);
+      for (const failOn of ['cancellation', 'appointmentHistory']) {
+        const before = await cancellationSnapshot(future.id);
+        // Only inject the failure; all preceding SQL and the rollback are real.
+        prisma.$transaction = (work, options) => originalTransaction((tx) => work(new Proxy(tx, {
+          get(target, key) {
+            if (key === failOn) {
+              return new Proxy(target[key], {
+                get(delegate, method) {
+                  if (method === 'create') return async () => { throw new Error('injected-cancellation-storage-failure'); };
+                  return Reflect.get(delegate, method);
+                },
+              });
+            }
+            return Reflect.get(target, key);
+          },
+        })), options);
+        try {
+          const response = await cancel(future.id);
+          assert.equal(response.status, 500);
+          assert.equal(response.body.message, 'Unable to cancel appointment');
+          assert.equal(JSON.stringify(response.body).includes('injected'), false);
+        } finally { prisma.$transaction = originalTransaction; }
+        assert.deepEqual(await cancellationSnapshot(future.id), before);
+      }
+    });
+
+    await t.test('HU-006 cancels an owned appointment with history and keeps it visible only to its owner', async () => {
+      const before = await cancellationSnapshot(tied.id);
+      const response = await post(`/api/v1/appointments/${tied.id}/cancel`, undefined, listingUser.token, {
+        'x-institution-id': ids.institutionB,
+      });
+      assert.equal(response.status, 200);
+      assert.deepEqual(Object.keys(response.body), ['data']);
+      assert.deepEqual(Object.keys(response.body.data).sort(), [
+        'id', 'institutionId', 'status', 'startsAt', 'endsAt', 'origin',
+        'branch', 'service', 'professional',
+      ].sort());
+      assert.deepEqual(Object.keys(response.body.data.branch).sort(), ['id', 'name']);
+      assert.deepEqual(Object.keys(response.body.data.service).sort(), ['id', 'name']);
+      assert.deepEqual(Object.keys(response.body.data.professional).sort(), ['firstNames', 'id', 'lastNames']);
+      assert.equal(response.body.data.status, 'CANCELADA');
+      const after = await cancellationSnapshot(tied.id);
+      assert.equal(after.appointment.statusId, cancelledStatus.id);
+      assert.equal(after.appointment.id, before.appointment.id);
+      assert.equal(after.appointment.userId, before.appointment.userId);
+      assert.equal(after.appointment.agendaSlotId, before.slot.id);
+      assert.equal(after.appointment.deletedAt, null);
+      assert.equal(after.slot.status, 'RELEASED');
+      assert.equal(after.slot.lockVersion, before.slot.lockVersion + 1);
+      assert.equal(after.history.length, before.history.length + 1);
+      const history = after.history.find((row) => row.newStatusId === cancelledStatus.id);
+      assert.equal(history.previousStatusId, initialStatus.id);
+      assert.equal(history.previousUserId, listingUser.id);
+      assert.equal(history.newUserId, listingUser.id);
+      assert.equal(history.actorUserId, listingUser.id);
+      assert.equal(after.cancellations.length, 1);
+      assert.equal(after.cancellations[0].cancelledByUserId, listingUser.id);
+      assert.equal(after.cancellations[0].releasesSlot, true);
+      assert.equal(after.cancellations[0].cancellationReasonId, null);
+      assert.equal(after.cancellations[0].comment, null);
+      const mine = await getMine(listingUser.token);
+      assert.equal(mine.status, 200);
+      assert.deepEqual(response.body.data, mine.body.data.find(({ id }) => id === tied.id));
+      assert.deepEqual(await cancel(tied.id), response);
+      assert.deepEqual(await cancellationSnapshot(tied.id), after);
+      assert.equal((await getMine(first.token)).body.data.some(({ id }) => id === tied.id), false);
+      assert.equal((await cancel(tied.id, first.token)).status, 404);
+    });
+
+    await t.test('HU-006 concurrent cancellations produce exactly one effective change and retries have no writes', async () => {
+      const before = await cancellationSnapshot(future.id);
+      const responses = await Promise.all([cancel(future.id), cancel(future.id)]);
+      const statuses = responses.map(({ status }) => status).sort();
+      assert.deepEqual(statuses, [200, 200]);
+      assert.deepEqual(responses[0].body, responses[1].body);
+      assert.equal(responses[0].body.data.id, future.id);
+      assert.equal(responses[0].body.data.status, 'CANCELADA');
+      const after = await cancellationSnapshot(future.id);
+      assert.equal(after.appointment.statusId, cancelledStatus.id);
+      assert.equal(after.appointment.userId, listingUser.id);
+      assert.equal(after.appointment.agendaSlotId, before.slot.id);
+      assert.equal(after.slot.status, 'RELEASED');
+      assert.equal(after.slot.lockVersion, before.slot.lockVersion + 1);
+      assert.equal(after.cancellations.length, 1);
+      assert.equal(after.history.length, before.history.length + 1);
+      assert.equal(after.history.filter((row) => row.newStatusId === cancelledStatus.id).length, 1);
+      assert.deepEqual(await cancel(future.id), responses[0]);
+      assert.deepEqual(await cancel(future.id), responses[0]);
+      assert.deepEqual(await cancellationSnapshot(future.id), after);
+      t.diagnostic(`Concurrent cancellation HTTP statuses: ${statuses.join(', ')}; one cancellation/history/version increment`);
+    });
+
+    await t.test('HU-006 released slots stay outside public availability and HU-004 cannot create another appointment', async () => {
+      for (const row of [future, tied]) {
+        const before = await cancellationSnapshot(row.id);
+        const url = `/api/v1/branches/${row.branchId}/services/${row.serviceId}/availability?${new URLSearchParams(range)}`;
+        const response = await fetch(`${baseUrl}${url}`, { headers: { authorization: `Bearer ${listingUser.token}` } });
+        assert.equal(response.status, 200);
+        assert.equal((await response.json()).data.some(({ id }) => id === row.agendaSlotId), false);
+        assert.equal((await book(row.agendaSlotId, listingUser.token)).status, 409);
+        assert.equal((await book(row.agendaSlotId, first.token)).status, 409);
+        assert.equal(await prisma.appointment.count({ where: { agendaSlotId: row.agendaSlotId } }), 1);
+        assert.equal(await prisma.reassignment.count({ where: { appointmentId: row.id } }), 0);
+        assert.deepEqual(await cancellationSnapshot(row.id), before);
       }
     });
   } finally {

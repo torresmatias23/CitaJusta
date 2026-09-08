@@ -325,6 +325,7 @@ export async function cleanupCheckpointFixtures(prisma) {
   const relatedAvailabilityIds = relatedAvailabilities.map(({ id }) => id);
 
   await prisma.$transaction([
+    prisma.cancellation.deleteMany({ where: { appointmentId: { in: appointmentIds } } }),
     prisma.appointmentHistory.deleteMany({
       where: { appointmentId: { in: appointmentIds } },
     }),
