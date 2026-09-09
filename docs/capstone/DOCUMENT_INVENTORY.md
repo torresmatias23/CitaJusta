@@ -1,87 +1,155 @@
-# Inventario documental
+﻿# Inventario documental
 
-Inventario verificado al 3 de septiembre de 2026. La línea base incluía cuatro documentos Markdown versionados y una plantilla técnica de entorno. Esta revisión incorpora seis documentos DOCX académicos reales; siguen sujetos a validación editorial y de vigencia.
+**Proyecto:** CitaJusta
+**Fecha de actualización:** 9 de septiembre de 2026
+**Estado:** VIGENTE / EN ACTUALIZACIÓN DOCUMENTAL
 
-## Documentos y artefactos preexistentes
+Este inventario registra los documentos, artefactos técnicos y evidencias académicas actualmente presentes o preparados para el proyecto CitaJusta. La versión anterior correspondía al 3 de septiembre de 2026 y quedó desactualizada después de la implementación de la aplicación web, la integración con la API, la ampliación de pruebas y el uso real de GitHub Projects, Issues y Pull Requests.
 
-| Nombre | Ruta | Propósito | Requisito Capstone que cubre | Reutilizable | Requiere actualización | Destino propuesto |
-| --- | --- | --- | --- | --- | --- | --- |
-| Memoria operativa | `AGENTS.md` | Reglas para agentes, arquitectura, seguridad y trabajo incremental | Apoyo a arquitectura, RNF y gobernanza técnica | Sí | Sí; contiene referencias de estado inicial ya superadas | Mantener en raíz y referenciar desde manual técnico |
-| Arquitectura | `docs/development/ARCHITECTURE.md` | Arquitectura, dominios y flujo crítico | Arquitectura; diseño, componentes y RNF parciales | Sí | Sí; distinguir mejor estado actual y objetivo | Mantener canónico y referenciar desde evidencia de documentación de Fase 2 |
-| Decisiones técnicas | `docs/development/DECISIONS.md` | Decisiones acordadas de stack y arquitectura | Documento de diseño parcial | Sí | Sí, cuando se definan las decisiones de implementación de Docker exigidas por Capstone | Mantener canónico y referenciar desde evidencia de documentación de Fase 2 |
-| Entorno de desarrollo | `docs/development/SETUP.md` | Versiones locales verificadas | Manual técnico parcial | Sí | Sí; la frase que niega dependencias, workspaces y scripts está obsoleta | Integrar en manual técnico de Fase 2 |
-| Plantilla de entorno | `apps/api/.env.example` | Contrato ficticio de configuración del backend | Variables de entorno | Sí | No actualmente | Mantener junto a la API y enlazar desde README/manual técnico |
+## Documentos y artefactos técnicos vigentes
+
+| Nombre | Ruta | Propósito | Estado actual | Requiere actualización |
+| --- | --- | --- | --- | --- |
+| Memoria operativa | `AGENTS.md` | Reglas para agentes, arquitectura, seguridad y trabajo incremental | VIGENTE COMO APOYO | Sí; revisar referencias de estado inicial y scripts cuando corresponda |
+| Arquitectura | `docs/development/ARCHITECTURE.md` | Arquitectura, dominios y flujo crítico | PARCIAL / REUTILIZABLE | Sí; diferenciar con claridad estado implementado y objetivo |
+| Decisiones técnicas | `docs/development/DECISIONS.md` | Decisiones de stack y arquitectura | PARCIAL / REUTILIZABLE | Sí; incorporar decisiones posteriores y Docker cuando se implemente |
+| Entorno de desarrollo | `docs/development/SETUP.md` | Instalación y configuración local | PARCIAL / REUTILIZABLE | Sí; alinear con Node, PostgreSQL, workspaces y flujo actual |
+| Plantilla API | `apps/api/.env.example` | Variables de entorno ficticias del backend | VIGENTE | Mantener al agregar nuevas variables |
+| Plantilla Web | `apps/web/.env.example` | Configuración del frontend y proxy local | VIGENTE | Mantener al agregar nuevas variables |
+| README Web | `apps/web/README.md` | Uso y estado de la aplicación web | VIGENTE | Mantener junto con nuevas funcionalidades |
+| Prisma schema | `apps/api/prisma/schema.prisma` | Modelo de datos relacional | IMPLEMENTADO | Mantener trazabilidad con ER y normalización |
+| Migraciones Prisma | `apps/api/prisma/migrations/` | Evolución versionada de la base de datos | IMPLEMENTADO | Mantener por cada cambio estructural |
+| Aplicación Web | `apps/web/` | Frontend React/Vite integrado con la API | IMPLEMENTADO Y VALIDADO | Continuar con nuevas historias |
+| API Backend | `apps/api/` | Backend NestJS, seguridad, catálogos, citas y persistencia | IMPLEMENTADO Y VALIDADO | Continuar con HU pendientes |
 
 ## Documentos académicos incorporados
 
-| Nombre | Ruta | Versión | Requisito que cubre | Nivel de reutilización | Actualización necesaria | Destino académico |
-| --- | --- | --- | --- | --- | --- | --- |
-| Documento Base CitaJusta | `Fase 2/Evidencias Proyecto/Evidencias de documentación/Documento_Base_CitaJusta.docx` | No declarada; indica “Versión base” | Documento Base, visión, alcance, arquitectura, API, datos, seguridad, Scrum e innovación | Alta como fuente; media como entregable final | Incorporar versión, fecha, estado y autores; separar decisiones vigentes de propuestas; alinear `apps/backend` con `apps/api`, `/auth/me` con `/users/me` y el modelo sugerido con la implementación real | Formulación/Documento Base y fuente transversal para Fase 2 |
-| Justificación del Proyecto | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Justificacion_del_Proyecto_v0.1.docx` | 0.1, borrador inicial, 23-08-2026 | Justificación, problema, beneficiarios, valor, impacto, innovación y pertinencia académica | Alta como contenido; media-alta como entregable | Validar integrantes; aprobar versión; agregar sustento y normativa aplicable si la pauta los exige; enlazar requisitos y evidencia real | Justificación y formulación del proyecto |
-| Requisitos Funcionales | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Requisitos_Funcionales_v0.1.docx` | 0.1, borrador inicial, 24-08-2026 | RF-001 a RF-038 y flujo mínimo del MVP | Alta | Agregar criterios de aceptación y trazabilidad efectiva a PBI/HU, sprint, prueba y evidencia; normalizar el orden de RF-038 | Requisitos y fuente para Product Backlog |
-| Arquitectura de Software | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_de_Software_v0.1.docx` | 0.1, borrador inicial, 25-08-2026 | Arquitectura de software, módulos, persistencia, seguridad, multi-tenant y flujo crítico | Alta | Aprobar y actualizar contra el estado real; enlazar ADR, API, modelo de datos y pruebas; no presentar decisiones futuras como implementadas | Diseño y arquitectura de Fase 2 |
-| Arquitectura APIs | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_APIs_v0.1.docx` | 0.1, borrador inicial, 25-08-2026 | Arquitectura REST, `/api/v1`, contratos, seguridad, concurrencia y pruebas previstas | Alta como especificación | Separar endpoints implementados de planificados; enlazar OpenAPI y pruebas cuando existan; aclarar con el docente “5 APIs / al menos 2 propias” | Diseño de API de Fase 2 |
-| Stack Tecnológico | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Stack_Tecnologico_v0.1.docx` | 0.1, borrador inicial, 25-08-2026 | Selección y justificación de tecnologías, monorepo, seguridad y QA | Alta como línea base; media como estado actual | Distinguir tecnologías implementadas de previstas y crear una versión actualizada que incorpore Docker como exigencia Capstone vigente | Stack y decisiones técnicas de Fase 2 |
+| Nombre | Ruta | Versión | Estado | Actualización necesaria |
+| --- | --- | --- | --- | --- |
+| Documento Base CitaJusta | `Fase 2/Evidencias Proyecto/Evidencias de documentación/Documento_Base_CitaJusta.docx` | No declarada; indica “Versión base” | PARCIAL | Agregar versión, fecha, autores y reconciliar contenido con implementación real |
+| Justificación del Proyecto | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Justificacion_del_Proyecto_v0.1.docx` | 0.1, 23-08-2026 | PARCIAL | Validar integrantes, aprobar versión y enlazar evidencia real |
+| Requisitos Funcionales | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Requisitos_Funcionales_v0.1.docx` | 0.1, 24-08-2026 | PARCIAL | Agregar criterios de aceptación y trazabilidad con HU, Sprint y pruebas |
+| Arquitectura de Software | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_de_Software_v0.1.docx` | 0.1, 25-08-2026 | PARCIAL | Actualizar contra el estado real de Web, API, BD y pruebas |
+| Arquitectura APIs | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_APIs_v0.1.docx` | 0.1, 25-08-2026 | PARCIAL | Separar endpoints implementados y planificados; enlazar pruebas |
+| Stack Tecnológico | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Stack_Tecnologico_v0.1.docx` | 0.1, 25-08-2026 | PARCIAL | Actualizar tecnologías efectivamente implementadas y exigencias Docker |
 
-## Consistencia documental
+Los seis DOCX continúan siendo evidencia útil, pero no deben considerarse versiones finales mientras conserven decisiones superadas o contenido aspiracional no reconciliado con el código actual.
 
-Los cinco documentos v0.1 identifican la misma nómina: Matías Andrés Torres, Bastian Sepúlveda y Diego Simon. El Documento Base no identifica integrantes y el README aún no contiene una nómina y roles validados. No se detectaron nombres divergentes entre los documentos que sí los declaran, pero la identidad y los roles deben confirmarse antes de unificar los artefactos o publicar.
+## Documentos de control Capstone
 
-El Stack Tecnológico v0.1 incluyó “Contenedores Docker como requisito obligatorio del entorno local” entre las tecnologías no comprometidas en esa versión. Esa decisión queda supersedida por la pauta Capstone vigente, que exige Docker. El DOCX permanece sin cambios y queda pendiente crear una versión actualizada.
+| Nombre | Ruta | Propósito | Estado al 09-09-2026 |
+| --- | --- | --- | --- |
+| Guía Capstone | `docs/capstone/README.md` | Organización y criterios de cumplimiento | REQUIERE REVISIÓN |
+| Matriz de cumplimiento | `docs/capstone/CAPSTONE_COMPLIANCE_MATRIX.md` | Trazar requisitos, evidencia y brechas | REQUIERE ACTUALIZACIÓN |
+| Inventario documental | `docs/capstone/DOCUMENT_INVENTORY.md` | Registrar documentos y faltantes | ACTUALIZADO EN ESTA REVISIÓN |
+| Checklist de publicación | `docs/capstone/PUBLICATION_CHECKLIST.md` | Seguridad, publicación y preparación de entrega | ACTUALIZADO EN ESTA REVISIÓN |
+| Evidencia Scrum con GitHub | `docs/capstone/GITHUB_SCRUM_EVIDENCE.md` | Trazabilidad con Issues, Project, branches y PR | ACTUALIZADO EN ESTA REVISIÓN |
 
-## Documentos creados en esta fase
+## Evidencia técnica verificable
 
-| Nombre | Ruta | Propósito | Requisito Capstone que cubre | Reutilizable | Requiere actualización | Destino propuesto |
-| --- | --- | --- | --- | --- | --- | --- |
-| README principal | `README.md` | Presentación, estado, instalación y navegación del proyecto | README y manual técnico parcial | Sí | Sí; faltan identidad/roles validados, licencia y componentes pendientes | Raíz |
-| Guía Capstone | `docs/capstone/README.md` | Criterios, estado y planificación académica | Organización y compliance | Sí | Sí, en cada hito | Mantener en `docs/capstone/` |
-| Matriz de cumplimiento | `docs/capstone/CAPSTONE_COMPLIANCE_MATRIX.md` | Trazar requisitos, evidencia y brechas | Control de cumplimiento | Sí | Sí, en cada hito | Mantener en `docs/capstone/` |
-| Inventario documental | `docs/capstone/DOCUMENT_INVENTORY.md` | Registrar documentos reales y faltantes | Gestión documental | Sí | Sí, al incorporar evidencia | Mantener en `docs/capstone/` |
-| Checklist de publicación | `docs/capstone/PUBLICATION_CHECKLIST.md` | Controlar una futura publicación segura | GitHub público y seguridad | Sí | Sí, antes de publicar | Mantener en `docs/capstone/` |
-| Estrategia Scrum en GitHub | `docs/capstone/GITHUB_SCRUM_EVIDENCE.md` | Definir trazabilidad con Issues, sprints y PR | Scrum y evidencia grupal | Sí | Sí, al aprobar convenciones | Evidencias grupales y referencia operativa |
-| Índice Fase 1 | `Fase 1/README.md` | Delimitar evidencia de la fase | Organización Fase 1 | Sí | Sí, al incorporar entregables | `Fase 1/` |
-| Evidencias individuales Fase 1 | `Fase 1/Evidencias Individuales/README.md` | Reservar y normalizar entregables personales | Evidencias individuales | Sí | Sí | Misma carpeta |
-| Evidencias grupales Fase 1 | `Fase 1/Evidencias Grupales/README.md` | Reservar entregables del equipo | Evidencias grupales y Scrum | Sí | Sí | Misma carpeta |
-| Índice Fase 2 | `Fase 2/README.md` | Delimitar evidencia de la fase | Organización Fase 2 | Sí | Sí | `Fase 2/` |
-| Evidencias individuales Fase 2 | `Fase 2/Evidencias Individuales/README.md` | Reservar y normalizar entregables personales | Evidencias individuales | Sí | Sí | Misma carpeta |
-| Evidencias grupales Fase 2 | `Fase 2/Evidencias Grupales/README.md` | Reservar entregables del equipo | Evidencias grupales y Scrum | Sí | Sí | Misma carpeta |
-| Evidencias de proyecto Fase 2 | `Fase 2/Evidencias Proyecto/README.md` | Organizar documentación y sistema | Evidencias del proyecto | Sí | Sí | Misma carpeta |
-| Evidencias de documentación | `Fase 2/Evidencias Proyecto/Evidencias de documentación/README.md` | Reservar diseño, manuales y diagramas | Diseño, manual técnico, ER, UML y RNF | Sí | Sí | Misma carpeta |
-| Evidencias de sistema | `Fase 2/Evidencias Proyecto/Evidencias de sistema/README.md` | Organizar evidencia ejecutable | Aplicación, BD y pruebas | Sí | Sí | Misma carpeta |
-| Evidencia de aplicación | `Fase 2/Evidencias Proyecto/Evidencias de sistema/Aplicación/README.md` | Reservar evidencia web, desktop, Docker y pruebas | Aplicación y despliegue | Sí | Sí | Misma carpeta |
-| Evidencia de base de datos | `Fase 2/Evidencias Proyecto/Evidencias de sistema/Base de datos/README.md` | Reservar ER, migraciones y normalización | Base de datos relacional | Sí | Sí | Misma carpeta |
-| Índice Fase 3 | `Fase 3/README.md` | Delimitar evidencia de la fase final | Organización Fase 3 | Sí | Sí | `Fase 3/` |
-| Evidencias individuales Fase 3 | `Fase 3/Evidencias Individuales/README.md` | Reservar y normalizar entregables personales | Evidencias individuales | Sí | Sí | Misma carpeta |
-| Evidencias grupales Fase 3 | `Fase 3/Evidencias Grupales/README.md` | Reservar cierre y presentación del equipo | Evidencias grupales y presentación final | Sí | Sí | Misma carpeta |
+La documentación debe mantenerse alineada con la siguiente evidencia real:
 
-Los README de las carpetas académicas son marcadores de estructura; no constituyen por sí mismos evidencia de cumplimiento.
+| Evidencia | Resultado |
+| --- | --- |
+| Backend tests | 114/114 PASS |
+| E2E appointments | 22/22 PASS |
+| Checkpoint E2E backend | 1/1 PASS |
+| Web tests | 39/39 PASS |
+| Web typecheck | PASS |
+| Web build | PASS |
+| Web/API/PostgreSQL E2E | 13/13 PASS |
+| Flujo manual | Registro → Login → Catálogos → Disponibilidad → Reserva → Confirmación → Mis citas → Cancelación → Logout |
+| Integración Web | PR #43 mergeado a `main` |
 
-## Pendiente de completar o incorporar
+## Evidencia Scrum y GitHub
 
-Los siguientes entregables finales o complementarios aún no están incorporados o no cuentan con evidencia completa:
+El estado actual ya no corresponde a una propuesta de uso futuro. El proyecto utiliza:
+
+- GitHub Issues para historias y tareas.
+- GitHub Projects como Kanban.
+- Columnas `Backlog`, `Ready`, `In Progress`, `Review`, `Testing` y `Done`.
+- Branches por funcionalidad o tarea.
+- Pull Requests para revisión e integración.
+- Resultados de pruebas como evidencia previa al merge.
+
+La integración web fue desarrollada en `feat/web-api-integration` e incorporada mediante el Pull Request #43.
+
+## Estructura académica existente
+
+| Ruta | Propósito | Estado |
+| --- | --- | --- |
+| `Fase 1/Evidencias Individuales/` | Entregables personales de Fase 1 | ESTRUCTURA PRESENTE |
+| `Fase 1/Evidencias Grupales/` | Planificación y entregables grupales de Fase 1 | ESTRUCTURA PRESENTE / EVIDENCIA POR INCORPORAR |
+| `Fase 2/Evidencias Individuales/` | Entregables personales de Fase 2 | ESTRUCTURA PRESENTE |
+| `Fase 2/Evidencias Grupales/` | Seguimiento, Scrum, pruebas y avance grupal | ESTRUCTURA PRESENTE / EVIDENCIA POR INCORPORAR |
+| `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Arquitectura, requisitos, diseño, manuales y diagramas | CONTIENE 6 DOCX TÉCNICOS |
+| `Fase 2/Evidencias Proyecto/Evidencias de sistema/Aplicación/` | Evidencia de Web, Desktop, Docker y pruebas | ESTRUCTURA PRESENTE / DEBE ACTUALIZARSE |
+| `Fase 2/Evidencias Proyecto/Evidencias de sistema/Base de datos/` | Evidencia de BD, ER, migraciones y normalización | ESTRUCTURA PRESENTE / DEBE ACTUALIZARSE |
+| `Fase 3/Evidencias Individuales/` | Evidencia personal final | ESTRUCTURA PRESENTE |
+| `Fase 3/Evidencias Grupales/` | Cierre y presentación final | ESTRUCTURA PRESENTE |
+
+Los README de estructura no constituyen por sí solos evidencia de cumplimiento.
+
+## Documentos académicos preparados y aún por incorporar al repositorio
+
+A la fecha existen versiones de trabajo preparadas fuera de la estructura versionada y deben incorporarse en una pasada documental controlada:
 
 | Documento | Estado | Destino propuesto |
 | --- | --- | --- |
-| Product Vision formal | PENDIENTE DE INCORPORAR | `Fase 1/Evidencias Grupales/` |
-| Product Backlog priorizado | PENDIENTE DE INCORPORAR | `Fase 1/Evidencias Grupales/` |
-| Definition of Done | PENDIENTE DE INCORPORAR | `Fase 1/Evidencias Grupales/` |
-| Sprint Backlog por sprint | PENDIENTE DE INCORPORAR | Evidencias grupales de la fase correspondiente |
-| Retrospectiva por sprint | PENDIENTE DE INCORPORAR | Evidencias grupales de la fase correspondiente |
-| Plan y evidencia de pruebas por sprint | PENDIENTE DE INCORPORAR | Evidencias grupales de la fase correspondiente |
-| Documento de diseño consolidado | PENDIENTE DE INCORPORAR | Evidencias de documentación de Fase 2 |
-| Manual técnico completo | PENDIENTE DE INCORPORAR | Evidencias de documentación de Fase 2 |
-| Modelo ER | PENDIENTE DE INCORPORAR | Evidencias de documentación de Fase 2 |
-| Evidencia de normalización | PENDIENTE DE INCORPORAR | Evidencias de documentación/Base de datos de Fase 2 |
-| UML de casos de uso | PENDIENTE DE INCORPORAR | Evidencias de documentación de Fase 2 |
-| UML de clases | PENDIENTE DE INCORPORAR | Evidencias de documentación de Fase 2 |
-| UML de secuencia | PENDIENTE DE INCORPORAR | Evidencias de documentación de Fase 2 |
-| UML de componentes | PENDIENTE DE INCORPORAR | Evidencias de documentación de Fase 2 |
-| Catálogo medible de requisitos no funcionales | PENDIENTE DE INCORPORAR | Evidencias de documentación de Fase 2 |
-| Informes de rendimiento y seguridad | PENDIENTE DE INCORPORAR | Evidencias de pruebas de Fase 2 |
-| Evidencia funcional de innovación | PARCIAL; existe sustento documental, falta evidencia funcional | Evidencias de documentación/sistema de Fase 2 |
-| Evidencias individuales y grupales reales | PENDIENTE DE INCORPORAR | Carpetas académicas de cada fase |
-| Presentación final | PENDIENTE DE INCORPORAR | `Fase 3/Evidencias Grupales/` |
-| Licencia | PENDIENTE DE DEFINIR | Raíz |
-| Guías, formularios y planillas oficiales | PENDIENTE DOCENTE | Ubicación indicada por el docente |
+| Declaración de Nivel de Avance | PREPARADO / PENDIENTE DE INCORPORAR | Evidencia académica correspondiente |
+| Acta de Constitución del Proyecto | DISPONIBLE SEGÚN DOCUMENTACIÓN DEL EQUIPO / REVISAR VERSIÓN | `Fase 1/Evidencias Grupales/` |
+| Alcances del Proyecto | PREPARADO / PENDIENTE DE INCORPORAR | `Fase 1/Evidencias Grupales/` |
+| Product Backlog priorizado | PREPARADO / PENDIENTE DE INCORPORAR | `Fase 1/Evidencias Grupales/` |
+| Sprint Backlog Sprint 4 | EXISTENTE COMO EVIDENCIA HISTÓRICA / PENDIENTE DE INCORPORAR | Evidencias grupales de la fase correspondiente |
+| Sprint Backlog Sprint 5 | PREPARADO / PENDIENTE DE INCORPORAR | `Fase 2/Evidencias Grupales/` |
+| Burndown Sprint 4 | PREPARADO / PENDIENTE DE INCORPORAR | `Fase 2/Evidencias Grupales/` |
+| Release Plan | PREPARADO / PENDIENTE DE INCORPORAR | `Fase 2/Evidencias Grupales/` |
+| Revisión Daily Meeting | PREPARADO / PENDIENTE DE INCORPORAR | `Fase 2/Evidencias Grupales/` |
+| Registro Daily Scrum | PLANTILLA DISPONIBLE; SIN DATOS INVENTADOS | `Fase 2/Evidencias Grupales/` |
 
-No se crearán sustitutos para documentación oficial de Duoc ni contenido personal no proporcionado.
+## Pendientes documentales y técnicos
+
+| Documento / Evidencia | Estado | Destino propuesto |
+| --- | --- | --- |
+| Product Vision formal | PENDIENTE DE INCORPORAR O FORMALIZAR | `Fase 1/Evidencias Grupales/` |
+| Definition of Done | PENDIENTE DE FORMALIZAR | `Fase 1/Evidencias Grupales/` |
+| Retrospectiva por sprint | PENDIENTE | Evidencias grupales de la fase correspondiente |
+| Plan y evidencia de pruebas por sprint | PARCIAL; existen pruebas, falta consolidación académica | `Fase 2/Evidencias Grupales/` |
+| Documento de diseño consolidado | PENDIENTE | Evidencias de documentación de Fase 2 |
+| Manual técnico completo | PENDIENTE | Evidencias de documentación de Fase 2 |
+| Modelo ER formal | PENDIENTE; el modelo relacional sí existe | Evidencias de documentación / Base de datos |
+| Evidencia de normalización | PENDIENTE | Evidencias de documentación / Base de datos |
+| UML de casos de uso | PENDIENTE | Evidencias de documentación de Fase 2 |
+| UML de clases | PENDIENTE | Evidencias de documentación de Fase 2 |
+| UML de secuencia | PENDIENTE | Evidencias de documentación de Fase 2 |
+| UML de componentes | PENDIENTE | Evidencias de documentación de Fase 2 |
+| Requisitos no funcionales medibles | PENDIENTE DE CONSOLIDAR | Evidencias de documentación de Fase 2 |
+| Informe de rendimiento | PENDIENTE | Evidencias de pruebas de Fase 2 |
+| Evaluación de seguridad dedicada | PARCIAL; existen pruebas de seguridad, falta informe consolidado | Evidencias de pruebas de Fase 2 |
+| Aplicación de escritorio | PENDIENTE DE IMPLEMENTAR | Evidencia de sistema |
+| Dockerfile | PENDIENTE DE IMPLEMENTAR | Evidencia de sistema |
+| Docker Compose | PENDIENTE DE IMPLEMENTAR | Evidencia de sistema |
+| HU-007 Lista de espera | PENDIENTE | Código + evidencia Sprint |
+| HU-008 Preferencias | PENDIENTE | Código + evidencia Sprint |
+| HU-009 Ofertas / reasignación | PENDIENTE | Código + evidencia Sprint |
+| Evidencia funcional de innovación | PARCIAL | Evidencia de documentación y sistema |
+| Presentación final | PENDIENTE | `Fase 3/Evidencias Grupales/` |
+| Licencia | PENDIENTE DE DEFINIR | Raíz |
+| Guías y documentos oficiales del docente | PENDIENTE SEGÚN ENTREGA | Ubicación indicada por el docente |
+
+## Consistencia documental
+
+Los documentos v0.1 identifican como integrantes a Matías Andrés Torres, Bastian Sepúlveda y Diego Simon. Esa nómina debe mantenerse consistente en los documentos académicos que corresponda.
+
+Las siguientes reglas deben respetarse al actualizar evidencia:
+
+1. No presentar funcionalidades futuras como implementadas.
+2. Distinguir evidencia técnica real de documentación de diseño.
+3. No inventar reuniones, retrospectivas, acuerdos ni responsables.
+4. Mantener las cifras de pruebas alineadas con la última ejecución validada.
+5. No versionar secretos ni archivos `.env`.
+6. Actualizar este inventario cada vez que se incorporen entregables importantes.
+
+## Próxima actualización recomendada
+
+Después de incorporar los documentos académicos preparados y actualizar `CAPSTONE_COMPLIANCE_MATRIX.md`, volver a revisar este inventario para cambiar cada elemento de `PENDIENTE DE INCORPORAR` a su estado real y dejar trazabilidad de la versión efectivamente almacenada en el repositorio.

@@ -1,57 +1,96 @@
-# Matriz de cumplimiento Capstone
+﻿# Matriz de cumplimiento Capstone
 
-Estado basado únicamente en evidencia presente en el repositorio al 3 de septiembre de 2026. Una carpeta preparada no equivale a una evidencia entregada y un documento de diseño no acredita implementación. Los DOCX incorporados se consideran parciales mientras sean borradores, contengan decisiones superadas o carezcan de trazabilidad verificable.
+**Proyecto:** CitaJusta
+**Fecha de actualización:** 9 de septiembre de 2026
+**Estado:** VIGENTE / AVANCE INCREMENTAL
+
+Esta matriz refleja el estado real del proyecto al 9 de septiembre de 2026. Se distingue entre evidencia técnica implementada, documentación académica ya versionada y artefactos preparados pero aún pendientes de incorporación al repositorio. Una funcionalidad parcial no se marca como completa sólo por existir código o documentación.
 
 | Requisito | Obligatorio | Estado | Documento/Evidencia existente | Ubicación actual | Ubicación académica objetivo | Acción pendiente | Prioridad |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Documento Base | Sí | PARCIAL | Documento maestro real, sin versión, fecha ni autores y con contenido aspiracional u obsoleto | `Fase 2/Evidencias Proyecto/Evidencias de documentación/Documento_Base_CitaJusta.docx` | Evidencias de formulación y documentación | Versionar, validar responsables y alinear con arquitectura, rutas y modelo reales | ALTA |
-| Justificación del proyecto | Sí | PARCIAL | Borrador 0.1 con problema, beneficiarios, valor, innovación y pertinencia académica | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Justificacion_del_Proyecto_v0.1.docx` | Evidencias de formulación y documentación | Validar equipo, aprobar contenido y agregar sustento cuando la pauta lo exija | ALTA |
-| Product Vision | Sí | PARCIAL | Síntesis en README y contenido reutilizable en Documento Base y Justificación | `README.md` y DOCX incorporados | `Fase 1/Evidencias Grupales/` | Crear o aprobar el artefacto formal y trazarlo al alcance vigente | ALTA |
-| Requisitos funcionales | Sí | PARCIAL | Borrador 0.1 con RF-001 a RF-038 y flujo mínimo MVP | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Requisitos_Funcionales_v0.1.docx` | Evidencias de documentación y fuente del Product Backlog | Agregar criterios de aceptación y trazabilidad efectiva a PBI/HU, sprint, prueba y evidencia | ALTA |
-| Product Backlog priorizado | Sí | FALTA | No existe | — | `Fase 1/Evidencias Grupales/` | Incorporar historias, prioridad y criterios de aceptación | ALTA |
-| Sprint Backlog | Sí | FALTA | No existe | — | Evidencias grupales de cada fase/sprint | Registrar alcance y tareas por sprint | ALTA |
-| Definition of Done | Sí | FALTA | No existe | — | `Fase 1/Evidencias Grupales/` | Definir y aprobar criterios verificables | ALTA |
-| Documento de diseño | Sí | PARCIAL | Arquitectura, API, stack, decisiones y schema reutilizables; los DOCX siguen como borradores | `docs/development/`, DOCX incorporados y `apps/api/prisma/schema.prisma` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Consolidar diseño académico, resolver discrepancias y separar estado actual de objetivo | ALTA |
-| Retrospectivas | Sí | FALTA | No existen | — | Evidencias grupales de cada fase/sprint | Incorporar una retrospectiva por sprint | MEDIA |
-| Plan de pruebas por sprint | Sí | FALTA | Existen pruebas, no planes por sprint | `apps/api/test/` | Evidencias grupales de cada fase/sprint | Definir alcance, casos, resultados y trazabilidad por sprint | ALTA |
-| Manual técnico | Sí | PARCIAL | Setup, arquitectura, decisiones y README | `docs/development/` y `README.md` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Completar instalación limpia, BD, operación, API y diagnóstico | ALTA |
-| Arquitectura de software | Sí | PARCIAL | Borrador 0.1 amplio y documento técnico; ambos mezclan estado objetivo y actual | `docs/development/ARCHITECTURE.md` y `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_de_Software_v0.1.docx` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Aprobar una versión vigente y enlazar decisiones, datos, código y pruebas reales | ALTA |
-| Arquitectura de APIs | Sí | PARCIAL | Borrador 0.1 de una API REST central versionada bajo `/api/v1` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_APIs_v0.1.docx` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Separar endpoints implementados de planificados y enlazar OpenAPI y pruebas cuando existan | ALTA |
-| Stack tecnológico | Sí | PARCIAL | Borrador 0.1 con selección y justificación; mezcla tecnologías implementadas y previstas | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Stack_Tecnologico_v0.1.docx` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Crear versión actualizada; la decisión de no comprometer Docker como requisito obligatorio en v0.1 fue supersedida por la pauta Capstone vigente | ALTA |
-| Modelo ER | Sí | PARCIAL | Modelo relacional implementado, sin diagrama ER | `apps/api/prisma/schema.prisma` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Crear diagrama con entidades, cardinalidades y claves | ALTA |
-| UML casos de uso | Sí | FALTA | No existe | — | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Elaborar desde requisitos aprobados | ALTA |
-| UML clases | Sí | FALTA | No existe | — | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Elaborar representación coherente con el diseño | ALTA |
-| UML secuencia | Sí | FALTA | Sólo existe flujo textual de reasignación | `docs/development/ARCHITECTURE.md` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Crear secuencias de casos críticos | ALTA |
-| UML componentes | Sí | FALTA | Sólo existe diagrama ASCII técnico | `docs/development/ARCHITECTURE.md` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Crear UML de componentes formal | MEDIA |
-| Requisitos no funcionales | Sí | PARCIAL | Reglas de seguridad, integridad y calidad en documentación técnica y DOCX | `AGENTS.md`, `docs/development/ARCHITECTURE.md` y DOCX incorporados | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Convertirlas en requisitos medibles, aprobados y trazables | ALTA |
-| Evidencia de normalización | Sí | FALTA | No existe justificación formal | — | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Analizar y documentar formas normales; no inferirlas sólo por usar SQL | ALTA |
-| Dockerfile | Sí | FALTA | No existe; la pauta Capstone actual supersede la decisión de Stack v0.1 | — | `Fase 2/Evidencias Proyecto/Evidencias de sistema/Aplicación/` | Implementar, validar y actualizar el documento de stack en una tarea posterior | ALTA |
-| Docker Compose | Sí | FALTA | No existe; es obligatorio para el cumplimiento Capstone final | — | `Fase 2/Evidencias Proyecto/Evidencias de sistema/` | Orquestar servicios y documentar uso en una tarea posterior | ALTA |
-| Variables de entorno | Sí | COMPLETO | Plantilla ficticia y validación runtime | `apps/api/.env.example`, `apps/api/src/config/environment.validation.ts` | Manual técnico y evidencia de aplicación | Mantener sin secretos y actualizar al agregar variables | ALTA |
-| README | Sí | PARCIAL | README raíz con estado y navegación, actualizado con la evidencia documental | `README.md` | Raíz del repositorio | Validar identidad/roles y completar información mínima de publicación y entrega | ALTA |
-| Identidad y roles del equipo | Sí | PARCIAL | Cinco DOCX v0.1 comparten una nómina; Documento Base la omite y los roles no están validados | DOCX incorporados y `README.md` | README y entregables académicos | Validar la nómina y los roles con el equipo; no escoger ni normalizar nombres por inferencia | ALTA |
-| Pruebas unitarias | Sí | COMPLETO | 69 pruebas con línea base aprobada | `apps/api/test/*.test.mjs` | Evidencias de pruebas por sprint | Conservar ejecución verde y adjuntar resultados por sprint | ALTA |
-| Pruebas integración/E2E | Sí | PARCIAL | Checkpoint real Nest/HTTP/Prisma/PostgreSQL | `apps/api/test/e2e/` | `Fase 2/Evidencias Proyecto/Evidencias de sistema/Aplicación/` | Obtener ejecución verde con PostgreSQL local activo | ALTA |
-| Pruebas rendimiento | Sí | FALTA | No existen | — | Evidencias de pruebas por sprint | Definir métricas, herramienta, carga y resultados | MEDIA |
-| Pruebas seguridad | Sí | PARCIAL | Tests de Auth, JWT, guards y RBAC | `apps/api/test/` | Evidencias de pruebas por sprint | Añadir plan y evaluación dedicada de seguridad | ALTA |
-| Innovación | Sí | PARCIAL | Lista de espera, scoring y reasignación justificados, documentados y modelados | Justificación, Documento Base, `docs/development/ARCHITECTURE.md` y `apps/api/prisma/schema.prisma` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Mantener la justificación y aportar evidencia funcional | MEDIA |
-| Aplicación Web | Sí | FALTA | No existe `apps/web` | — | `Fase 2/Evidencias Proyecto/Evidencias de sistema/Aplicación/` | Diseñar, implementar y probar en fase posterior | ALTA |
-| Aplicación Escritorio | Sí | FALTA | No existe `apps/desktop` | — | `Fase 2/Evidencias Proyecto/Evidencias de sistema/Aplicación/` | Implementar cliente administrador y probarlo | ALTA |
-| BD relacional >= 30 tablas | Sí | COMPLETO | PostgreSQL; 37 modelos Prisma y 37 instrucciones `CREATE TABLE` versionadas | `apps/api/prisma/` | `Fase 2/Evidencias Proyecto/Evidencias de sistema/Base de datos/` | Mantener trazabilidad con ER y evidencia de despliegue | ALTA |
-| 5 APIs / al menos 2 propias | Por confirmar | PENDIENTE_DOCENTE | Código y Arquitectura APIs describen una API REST propia central; múltiples endpoints no acreditan APIs separadas | `apps/api/src/` y `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_APIs_v0.1.docx` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Consultar qué entiende el docente por API y qué evidencia exige | ALTA |
-| GitHub público | Sí | FALTA | Remoto existente, actualmente no público | GitHub `torresmatias23/CitaJusta` | URL de entrega | Resolver sólo los bloqueadores de publicación, autenticar `gh` y cambiar visibilidad únicamente con autorización | ALTA |
-| Evidencias individuales | Sí | FALTA | Sólo existe estructura vacía documentada | `Fase 1/`, `Fase 2/`, `Fase 3/` | Carpetas `Evidencias Individuales/` | Incorporar entregables reales con nombres en formato académico | ALTA |
-| Evidencias grupales | Sí | FALTA | Sólo existe estructura vacía documentada | `Fase 1/`, `Fase 2/`, `Fase 3/` | Carpetas `Evidencias Grupales/` | Incorporar entregables y evidencia Scrum reales | ALTA |
-| Documentos oficiales del profesor | Sí | PENDIENTE_DOCENTE | No existen en el repositorio | — | Fase y tipo de evidencia indicados por el docente | Solicitar e incorporar originales; no fabricar sustitutos | ALTA |
-| Presentación final | Sí | FALTA | No existe | — | `Fase 3/Evidencias Grupales/` | Preparar cuando alcance, resultados y equipo estén cerrados | MEDIA |
-| Licencia | Por confirmar | FALTA | No existe | — | Raíz del repositorio | Definir titularidad y términos de reutilización para el cierre académico | ALTA |
-| Integración continua | No especificado | FALTA | No existe `.github/` ni automatización | — | Evidencia de sistema de Fase 2 | Definir CI cuando el alcance técnico lo requiera | MEDIA |
+| Documento Base | Sí | PARCIAL | Documento maestro real, pero sin versión formal consolidada y con contenido que debe reconciliarse con el estado actual | `Fase 2/Evidencias Proyecto/Evidencias de documentación/Documento_Base_CitaJusta.docx` | Evidencias de formulación y documentación | Versionar, actualizar arquitectura/rutas/modelo y validar responsables | ALTA |
+| Justificación del proyecto | Sí | PARCIAL | Borrador 0.1 con problema, beneficiarios, valor, innovación y pertinencia académica | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Justificacion_del_Proyecto_v0.1.docx` | Evidencias de formulación y documentación | Aprobar versión y enlazarla con alcance y evidencia vigente | ALTA |
+| Product Vision | Sí | PARCIAL | Contenido reutilizable en README, Documento Base y Justificación; artefacto formal aún no consolidado | `README.md` y DOCX existentes | `Fase 1/Evidencias Grupales/` | Formalizar y versionar la Product Vision | ALTA |
+| Requisitos funcionales | Sí | PARCIAL | RF-001 a RF-038 documentados y parte relevante ya implementada | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Requisitos_Funcionales_v0.1.docx` | Evidencias de documentación y fuente del Product Backlog | Agregar trazabilidad RF → HU/PBI → Sprint → prueba → evidencia | ALTA |
+| Product Backlog priorizado | Sí | PARCIAL | Artefacto actualizado preparado fuera del repositorio; GitHub Issues/Project contienen trazabilidad real | Pendiente de incorporar | `Fase 1/Evidencias Grupales/` | Incorporar versión vigente y mantenerla alineada con GitHub Project | ALTA |
+| Sprint Backlog | Sí | PARCIAL | Sprint 4 histórico y Sprint 5 preparados; GitHub Project refleja tareas reales | Pendiente de incorporar | Evidencias grupales de la fase correspondiente | Incorporar los Sprint Backlogs preparados y actualizar Sprint 5 tras cierre de T05/T08 | ALTA |
+| Definition of Done | Sí | FALTA | Existen prácticas de validación, pero no artefacto formal aprobado | — | `Fase 1/Evidencias Grupales/` | Formalizar criterios verificables de Done | ALTA |
+| Documento de diseño | Sí | PARCIAL | Arquitectura, API, stack, decisiones y schema reutilizables | `docs/development/`, DOCX y `apps/api/prisma/schema.prisma` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Consolidar diseño académico vigente y separar implementado de futuro | ALTA |
+| Retrospectivas | Sí | FALTA | No existe evidencia formal incorporada | — | Evidencias grupales de cada sprint | Incorporar retrospectivas reales; no inventar reuniones | MEDIA |
+| Plan de pruebas por sprint | Sí | PARCIAL | Existen pruebas y resultados reales, pero falta consolidación académica por sprint | `apps/api/test/`, `apps/web/test/` | `Fase 2/Evidencias Grupales/` | Crear plan/resultados por sprint y trazar a HU/tareas | ALTA |
+| Manual técnico | Sí | PARCIAL | Setup, arquitectura, decisiones, README raíz y README web | `docs/development/`, `README.md`, `apps/web/README.md` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Consolidar instalación limpia, BD, API, Web, diagnóstico y operación | ALTA |
+| Arquitectura de software | Sí | PARCIAL | Documento técnico y DOCX v0.1; backend y web ya implementados parcialmente | `docs/development/ARCHITECTURE.md` y DOCX v0.1 | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Actualizar contra el estado real Web/API/BD y enlazar pruebas | ALTA |
+| Arquitectura de APIs | Sí | PARCIAL | API REST propia bajo `/api/v1` implementada con Auth, catálogos, disponibilidad y citas | `apps/api/src/` y DOCX v0.1 | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Separar endpoints implementados de planificados y consolidar contratos | ALTA |
+| Stack tecnológico | Sí | PARCIAL | Stack implementado: React/Vite, NestJS, Prisma, PostgreSQL, TypeScript; Docker sigue pendiente | Código, `package.json`, DOCX v0.1 | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Crear versión actualizada e incorporar Docker cuando se implemente | ALTA |
+| Modelo ER | Sí | PARCIAL | Modelo relacional implementado con 37 modelos Prisma; falta diagrama ER formal | `apps/api/prisma/schema.prisma` | Evidencias de documentación/Base de datos | Crear diagrama ER con cardinalidades y claves | ALTA |
+| UML casos de uso | Sí | FALTA | No existe evidencia formal | — | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Elaborar desde requisitos vigentes | ALTA |
+| UML clases | Sí | FALTA | No existe evidencia formal | — | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Elaborar representación coherente con el diseño | ALTA |
+| UML secuencia | Sí | FALTA | Existen flujos técnicos textuales, pero no UML formal | `docs/development/ARCHITECTURE.md` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Crear secuencias de casos críticos | ALTA |
+| UML componentes | Sí | FALTA | Existe representación arquitectónica técnica, no UML formal | `docs/development/ARCHITECTURE.md` | `Fase 2/Evidencias Proyecto/Evidencias de documentación/` | Crear UML de componentes | MEDIA |
+| Requisitos no funcionales | Sí | PARCIAL | Seguridad, integridad, validación, rate limit, CORS y calidad descritos/implementados parcialmente | `AGENTS.md`, `docs/development/ARCHITECTURE.md`, código y DOCX | Evidencias de documentación | Consolidarlos como requisitos medibles y trazables | ALTA |
+| Evidencia de normalización | Sí | FALTA | Modelo relacional implementado, pero no existe justificación formal de formas normales | — | Evidencias de documentación/Base de datos | Documentar análisis de normalización | ALTA |
+| Dockerfile | Sí | FALTA | No existe | — | `Fase 2/Evidencias Proyecto/Evidencias de sistema/Aplicación/` | Implementar, validar y documentar | ALTA |
+| Docker Compose | Sí | FALTA | No existe | — | `Fase 2/Evidencias Proyecto/Evidencias de sistema/` | Orquestar servicios y documentar uso | ALTA |
+| Variables de entorno | Sí | COMPLETO | Plantillas ficticias, validación runtime y archivos locales ignorados | `apps/api/.env.example`, `apps/web/.env.example`, validación backend | Manual técnico y evidencia de aplicación | Mantener sin secretos y actualizar al agregar variables | ALTA |
+| README | Sí | PARCIAL | README raíz, README web y navegación técnica presentes | `README.md`, `apps/web/README.md` | Raíz del repositorio | Completar identidad/roles, licencia y estado final de entrega | ALTA |
+| Identidad y roles del equipo | Sí | PARCIAL | Nómina consistente en documentos v0.1: Matías Andrés Torres, Bastian Sepúlveda y Diego Simon; roles aún requieren consolidación | DOCX y README | README y entregables académicos | Validar y unificar roles en todos los documentos | ALTA |
+| Pruebas automatizadas backend | Sí | COMPLETO | 114/114 pruebas backend PASS para el alcance implementado | `apps/api/test/` | Evidencias de pruebas por sprint | Mantener verdes y registrar resultados por sprint | ALTA |
+| Pruebas automatizadas web | Sí | COMPLETO | 39/39 pruebas web PASS; typecheck y build PASS | `apps/web/test/` | Evidencias de pruebas por sprint | Mantener verdes y ampliar junto a nuevas HU | ALTA |
+| Pruebas integración/E2E | Sí | COMPLETO PARA ALCANCE ACTUAL | 22/22 E2E appointments, 1/1 checkpoint backend y 13/13 Web/API/PostgreSQL PASS | `apps/api/test/e2e/`, `apps/web/test/e2e/` | Evidencias de sistema/pruebas | Ampliar cuando se implementen HU-007, HU-008 y HU-009 | ALTA |
+| Pruebas rendimiento | Sí | FALTA | No existe evidencia dedicada | — | Evidencias de pruebas de Fase 2 | Definir métricas, herramienta, carga y resultados | MEDIA |
+| Pruebas seguridad | Sí | PARCIAL | Tests de Auth, JWT, sesión, guards, RBAC y manejo de errores | `apps/api/test/`, `apps/web/test/` | Evidencias de pruebas por sprint | Crear plan e informe específico de seguridad | ALTA |
+| Innovación | Sí | PARCIAL | Lista de espera, scoring y reasignación están justificadas/modeladas, pero HU-007/008/009 siguen pendientes | Justificación, arquitectura y Prisma schema | Evidencias de documentación/sistema | Implementar y demostrar flujo funcional de innovación | ALTA |
+| Aplicación Web | Sí | PARCIAL | React/Vite implementado e integrado con API real: registro, login, catálogos, disponibilidad, reserva, Mis citas y cancelación | `apps/web/` | `Fase 2/Evidencias Proyecto/Evidencias de sistema/Aplicación/` | Incorporar evidencia académica y completar funcionalidades futuras del alcance | ALTA |
+| Aplicación Escritorio | Sí | FALTA | No existe `apps/desktop` funcional | — | `Fase 2/Evidencias Proyecto/Evidencias de sistema/Aplicación/` | Implementar cliente de escritorio y probarlo | ALTA |
+| BD relacional >= 30 tablas | Sí | COMPLETO | PostgreSQL con 37 modelos Prisma y migraciones versionadas | `apps/api/prisma/` | Evidencias de sistema/Base de datos | Mantener trazabilidad con ER, normalización y despliegue | ALTA |
+| 5 APIs / al menos 2 propias | Por confirmar | PENDIENTE_DOCENTE | Existe una API REST propia central con múltiples endpoints; esto no acredita por sí solo cinco APIs distintas | `apps/api/src/` y DOCX APIs | Evidencias de documentación | Confirmar formalmente el criterio con el docente | ALTA |
+| GitHub público | Sí | COMPLETO | Repositorio remoto operativo; `pull`, `push` y Pull Requests reales validados | GitHub `torresmatias23/CitaJusta` | URL de entrega | Verificar nuevamente acceso público sin login antes de entrega oficial | ALTA |
+| Trazabilidad Scrum con GitHub | Sí | COMPLETO PARA ALCANCE ACTUAL | Issues, GitHub Project/Kanban, branches y Pull Requests utilizados realmente | GitHub + `docs/capstone/GITHUB_SCRUM_EVIDENCE.md` | Evidencias grupales | Mantener tablero y documentos académicos sincronizados | ALTA |
+| Evidencias individuales | Sí | FALTA | Existe estructura, pero no entregables individuales reales incorporados en esta revisión | `Fase 1/`, `Fase 2/`, `Fase 3/` | `Evidencias Individuales/` | Incorporar documentos reales cuando corresponda | ALTA |
+| Evidencias grupales | Sí | PARCIAL | GitHub contiene evidencia real y existen artefactos académicos preparados, aún pendientes de incorporar | GitHub + archivos preparados fuera del repo | `Evidencias Grupales/` | Incorporar Product Backlog, Sprint Backlogs, Burndown, Release, Daily y otros | ALTA |
+| Documentos oficiales del profesor | Sí | PENDIENTE_DOCENTE | Sólo deben incorporarse originales proporcionados por docente/equipo | — | Ubicación indicada por el docente | Incorporar originales; no fabricar sustitutos | ALTA |
+| Presentación final | Sí | PARCIAL | Existe versión de trabajo preparada, aún no corresponde a entrega final | Fuera del repo / pendiente de incorporar | `Fase 3/Evidencias Grupales/` | Actualizar al cierre y versionar cuando corresponda | MEDIA |
+| Licencia | Por confirmar | FALTA | No existe | — | Raíz | Definir titularidad y condiciones de reutilización | MEDIA |
+| Integración continua | No especificado | FALTA | No existe automatización CI versionada | — | Evidencia de sistema de Fase 2 | Evaluar e implementar si aporta valor al cierre técnico | MEDIA |
 
-## Cambios de estado por la evidencia incorporada
+## Avance técnico relevante al 9 de septiembre de 2026
 
-- Frente a la línea base sin esos archivos, Documento Base, Justificación, Requisitos funcionales, Arquitectura de APIs y Stack tecnológico pasan de `FALTA` implícita a `PARCIAL`.
-- Arquitectura de software ya estaba `PARCIAL` y permanece así: el nuevo documento aporta evidencia fuerte, pero aún es un borrador y debe reconciliarse con el estado real.
-- No hay cambios de `PARCIAL` a `COMPLETO` en esta revisión.
-- Product Vision, Documento de diseño, requisitos no funcionales e innovación permanecen `PARCIAL`; los documentos agregan evidencia, no cierre ni implementación.
+La línea base del 3 de septiembre quedó superada por los siguientes avances:
 
-La decisión de Stack Tecnológico v0.1 que no comprometía Docker como requisito obligatorio del entorno local queda supersedida por la pauta Capstone vigente. Dockerfile y Docker Compose siguen pendientes para el cumplimiento final; esta brecha no bloquea por sí sola la publicación incremental del repositorio.
+- Aplicación Web implementada en `apps/web`.
+- Registro, login, restauración de sesión, logout y rutas protegidas.
+- Catálogos de instituciones, sedes y servicios.
+- Consulta de disponibilidad.
+- Reserva de citas.
+- Confirmación y listado de citas propias.
+- Cancelación de citas.
+- Integración real Web → API → PostgreSQL.
+- Pull Request #43 mergeado a `main`.
+- 114/114 pruebas backend PASS.
+- 39/39 pruebas web PASS.
+- 22/22 E2E de appointments PASS.
+- 1/1 checkpoint E2E backend PASS.
+- 13/13 E2E Web/API/PostgreSQL PASS.
+- Flujo manual validado de punta a punta.
+- Uso real de Issues, GitHub Projects/Kanban, branches y Pull Requests.
+
+## Brechas principales abiertas
+
+Las principales brechas para el cumplimiento final son:
+
+1. Formalizar Definition of Done, Product Vision y consolidar Product/Sprint Backlogs en el repositorio.
+2. Incorporar artefactos grupales preparados: Burndown, Release Plan, Daily Meeting y otros.
+3. Actualizar los DOCX técnicos v0.1.
+4. Completar documento de diseño y manual técnico.
+5. Crear ER formal, UML requeridos y evidencia de normalización.
+6. Implementar Dockerfile y Docker Compose.
+7. Implementar aplicación de escritorio.
+8. Implementar HU-007, HU-008 y HU-009 para completar el componente innovador de lista de espera/reasignación.
+9. Preparar pruebas de rendimiento y un informe dedicado de seguridad.
+10. Confirmar con el docente el criterio “5 APIs / al menos 2 propias”.
+11. Incorporar evidencias individuales y documentación oficial cuando corresponda.
+12. Definir licencia si es requerida para el cierre.
+
+## Criterio de actualización
+
+Esta matriz debe actualizarse después de cada hito importante. Los estados `COMPLETO` sólo deben utilizarse cuando exista evidencia verificable; `COMPLETO PARA ALCANCE ACTUAL` indica que la evidencia satisface lo implementado hasta la fecha, pero deberá ampliarse cuando se incorporen nuevas funcionalidades.

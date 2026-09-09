@@ -1,51 +1,97 @@
-# Checklist de publicación en GitHub
+﻿# Checklist de publicación en GitHub
 
-El repositorio existe en el remoto pero no es accesible públicamente. La visibilidad exacta debe confirmarse después de reautenticar GitHub CLI. Este checklist debe revisarse inmediatamente antes de autorizar cualquier cambio de visibilidad. La publicación incremental no exige haber completado todos los entregables Capstone.
+**Proyecto:** CitaJusta
+**Fecha de actualización:** 9 de septiembre de 2026
+**Estado:** REPOSITORIO PUBLICADO / CHECKLIST DE MANTENCIÓN Y ENTREGA
+
+El repositorio de CitaJusta ya se encuentra disponible en GitHub y el acceso remoto fue validado mediante operaciones reales de `pull`, `push` y Pull Request. Este checklist deja de ser sólo una preparación para publicar y pasa a funcionar como control de seguridad, consistencia documental y preparación de la entrega académica final.
 
 ## Seguridad y privacidad
 
-- [x] Historial revisado por secretos: 40 commits alcanzables auditados preliminarmente sin secretos reales detectados.
-- [x] `.env` nunca versionado: `apps/api/.env` tiene cero commits y está ignorado.
-- [ ] Revisión final de secretos completada sobre todos los archivos e historial que serán públicos.
-- [x] `.gitignore` correcto para `.env`, variantes, logs, dependencias y artefactos generados.
-- [ ] Archivos privados o sensibles eliminados o excluidos del alcance público.
-- [ ] Datos personales, nombres del equipo y metadatos de los seis DOCX revisados y autorizados.
+- [x] `.env` no versionado y protegido mediante `.gitignore`.
+- [x] `apps/api/.env` permanece fuera del control de versiones.
+- [x] `apps/web/.env` permanece fuera del control de versiones.
+- [x] Los secretos locales utilizados para PostgreSQL y JWT no fueron incorporados al repositorio.
+- [x] La plantilla `.env.example` mantiene valores ficticios y reutilizables.
+- [x] Dependencias, logs y artefactos generados se encuentran excluidos según las reglas actuales del repositorio.
+- [ ] Ejecutar una revisión final de secretos sobre el contenido e historial antes de la entrega académica definitiva.
+- [ ] Revisar metadatos y datos personales de los documentos DOCX/XLSX que se incorporen como evidencia académica.
+- [ ] Confirmar que futuras evidencias, capturas o archivos adjuntos no expongan credenciales, tokens, correos privados u otros datos sensibles innecesarios.
 
-La plantilla `.env.example` contiene valores ficticios en su versión actual y en las cuatro versiones históricas revisadas. Los matches restantes corresponden a fixtures sintéticos de pruebas; no se detectaron claves privadas, tokens ni credenciales reales. Si una revisión posterior encuentra un secreto, la publicación queda bloqueada hasta revocarlo y sanear el historial mediante una tarea autorizada.
+La revisión realizada hasta ahora no ha evidenciado claves privadas, tokens reales ni archivos `.env` versionados. Si una revisión posterior identifica un secreto, éste debe revocarse y el historial debe sanearse antes de considerar cerrada la entrega.
 
 ## Proyecto y evidencia
 
-- [ ] README suficiente para publicación, con identidad y roles validados.
-- [x] Estructura Capstone presente.
-- [x] Seis documentos académicos reales incorporados al inventario y a la matriz.
-- [ ] Identidad del equipo consistente entre README, Documento Base y documentos v0.1.
-- [ ] Archivos y enlaces que serán públicos revisados desde una vista sin credenciales.
+- [x] Estructura general del proyecto presente en el repositorio.
+- [x] Estructura académica de Fase 1, Fase 2 y Fase 3 presente.
+- [x] Documentos técnicos iniciales incorporados en `Fase 2/Evidencias Proyecto/Evidencias de documentación/`.
+- [x] Documentación técnica canónica presente en `docs/development/`.
+- [x] Documentación de control Capstone presente en `docs/capstone/`.
+- [x] Aplicación Web implementada e integrada con la API.
+- [x] Backend NestJS y PostgreSQL implementados y operativos.
+- [x] Flujo funcional de autenticación, catálogos, disponibilidad, reserva, listado y cancelación validado.
+- [x] Uso real de Issues, GitHub Projects, ramas y Pull Requests para trazabilidad.
+- [ ] Incorporar las versiones académicas actualizadas de Product Backlog, Sprint Backlog, Burndown, Release Plan, Daily Meeting, Alcances y demás evidencias preparadas.
+- [ ] Actualizar los documentos técnicos v0.1 que aún describen decisiones o estados superados.
+- [ ] Mantener consistente la identidad y los roles del equipo entre README y documentos académicos.
+- [ ] Revisar el repositorio desde una vista pública antes de la entrega al docente.
 
-## Publicación y entrega
+## Validación técnica actual
 
-- [ ] GitHub CLI autenticado y acceso al remoto confirmado con la identidad autorizada.
-- [ ] Visibilidad del repositorio preparada y cambio autorizado explícitamente.
-- [ ] URL pública final verificada sin login.
-- [ ] Enlace entregado al docente.
+La aplicación cuenta actualmente con evidencia técnica verificable:
 
-## Bloqueadores reales para publicación
+- Backend tests: 114/114 PASS.
+- E2E de appointments: 22/22 PASS.
+- Checkpoint E2E backend: 1/1 PASS.
+- Web tests: 39/39 PASS.
+- Web typecheck: PASS.
+- Web build: PASS.
+- Web/API/PostgreSQL E2E: 13/13 PASS.
+- `git diff --check`: PASS en el cierre de la integración web.
+- Flujo manual completo validado:
+  registro → login → catálogos → disponibilidad → reserva → confirmación → Mis citas → cancelación → logout.
 
-- Reautenticar GitHub CLI y confirmar la cuenta autorizada para cambiar la visibilidad.
-- Validar la identidad y los roles del equipo: los cinco DOCX v0.1 coinciden entre sí, pero el Documento Base omite la nómina y el README aún no tiene una identificación validada.
-- Completar el contenido mínimo del README para publicación, especialmente la identidad/equipo y cualquier advertencia necesaria sobre el estado incremental.
-- Revisar todos los archivos que se harán públicos, incluidos contenido, nombres y metadatos de los seis DOCX, y excluir información privada o sensible.
-- Confirmar con una revisión final que no existan secretos. La auditoría preliminar no detectó secretos reales; cualquier hallazgo bloquearía la publicación hasta su revocación y saneamiento autorizado.
+La integración web fue incorporada a `main` mediante el Pull Request #43 (`feat: complete web api integration`).
+
+## Publicación y acceso
+
+- [x] Repositorio remoto configurado correctamente.
+- [x] Acceso de escritura al repositorio confirmado con la cuenta autorizada.
+- [x] `push` y `pull` operativos desde el entorno de desarrollo actual.
+- [x] Pull Requests creados y mergeados correctamente.
+- [x] Integración web mergeada a `main`.
+- [x] Repositorio accesible públicamente.
+- [ ] Verificar nuevamente la URL pública final sin sesión antes de la entrega oficial.
+- [ ] Registrar o entregar al docente el enlace definitivo cuando corresponda.
+
+GitHub CLI (`gh`) no es un requisito para la publicación. En el entorno actual se utiliza Git Credential Manager para la autenticación HTTPS y el acceso remoto funciona correctamente.
 
 ## Pendientes para cumplimiento Capstone final
 
-Estos puntos deben resolverse para la entrega final, pero no bloquean por sí solos el cambio de visibilidad:
+Los siguientes puntos continúan abiertos y deben permanecer visibles como parte del avance incremental:
 
-- Incorporar Product Vision aprobada, Product Backlog, Definition of Done, Sprint Backlogs, retrospectivas y evidencia por sprint.
-- Actualizar y aprobar los documentos académicos; completar manual técnico, modelo ER, UML, RNF medibles y evidencia de normalización.
-- Implementar y validar Web, Desktop y las funciones de negocio aún pendientes.
-- Implementar y validar Dockerfile y Docker Compose. Docker es obligatorio por la pauta Capstone actual, que supersede Stack Tecnológico v0.1.
-- Consolidar pruebas E2E, rendimiento y seguridad, con planes, resultados y trazabilidad.
-- Mantener “5 APIs / al menos 2 propias” como `PENDIENTE_DOCENTE`; una API REST con múltiples endpoints no acredita cinco APIs.
-- Incorporar documentos oficiales, evidencias individuales y grupales, presentación final y la definición de licencia; evaluar integración continua según el alcance.
+- Incorporar y versionar los artefactos académicos reales de planificación y seguimiento.
+- Formalizar o actualizar Product Vision, Product Backlog, Definition of Done y Sprint Backlogs según la evidencia vigente.
+- Completar y aprobar el documento de diseño consolidado.
+- Completar manual técnico, modelo ER, UML, requisitos no funcionales medibles y evidencia de normalización.
+- Implementar y validar la aplicación de escritorio.
+- Implementar y validar Dockerfile y Docker Compose según la pauta Capstone vigente.
+- Desarrollar las historias de usuario pendientes asociadas a lista de espera, preferencias y reasignación.
+- Consolidar planes y evidencia de pruebas por sprint.
+- Incorporar pruebas de rendimiento y una evaluación de seguridad dedicada.
+- Mantener “5 APIs / al menos 2 propias” como `PENDIENTE_DOCENTE` hasta confirmar formalmente el criterio de evaluación.
+- Incorporar documentos oficiales, evidencias individuales y grupales y presentación final según corresponda.
+- Definir la licencia o condiciones de reutilización del repositorio si la entrega final lo requiere.
+- Evaluar integración continua si aporta valor al cierre técnico del proyecto.
 
-No cambiar la visibilidad mientras exista un bloqueador real de publicación. Los pendientes de cumplimiento final deben permanecer visibles en la matriz como evidencia del avance incremental.
+## Criterio de mantenimiento
+
+El repositorio ya está publicado, por lo que los cambios futuros deben mantener estas condiciones mínimas:
+
+1. No versionar secretos ni archivos `.env`.
+2. Mantener `main` estable mediante trabajo por ramas y Pull Requests.
+3. Ejecutar pruebas relevantes antes del merge.
+4. Mantener alineados código, documentación técnica y evidencia académica.
+5. Revisar seguridad, privacidad y consistencia documental antes de cada entrega formal.
+
+Este checklist debe actualizarse nuevamente antes de la entrega final del proyecto.
