@@ -9,17 +9,22 @@ export class ApiError extends Error {
   }
 }
 
-type RequestOptions = {
+export type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   signal?: AbortSignal;
+  query?: Readonly<Record<string, string>>;
+};
+
+export type ApiClient = {
+  request(path: string, options?: RequestOptions): Promise<unknown>;
 };
 
 export function createHttpClient({ baseUrl, fetcher = fetch, getAccessToken }: {
   baseUrl: string;
   fetcher?: typeof fetch;
   getAccessToken?: () => string | undefined;
-}) {
+}): ApiClient {
   const base = readApiBaseUrl(baseUrl);
   return {
     async request(path: string, options: RequestOptions = {}): Promise<unknown> {
@@ -31,11 +36,14 @@ export function createHttpClient({ baseUrl, fetcher = fetch, getAccessToken }: {
       if (options.body !== undefined) headers.set('Content-Type', 'application/json');
       const method = options.method ?? 'GET';
       if (method === 'GET' && options.body !== undefined) throw new Error('GET no admite body.');
-      const response = await fetcher(`${base}/${path}`, {
+      const query = new URLSearchParams(options.query);
+      const suffix = query.size ? `?${query.toString()}` : '';
+      const response = await fetcher(`${base}/${path}${suffix}`, {
         method,
         headers,
         credentials: 'omit',
         redirect: 'error',
+        cache: 'no-store',
         ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
         ...(options.signal ? { signal: options.signal } : {}),
       });
