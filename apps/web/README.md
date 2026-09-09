@@ -1,6 +1,6 @@
-# Web: fundación visual
+# Web: integración con la API
 
-CitaJusta es un sistema genérico de gestión de citas para instituciones, empresas y profesionales. El Home utiliza ejemplos transversales de servicios y sucursales, sin limitar el producto a un sector.
+CitaJusta es un sistema genérico de gestión de citas para instituciones, empresas y profesionales. El frontend utiliza la sesión y los datos de la API.
 
 React + Vite + TypeScript estricto; Tailwind mediante su plugin Vite, React Router declarativo, Lucide e Inter autoalojada. Sin shadcn/ui por ahora: bastan controles HTML nativos y componentes pequeños. TypeScript se mantiene alineado con la versión del backend.
 
@@ -15,38 +15,47 @@ npm run --workspace @citajusta/web test
 npm run --workspace @citajusta/web build
 ```
 
-Desarrollo: `http://127.0.0.1:5173`. No requiere PostgreSQL ni sesión. No hay un linter/formatter configurado; los archivos respetan `.editorconfig` y se comprueban con `git diff --check`.
+Desarrollo: `http://127.0.0.1:5173`. El Home público no requiere sesión; los flujos autenticados requieren la API y PostgreSQL. No hay un linter/formatter configurado; los archivos respetan `.editorconfig` y se comprueban con `git diff --check`.
 
 ## Alcance y rutas
 
-- `/`: shell visual autenticado y Home de demostración. **No existe autenticación frontend ni protección de sesión todavía.**
+- `/`: Home público con acceso a Login/Registro. Sin sesión no consulta catálogos protegidos; con sesión carga instituciones → sedes → servicios.
+- `/login` y `/registro`: autenticación y creación de cuenta.
+- `/resultados`: disponibilidad y reserva de horas.
+- `/mis-citas`: listado de reservas propias y diálogo de cancelación.
+- `/citas/:appointmentId/confirmacion`: comprobante y estado actual de la reserva.
 - `*`: estado de página no disponible con layout público y regreso a Inicio.
-- Buscar/resultados, reserva/confirmación y Mis citas/cancelación se integrarán posteriormente; no se registran rutas ficticias.
-- Lista de espera, notificaciones y ofertas no están implementadas. `SINHORAS` y `CONHORAS` son futuros estados de Inicio, nunca rutas independientes.
+- Resultados, Mis citas y confirmación requieren sesión.
+- Lista de espera, notificaciones y ofertas no están implementadas. Las funciones futuras se indican como “Próximamente”.
 
-El formulario valida selecciones localmente y muestra un aviso; no consulta ni reserva. Navegación y acciones futuras están deshabilitadas. Perfil, catálogos y tarjetas usan únicamente `src/features/home/home-preview.ts`, sin IDs del backend ni lógica de dominio. Se muestra `Agendada`, no una confirmación funcional inexistente.
+El header muestra el usuario real y permite cerrar sesión. El Home no contiene reservas, perfiles ni notificaciones ficticias: ofrece acceso a Mis citas e información de las funciones disponibles. La API decide disponibilidad, reservas y transiciones de estado.
 
 ## Organización
 
 ```text
 src/app/          # raíz y composición de layouts
 src/components/   # header/footer, marca, controles y estados
-src/features/home/# Home, buscador, tarjetas y datos sintéticos
+src/features/home/# Home, buscador y tarjetas informativas
+src/features/auth/# sesión, Login/Registro y protección de rutas
+src/features/availability/ # catálogos, selección y resultados
+src/features/appointments/ # reserva, comprobante, Mis citas y cancelación
 src/lib/          # configuración pública y cliente HTTP
 src/routes/       # rutas existentes; punto de extensión
 src/styles/       # tokens y diseño responsive
 test/             # node:test: configuración, HTTP y renderizado real
 ```
 
-Inter, navy/teal, bordes suaves y tarjetas pastel provienen de los nueve bocetos adjuntos. `HOME` es la referencia principal; se conservan los patrones de header/footer, filtros, badges y tarjetas de las demás vistas sin implementarlas. La cuadrícula pasa de cuatro a dos y una columna; el buscador se apila y el menú se colapsa. La ilustración decorativa se oculta en móvil. No se publican métricas, contactos, notificaciones ni garantías de seguridad ficticias del boceto.
+Inter, navy/teal, bordes suaves y tarjetas pastel forman el diseño compartido por Home, autenticación y citas. La cuadrícula pasa de cuatro a dos y una columna; el buscador se apila y el menú se colapsa. La ilustración decorativa se oculta en móvil.
 
 ## API y entorno
 
 `VITE_API_BASE_URL` es pública, default `/api/v1`; admite ese prefijo relativo o una URL HTTP(S) terminada en `/api/v1`, sin credenciales, query ni fragmento. Configuración inválida bloquea el arranque con un aviso genérico. Nunca colocar secretos en `VITE_*`.
 
-`.env.example` incluye `API_PROXY_TARGET` para el proxy **sólo de desarrollo**. Para conectar posteriormente, el propietario puede copiarlo a un `.env.local` no versionado o configurar las variables en su terminal. Esta iteración no crea ningún `.env` real ni necesita el proxy para mostrar Home. En producción se deberá configurar un reverse proxy para `/api/v1` o una URL explícita con CORS permitido; Vite no provee ese proxy en producción.
+`.env.example` incluye `API_PROXY_TARGET` para el proxy **sólo de desarrollo**. Puede configurarse en un `.env.local` no versionado o en la terminal. En producción se debe configurar un reverse proxy para `/api/v1` o una URL explícita con CORS permitido; Vite no provee ese proxy en producción.
 
-`src/lib/api.ts` es el punto central futuro. El cliente devuelve `unknown` para exigir validación por feature; sólo acepta paths relativos controlados, permite JSON y `AbortSignal`, obtiene el Bearer mediante callback y no almacena tokens. No hace refresh, reintentos automáticos ni sigue redirecciones. Omite cookies; la estrategia de sesión web se definirá al conectar Auth. Los errores HTTP no propagan cuerpos internos del servidor. El Home no importa ni llama este cliente.
+`AuthProvider` proporciona el cliente autenticado a las features. El cliente HTTP devuelve `unknown` para exigir validación por feature; acepta paths relativos controlados, JSON y `AbortSignal`, y obtiene el Bearer mediante callback. La sesión administra los tokens y su renovación. Los errores HTTP no propagan cuerpos internos del servidor.
+
+Los contratos contra NestJS/PostgreSQL se comprueban con `node --test apps/web/test/e2e/web-api.e2e.test.mjs` desde la raíz, con la API compilada y el entorno local preparado. Estos E2E no son pruebas de interacción en navegador.
 
 ## Evidencia visual
 

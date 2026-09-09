@@ -4,11 +4,7 @@ import { NavLink } from 'react-router';
 import { useAuth } from '../../features/auth/auth-provider';
 import { Brand } from './brand';
 
-export function AppHeader({
-  profile: _profile,
-}: {
-  profile?: { name: string; initials: string };
-}) {
+export function AppHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { status, user, logout } = useAuth();
 
@@ -74,7 +70,7 @@ export function AppHeader({
                 disabled
                 title="Lista de espera: próximamente"
               >
-                Lista de espera
+                <span>Lista de espera<small className="nav-soon">Próximamente</small></span>
               </button>
 
               <button
@@ -83,11 +79,11 @@ export function AppHeader({
                 title="Notificaciones: próximamente"
               >
                 <Bell size={20} aria-hidden="true" />
-                Notificaciones
+                <span>Notificaciones<small className="nav-soon">Próximamente</small></span>
               </button>
 
               <div
-                className="preview-profile"
+                className="user-profile"
                 aria-label={`${name}, usuario autenticado`}
               >
                 <span className="avatar" aria-hidden="true">

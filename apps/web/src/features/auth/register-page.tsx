@@ -1,3 +1,4 @@
+import { UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router';
@@ -35,6 +36,7 @@ export function RegisterPage() {
   return (
     <section className="auth-page" aria-labelledby="register-title">
       <div className="auth-card">
+        <span className="auth-symbol"><UserPlus aria-hidden="true" /></span>
         <p className="eyebrow">Comienza con CitaJusta</p>
         <h1 id="register-title">Crea tu cuenta</h1>
         <p>Una cuenta para gestionar tus atenciones con instituciones, empresas y profesionales.</p>
@@ -46,7 +48,7 @@ export function RegisterPage() {
           {error && <p role="alert" className="form-error">{error}</p>}
           <Button type="submit" disabled={pending}>{pending ? 'Creando cuenta…' : 'Crear cuenta'}</Button>
         </form>
-        <p>¿Ya tienes cuenta? <Link to="/login">Iniciar sesión</Link></p>
+        <p className="auth-switch">¿Ya tienes cuenta? <Link to="/login">Iniciar sesión</Link></p>
       </div>
     </section>
   );

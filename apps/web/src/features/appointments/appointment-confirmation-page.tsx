@@ -12,7 +12,7 @@ export function AppointmentConfirmationPage() {
   const appointment = validId ? appointments.data.find((item) => item.id === appointmentId) : undefined;
   const scheduled = appointment?.status === 'AGENDADA';
   return (
-    <div className="page-container">
+    <div className="page-container route-page">
       <div className="mx-auto max-w-2xl">
         {validId && appointments.status === 'loading' && <AsyncState kind="loading" title="Consultando tu reserva…" />}
         {validId && appointments.status === 'error' && <AsyncState kind="error" title="No pudimos consultar tu reserva" description={appointments.message} onRetry={appointments.refresh} />}

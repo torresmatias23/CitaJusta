@@ -53,7 +53,6 @@ export function CancelAppointmentDialog({ appointment, onClose, onCancelled, onR
       onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}>
       <h2 id="cancel-title" className="text-xl font-semibold text-ink">¿Cancelar esta cita?</h2>
       <p id="cancel-description" className="mt-3">Cancelarás tu cita de {appointment.service.name} en {appointment.branch.name}. La cancelación conservará su historial.</p>
-      <p className="mt-3 text-sm text-muted">El cupo no volverá automáticamente a la disponibilidad pública.</p>
       {message && <p className="form-error mt-4" role="alert">{message}</p>}
       {busy && <p className="mt-4 text-sm" role="status">Guardando la cancelación…</p>}
       <div className="mt-6 flex flex-wrap justify-end gap-3">

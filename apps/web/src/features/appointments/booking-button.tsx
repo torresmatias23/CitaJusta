@@ -43,7 +43,7 @@ export function BookingButton({ agendaSlotId, onBooked, onConflict }: {
   });
 
   return (
-    <div className="grid gap-2">
+    <div className="booking-actions grid gap-2">
       <Button onClick={reserve} disabled={busy || conflict} aria-busy={busy}>
         {busy && <LoaderCircle size={18} aria-hidden="true" className="motion-safe:animate-spin" />}
         {busy ? 'Reservando…' : 'Reservar hora'}

@@ -46,8 +46,8 @@ test('Inicio renderiza el shell, buscador accesible y cuatro tarjetas', () => {
   }
 
   for (const heading of [
-    'Próxima cita',
-    'Estado de lista de espera',
+    'Mis citas',
+    'Lista de espera',
     'Notificaciones',
     '¿Cómo funciona?',
   ]) {
@@ -56,7 +56,13 @@ test('Inicio renderiza el shell, buscador accesible y cuatro tarjetas', () => {
 
   assert.match(html, /Saltar al contenido/);
   assert.match(html, /<footer\b/);
-  assert.doesNotMatch(html, /12\.000|Confirmada|Espera Activa/);
+  assert.doesNotMatch(html, /12\.000|Confirmada|Espera Activa|demostración|de ejemplo|sin sesión real|Vista previa|Camila López/);
+  const navigation = html.match(/<nav\b[^>]*>[\s\S]*?<\/nav>/)?.[0];
+  assert.ok(navigation);
+  assert.match(navigation, /Inicio/);
+  assert.match(navigation, /Iniciar sesión/);
+  assert.match(navigation, /Crear cuenta/);
+  assert.doesNotMatch(navigation, /Mis citas|Lista de espera|Notificaciones|Cerrar sesión/);
 });
 
 test(

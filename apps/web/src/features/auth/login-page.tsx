@@ -1,3 +1,4 @@
+import { LogIn } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
@@ -36,6 +37,7 @@ export function LoginPage() {
   return (
     <section className="auth-page" aria-labelledby="login-title">
       <div className="auth-card">
+        <span className="auth-symbol"><LogIn aria-hidden="true" /></span>
         <p className="eyebrow">Tu tiempo, mejor organizado</p>
         <h1 id="login-title">Inicia sesión en CitaJusta</h1>
         <p>Busca atenciones y administra tus citas en un solo lugar.</p>
@@ -47,7 +49,7 @@ export function LoginPage() {
           <Button type="submit" disabled={pending}>{pending ? 'Iniciando sesión…' : 'Iniciar sesión'}</Button>
         </form>
         {status === 'error' && <Button variant="outline" onClick={() => { void retrySession(); }}>Reintentar sesión existente</Button>}
-        <p>¿Aún no tienes una cuenta? <Link to="/registro">Crear cuenta</Link></p>
+        <p className="auth-switch">¿Aún no tienes una cuenta? <Link to="/registro">Crear cuenta</Link></p>
       </div>
     </section>
   );

@@ -18,9 +18,9 @@ export function AppointmentsPage() {
   useEffect(() => { setSelected(null); setNotice(''); }, [user?.id]);
 
   return (
-    <div className="page-container">
+    <div className="page-container route-page">
       <div className="page-heading">
-        <div><h1 ref={heading} tabIndex={-1}>Mis citas</h1><p>Consulta tus atenciones y gestiona tus reservas. Se muestran de la más antigua a la más reciente, sin cambiar su estado.</p></div>
+        <div><h1 ref={heading} tabIndex={-1}>Mis citas</h1><p>Consulta tus atenciones y gestiona tus reservas, ordenadas de la más antigua a la más reciente.</p></div>
         <Link to="/" className="button button-outline">Buscar una hora</Link>
       </div>
       {notice && <p role="status" className="content-panel mb-5">{notice}</p>}
