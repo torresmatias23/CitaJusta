@@ -2,11 +2,12 @@
 
 ## Propósito
 
-Reunir la evidencia del trabajo colaborativo y de la planificación inicial.
+Reunir la evidencia del trabajo colaborativo y de la definición inicial del proyecto CitaJusta.
 
-## Documentos esperados
+## Evidencia incorporada
 
-- Entregables grupales definidos para la fase.
-- Evidencia de planificación, seguimiento y acuerdos del equipo.
+- Formativa Fase 1.
+- Guía de definición del proyecto APT.
+- Presentación de Evaluación 1.
 
-**Estado:** PENDIENTE DE INCORPORAR.
+**Estado:** EVIDENCIA INCORPORADA.
