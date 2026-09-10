@@ -111,6 +111,27 @@ npm run --workspace @citajusta/api bootstrap:appointment-status
 
 El bootstrap es idempotente por códigos `AGENDADA` y `CANCELADA` y conserva toda configuración existente. Para `AGENDADA` omite `allowsConfirmation`, cuyo default del modelo es `false`; `CANCELADA` se crea activa y final, con `allowsCancellation` y `allowsConfirmation` en `false`. Los endpoints no ejecutan el bootstrap: la reserva responde `503` si `AGENDADA` falta, está inactiva o es final; la cancelación responde `503` si `CANCELADA` falta, está inactiva, no es final o permite cancelar/confirmar.
 
+### HU-007: ingreso y consulta de lista de espera
+
+- `POST /api/v1/waitlist`: Bearer token y body estricto `{ serviceId: UUID, branchId?: UUID }`, sin query. Devuelve `201` con `{ data: { id, status, enteredAt, service: { id, name }, branch: { id, name } | null } }`.
+- `GET /api/v1/waitlist`: Bearer token, sin filtros ni campos de body. Devuelve `{ data: [...] }` con el mismo DTO, sólo solicitudes propias no eliminadas y con `status.isFinal: false`, ordenadas por `enteredAt ASC, id ASC`. Los catálogos inactivos no ocultan solicitudes abiertas; las relaciones institucionales incoherentes se excluyen.
+- El propietario viene del principal y la institución del servicio. Servicio/institución deben estar activos y no eliminados; una sede indicada debe estar activa, pertenecer a esa institución y tener `ServiceBranch` activa. Se exige `allowsWaitlist: true`.
+- Estado inicial `ACTIVE` (Activa, activo, no final). Prioridad `STANDARD` institucional, resuelta por `(institutionId, code)`, nunca elegida por cliente ni con fallback global. Estado, prioridad, notas y campos internos no forman parte del input/DTO.
+- Equivalencia: mismo usuario, institución y servicio, independientemente de sede. Una solicitud no eliminada y no final bloquea otra incluso si su catálogo de estado está inactivo. Finalizadas/eliminadas permiten una nueva alta.
+- Transacción `Serializable`, lectura de equivalencia e inserción dentro de ella y un reintento completo ante `P2034` o conflicto de serialización/deadlock del adapter-pg al commit. Conflictos persistentes devuelven `409`. No existe UNIQUE físico de equivalencia: todos los futuros escritores deben respetar esta política.
+- Errores: `400` input inválido/extra, `401` autenticación/usuario inválido, `404` servicio/sede no accesible o relaciones inválidas, `409` espera deshabilitada/duplicada/conflicto y `503` catálogo faltante/incompatible.
+- Errores inesperados de programación/persistencia, incluidas violaciones UNIQUE/FK no clasificadas, devuelven `500` sin detalles internos; no se reinterpretan como duplicados ni se reintentan. Sólo `P2034` o `DriverAdapterError` con `cause.kind: TransactionWriteConflict` y SQLSTATE `40001`/`40P01` habilitan el reintento transaccional.
+- Sin sede significa solicitud por servicio, no aceptación de cualquier sede. Se conservan `allowsOtherBranches: false`, `minimumNoticeMinutes: 0` y demás defaults; no se crean preferencias. La falta de disponibilidad adecuada es una precondición del flujo de búsqueda, no una prohibición basada en la existencia de cupos. HU-008 definirá preferencias y HU-009 elegibilidad; no se crean citas, candidatos, ofertas ni reasignaciones.
+
+Provisionar explícitamente después de configurar instituciones y repetir al incorporar nuevas:
+
+```powershell
+npm run --workspace @citajusta/api bootstrap:waitlist
+npm run --workspace @citajusta/api test:e2e:waitlist
+```
+
+El bootstrap crea `ACTIVE` y `STANDARD` para cada institución activa/no eliminada. Sin instituciones sólo provisiona `ACTIVE`. Una prioridad nueva usa nombre `Estándar`, nivel `0` y `active: true`; es un valor base técnico, no una fórmula de scoring. Conserva identificadores, nombres y niveles compatibles ya configurados. Si `ACTIVE` está inactivo/final, `STANDARD` inactiva o el nivel `0` pertenece a otra prioridad, falla con rollback sin sobrescribir ni escoger otro nivel. No utiliza prioridades globales, cuyos UNIQUE con institución nula no garantizan unicidad. Los endpoints nunca ejecutan bootstrap. E2E usa PostgreSQL local permitido y fixtures identificados; ejecutar secuencialmente con los E2E de appointments/checkpoint.
+
 ## Variables de entorno
 
 El backend valida su configuración al arrancar. Usa [apps/api/.env.example](apps/api/.env.example) como contrato y crea un archivo local `apps/api/.env` con valores propios del entorno.
