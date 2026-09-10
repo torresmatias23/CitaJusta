@@ -6,7 +6,7 @@ import { NestFactory } from '@nestjs/core';
 import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
 import { FIXTURE_EMAIL_PREFIX, ids, cleanupCheckpointFixtures, createCheckpointFixtures, assertCheckpointIsClean } from './fixture.mjs';
 
-test('HU-007 real HTTP and PostgreSQL waitlist', { timeout: 120_000 }, async (t) => {
+test('HU-007/HU-008 real HTTP and PostgreSQL waitlist', { timeout: 120_000 }, async (t) => {
   loadApiEnvironment();
   assertSafeLocalDatabaseUrl(process.env.DATABASE_URL);
   process.env.NODE_ENV = 'test';
@@ -65,7 +65,9 @@ test('HU-007 real HTTP and PostgreSQL waitlist', { timeout: 120_000 }, async (t)
     // Both branches really offer this service; branch changes must still count as duplicates.
     await prisma.serviceBranch.create({ data: { serviceId: ids.serviceA, branchId: ids.branchA2 } });
     const initialState = await prisma.waitlistStatus.findUnique({ where: { code: 'ACTIVE' } });
+    const initialWithdrawn = await prisma.waitlistStatus.findUnique({ where: { code: 'WITHDRAWN' } });
     await bootstrapWaitlist(prisma, ids.institutionA);
+    if (!initialWithdrawn) statusIds.push((await prisma.waitlistStatus.findUniqueOrThrow({ where: { code: 'WITHDRAWN' } })).id);
     if (!initialState) statusIds.push((await prisma.waitlistStatus.findUniqueOrThrow({ where: { code: 'ACTIVE' } })).id);
     priorityIds.push((await prisma.priority.findUniqueOrThrow({ where: { institutionId_code: { institutionId: ids.institutionA, code: 'STANDARD' } } })).id);
     await bootstrapWaitlist(prisma, ids.institutionB);
@@ -281,12 +283,127 @@ test('HU-007 real HTTP and PostgreSQL waitlist', { timeout: 120_000 }, async (t)
     await t.test('HU-007 has no appointment, slot, preference, candidate or offer side effects', async () => {
       assert.deepEqual(await sideEffects(), before);
     });
+
+    const owner = await register();
+    const enrolled = await post({ serviceId: ids.serviceA, branchId: ids.branchA1 }, owner);
+    assert.equal(enrolled.status, 201);
+    const entryId = enrolled.body.data.id;
+    const path = `/api/v1/waitlist/${entryId}/preferences`;
+    const withdrawPath = `/api/v1/waitlist/${entryId}/withdraw`;
+    const emptyPreferences = { preferredDays: [], timeRanges: [], preferredBranchIds: [], allowsOtherBranches: false, acceptsAnyProfessional: true };
+    const preferences = { ...emptyPreferences, preferredDays: [1, 5], timeRanges: [{ start: '08:30', end: '12:00' }], preferredBranchIds: [ids.branchA2, ids.branchA1], allowsOtherBranches: true, acceptsAnyProfessional: false };
+    const persisted = () => prisma.waitlistEntry.findUniqueOrThrow({ where: { id: entryId }, include: { preference: { include: { preferredDays: true, timeRanges: true } }, preferredBranches: true } });
+    await t.test('HU-008 empty GET, ownership, authentication and strict request boundaries', async () => {
+      assert.deepEqual((await request('GET', path, owner.token)).body, { data: emptyPreferences });
+      for (const [method, url, body] of [['GET', path], ['PUT', path, preferences], ['POST', withdrawPath]]) {
+        assert.equal((await request(method, url, undefined, body)).status, 401);
+        assert.equal((await request(method, url, second.token, body)).status, 404);
+        assert.equal((await request(method, url.replace(entryId, randomUUID()), owner.token, body)).status, 404);
+        assert.equal((await request(method, `${url}?userId=${second.id}`, owner.token, body)).status, 400);
+      }
+      assert.equal((await request('POST', withdrawPath, owner.token, { userId: owner.id })).status, 400);
+      assert.equal((await request('PUT', path, owner.token, { ...preferences, institutionId: ids.institutionA })).status, 400);
+    });
+    await t.test('HU-008 persists controlled DTO, preserves original branch/enteredAt and advances updatedAt', async () => {
+      const old = await persisted();
+      const result = await request('PUT', path, owner.token, preferences);
+      assert.equal(result.status, 200); assert.deepEqual(result.body, { data: preferences });
+      assert.deepEqual((await request('GET', path, owner.token)).body, result.body);
+      const current = await persisted();
+      assert.equal(current.branchId, old.branchId); assert.deepEqual(current.enteredAt, old.enteredAt);
+      assert.ok(current.updatedAt > old.updatedAt);
+    });
+    await t.test('HU-008 rejects invalid/duplicate/overlapping ranges and invalid branch relationships', async () => {
+      for (const patch of [
+        { preferredDays: [1, 1] }, { preferredBranchIds: [ids.branchA1, ids.branchA1] },
+        { timeRanges: [{ start: '12:00', end: '12:00' }] },
+        { timeRanges: [{ start: '08:00', end: '10:00' }, { start: '09:00', end: '11:00' }] },
+      ]) assert.equal((await request('PUT', path, owner.token, { ...preferences, ...patch })).status, 400);
+      for (const branchId of [ids.branchB1, ids.branchInactive, randomUUID()]) {
+        assert.equal((await request('PUT', path, owner.token, { ...preferences, preferredBranchIds: [branchId] })).status, 404);
+      }
+      await prisma.serviceBranch.update({ where: { serviceId_branchId: { serviceId: ids.serviceA, branchId: ids.branchA2 } }, data: { active: false } });
+      try {
+        assert.equal((await request('PUT', path, owner.token, preferences)).status, 404);
+        assert.deepEqual((await request('GET', path, owner.token)).body.data, preferences);
+      } finally { await prisma.serviceBranch.update({ where: { serviceId_branchId: { serviceId: ids.serviceA, branchId: ids.branchA2 } }, data: { active: true } }); }
+    });
+    await t.test('HU-008 rollback restores parent, all children and timestamps after a real write', async () => {
+      const old = await persisted(); const originalTransaction = prisma.$transaction.bind(prisma);
+      let wrote = false;
+      prisma.$transaction = (fn, options) => originalTransaction((tx) => fn(new Proxy(tx, {
+        get(target, property) {
+          if (property !== 'waitlistEntry') return target[property];
+          return new Proxy(target.waitlistEntry, { get(delegate, key) {
+            if (key !== 'update') return delegate[key];
+            return async (args) => { await delegate.update(args); wrote = true; throw new Error('private fixture detail'); };
+          } });
+        },
+      })), options);
+      try {
+        const result = await request('PUT', path, owner.token, emptyPreferences);
+        assert.equal(result.status, 500); assert.ok(wrote);
+        assert.ok(!JSON.stringify(result.body).includes('private fixture detail'));
+      } finally { prisma.$transaction = originalTransaction; }
+      assert.deepEqual(await persisted(), old);
+    });
+    await t.test('HU-008 replacement deletes omitted child rows and supports empty preferences', async () => {
+      assert.deepEqual((await request('PUT', path, owner.token, emptyPreferences)).body, { data: emptyPreferences });
+      const current = await persisted();
+      assert.equal(current.preference.preferredDays.length, 0); assert.equal(current.preference.timeRanges.length, 0);
+      assert.equal(current.preferredBranches.length, 0);
+      assert.equal((await request('PUT', path, owner.token, preferences)).status, 200);
+    });
+    await t.test('HU-008 concurrent withdrawal retries whole transaction and has a single effective update', async () => {
+      const old = await persisted(); const originalTransaction = prisma.$transaction.bind(prisma);
+      let reads = 0; let updates = 0; let release;
+      const barrier = new Promise((resolve) => { release = resolve; });
+      const timer = setTimeout(release, 5000);
+      prisma.$transaction = (fn, options) => originalTransaction((tx) => fn(new Proxy(tx, {
+        get(target, property) {
+          if (property !== 'waitlistEntry') return target[property];
+          return new Proxy(target.waitlistEntry, { get(delegate, key) {
+            if (key === 'findFirst') return async (args) => {
+              const row = await delegate.findFirst(args);
+              if (args.where.id === entryId && ++reads <= 2) { if (reads === 2) release(); await barrier; }
+              return row;
+            };
+            if (key === 'update') return async (args) => { const row = await delegate.update(args); updates++; return row; };
+            return delegate[key];
+          } });
+        },
+      })), options);
+      try {
+        const results = await Promise.all([request('POST', withdrawPath, owner.token), request('POST', withdrawPath, owner.token)]);
+        assert.deepEqual(results.map((r) => r.status), [200, 200]);
+        assert.equal(reads, 3); assert.equal(updates, 1);
+        for (const result of results) assert.deepEqual(result.body, { data: { id: entryId, status: 'WITHDRAWN' } });
+      } finally { clearTimeout(timer); prisma.$transaction = originalTransaction; }
+      const current = await persisted(); assert.deepEqual(current.preference, old.preference);
+      assert.deepEqual(current.preferredBranches, old.preferredBranches); assert.deepEqual(current.enteredAt, old.enteredAt);
+      assert.equal(current.branchId, old.branchId); assert.ok(current.updatedAt > old.updatedAt);
+      assert.equal((await request('POST', withdrawPath, owner.token)).status, 200);
+      assert.deepEqual(await persisted(), current);
+      assert.equal((await request('PUT', path, owner.token, preferences)).status, 409);
+      assert.deepEqual((await request('GET', path, owner.token)).body.data, preferences);
+      assert.ok(!(await get(owner)).body.data.some((row) => row.id === entryId));
+    });
+    await t.test('HU-008 other final state rejects withdrawal and has no unrelated domain effects', async () => {
+      assert.equal((await request('POST', `/api/v1/waitlist/${firstEntry.id}/withdraw`, first.token)).status, 409);
+      const { preferences: ignoredBefore, ...domainBefore } = before;
+      const { preferences: ignoredAfter, ...domainAfter } = await sideEffects();
+      assert.deepEqual(domainAfter, domainBefore);
+    });
   } finally {
     try {
       if (prisma && cleanupEnabled) {
         // Only users generated by this run and catalog IDs provisioned for its fixture institutions.
         // FK Restrict deliberately stops cleanup if unexpected downstream data was attached.
         await prisma.$transaction([
+          prisma.waitlistPreferredDay.deleteMany({ where: { preference: { waitlistEntry: { userId: { in: userIds } } } } }),
+          prisma.waitlistTimeRange.deleteMany({ where: { preference: { waitlistEntry: { userId: { in: userIds } } } } }),
+          prisma.waitlistPreferredBranch.deleteMany({ where: { waitlistEntry: { userId: { in: userIds } } } }),
+          prisma.waitlistPreference.deleteMany({ where: { waitlistEntry: { userId: { in: userIds } } } }),
           prisma.waitlistEntry.deleteMany({ where: { userId: { in: userIds } } }),
           prisma.priority.deleteMany({ where: { id: { in: priorityIds }, institutionId: { in: [ids.institutionA, ids.institutionB] } } }),
           prisma.waitlistStatus.deleteMany({ where: { id: { in: statusIds } } }),

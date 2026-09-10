@@ -14,11 +14,16 @@ export async function bootstrapWaitlist(prisma: Pick<PrismaClient, '$transaction
         });
         if (institutionId && institutions.length !== 1) throw new Error('Active institution not found');
         await tx.waitlistStatus.createMany({
-          data: [{ id: randomUUID(), code: 'ACTIVE', name: 'Activa', active: true, isFinal: false }],
+          data: [
+            { id: randomUUID(), code: 'ACTIVE', name: 'Activa', active: true, isFinal: false },
+            { id: randomUUID(), code: 'WITHDRAWN', name: 'Retirada', active: true, isFinal: true },
+          ],
           skipDuplicates: true,
         });
         const status = await tx.waitlistStatus.findUniqueOrThrow({ where: { code: 'ACTIVE' } });
         if (!status.active || status.isFinal) throw new Error('Incompatible ACTIVE waitlist status');
+        const withdrawn = await tx.waitlistStatus.findUniqueOrThrow({ where: { code: 'WITHDRAWN' } });
+        if (!withdrawn.active || !withdrawn.isFinal) throw new Error('Incompatible WITHDRAWN waitlist status');
         for (const institution of institutions) {
           const where = { institutionId_code: { institutionId: institution.id, code: 'STANDARD' } };
           const existing = await tx.priority.findUnique({ where });
