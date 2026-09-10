@@ -10,6 +10,7 @@ import { InstitutionsModule } from './institutions/institutions.module.js';
 import { ProfessionalsModule } from './professionals/professionals.module.js';
 import { ServicesModule } from './services/services.module.js';
 import { UsersModule } from './users/users.module.js';
+import { WaitlistModule } from './waitlist/waitlist.module.js';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { UsersModule } from './users/users.module.js';
     ProfessionalsModule,
     ServicesModule,
     UsersModule,
+    WaitlistModule,
   ],
   controllers: [HealthController],
 })
