@@ -11,6 +11,7 @@ import { ProfessionalsModule } from './professionals/professionals.module.js';
 import { ServicesModule } from './services/services.module.js';
 import { UsersModule } from './users/users.module.js';
 import { WaitlistModule } from './waitlist/waitlist.module.js';
+import { ReassignmentsModule } from './reassignments/reassignments.module.js';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { WaitlistModule } from './waitlist/waitlist.module.js';
     ServicesModule,
     UsersModule,
     WaitlistModule,
+    ReassignmentsModule,
   ],
   controllers: [HealthController],
 })

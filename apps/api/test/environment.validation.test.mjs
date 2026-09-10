@@ -16,6 +16,7 @@ test('environment validation applies safe defaults', () => {
   assert.deepEqual(validateEnvironment(validEnvironment), {
     NODE_ENV: 'development',
     PORT: 3000,
+    WAITLIST_OFFER_TTL_MINUTES: 10,
     DATABASE_URL: databaseUrl,
     JWT_ACCESS_SECRET: jwtAccessSecret,
     JWT_REFRESH_SECRET: jwtRefreshSecret,
@@ -36,6 +37,7 @@ test('environment validation accepts and coerces valid values', () => {
     {
       NODE_ENV: 'test',
       PORT: 4100,
+      WAITLIST_OFFER_TTL_MINUTES: 10,
       DATABASE_URL: databaseUrl,
       JWT_ACCESS_SECRET: jwtAccessSecret,
       JWT_REFRESH_SECRET: jwtRefreshSecret,
@@ -131,6 +133,7 @@ test('environment validation rejects missing or unsafe JWT secrets', () => {
 test('environment validation rejects invalid JWT TTL values', () => {
   for (const key of [
     'JWT_ACCESS_TTL_SECONDS',
+    'WAITLIST_OFFER_TTL_MINUTES',
     'JWT_REFRESH_TTL_SECONDS',
   ]) {
     for (const value of ['0', '-1', '1.5', 'not-a-number']) {

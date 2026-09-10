@@ -20,6 +20,7 @@ const environmentSchema = z
       .enum(['development', 'test', 'production'])
       .default('development'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    WAITLIST_OFFER_TTL_MINUTES: z.coerce.number().int().positive().default(10),
     DATABASE_URL: z.string().refine(isPostgresqlUrl, {
       message: 'must be a valid PostgreSQL URL',
     }),
