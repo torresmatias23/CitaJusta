@@ -17,6 +17,7 @@ export async function bootstrapWaitlist(prisma: Pick<PrismaClient, '$transaction
           data: [
             { id: randomUUID(), code: 'ACTIVE', name: 'Activa', active: true, isFinal: false },
             { id: randomUUID(), code: 'WITHDRAWN', name: 'Retirada', active: true, isFinal: true },
+            { id: randomUUID(), code: 'FULFILLED', name: 'Cumplida', active: true, isFinal: true },
           ],
           skipDuplicates: true,
         });
@@ -24,6 +25,8 @@ export async function bootstrapWaitlist(prisma: Pick<PrismaClient, '$transaction
         if (!status.active || status.isFinal) throw new Error('Incompatible ACTIVE waitlist status');
         const withdrawn = await tx.waitlistStatus.findUniqueOrThrow({ where: { code: 'WITHDRAWN' } });
         if (!withdrawn.active || !withdrawn.isFinal) throw new Error('Incompatible WITHDRAWN waitlist status');
+        const fulfilled = await tx.waitlistStatus.findUniqueOrThrow({ where: { code: 'FULFILLED' } });
+        if (!fulfilled.active || !fulfilled.isFinal) throw new Error('Incompatible FULFILLED waitlist status');
         for (const institution of institutions) {
           const where = { institutionId_code: { institutionId: institution.id, code: 'STANDARD' } };
           const existing = await tx.priority.findUnique({ where });

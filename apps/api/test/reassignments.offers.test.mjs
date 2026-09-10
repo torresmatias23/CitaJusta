@@ -70,7 +70,10 @@ test('TTL defaults to 10, coerces configured positive integer and rejects invali
   for (const value of ['0', '-1', '1.5', 'NaN', '']) assert.throws(() => validateEnvironment({ ...env, WAITLIST_OFFER_TTL_MINUTES: value }), /WAITLIST_OFFER_TTL_MINUTES/);
 });
 test('controller rejects missing identity, arbitrary body/query and missing context', () => {
-  const controller = new ReassignmentsController({ generate: (id, context) => ({ id, context }) });
+  const controller = new ReassignmentsController({
+    generate: (id, context) => ({ id, context }),
+    acceptOffer: (id, principal) => ({ id, principal }),
+  });
   const request = { principal: { userId: randomUUID() }, authorization: { userId: randomUUID(), institutionId: slot.institutionId, permissions: ['reassignments.generate'] } };
   const params = { agendaSlotId: randomUUID() };
   assert.equal(controller.generate(params, {}, undefined, request).id, params.agendaSlotId);
@@ -79,6 +82,18 @@ test('controller rejects missing identity, arbitrary body/query and missing cont
     [params, {}, undefined, { ...request, authorization: { ...request.authorization, institutionId: undefined } }, 400]]) {
     assert.throws(() => controller.generate(p, q, b, r), (e) => e.getStatus() === status);
   }
+
+  const offerId = randomUUID();
+  const selfRequest = { principal: { userId: randomUUID(), sessionId: randomUUID() } };
+  assert.equal(controller.accept({ offerId }, {}, undefined, selfRequest).id, offerId);
+  for (const [p, q, b, r, status] of [
+    [{ offerId }, {}, undefined, {}, 401],
+    [{ offerId }, { userId: 'x' }, undefined, selfRequest, 400],
+    [{ offerId }, {}, { userId: 'x' }, selfRequest, 400],
+    [{ offerId: 'bad' }, {}, undefined, selfRequest, 400],
+  ]) {
+    assert.throws(() => controller.accept(p, q, b, r), (e) => e.getStatus() === status);
+  }
 });
 test('transaction retry is complete, bounded, and does not mask unexpected SQL errors', async () => {
   for (const [error, expected, count] of [[{ code: 'P2034' }, 409, 2], [new Error('secret storage detail'), 500, 1]]) {
@@ -86,6 +101,17 @@ test('transaction retry is complete, bounded, and does not mask unexpected SQL e
     const prisma = { $transaction: async (_fn, options) => { attempts++; assert.equal(options.isolationLevel, 'Serializable'); throw error; } };
     const service = new ReassignmentsService(prisma, {});
     await assert.rejects(service.generate(randomUUID(), {}), (e) => e.getStatus() === expected && !e.message.includes('secret'));
+    assert.equal(attempts, count);
+  }
+});
+
+test('acceptance transaction retry is bounded and storage errors remain sanitized', async () => {
+  const principal = { userId: randomUUID(), sessionId: randomUUID() };
+  for (const [error, expected, count] of [[{ code: 'P2034' }, 409, 2], [new Error('private acceptance storage detail'), 500, 1]]) {
+    let attempts = 0;
+    const prisma = { $transaction: async (_fn, options) => { attempts++; assert.equal(options.isolationLevel, 'Serializable'); throw error; } };
+    const service = new ReassignmentsService(prisma, {});
+    await assert.rejects(service.acceptOffer(randomUUID(), principal), (e) => e.getStatus() === expected && !e.message.includes('private'));
     assert.equal(attempts, count);
   }
 });
