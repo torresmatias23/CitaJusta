@@ -78,3 +78,18 @@ test('bootstrap rejects an explicit missing or inactive institution', async () =
   await assert.rejects(bootstrapWaitlist(s.prisma, randomUUID()), /Active institution not found/);
   assert.deepEqual(s.state(), { statuses: [], priorities: [] });
 });
+
+test('WITHDRAWN is terminal, active, idempotent and preserves compatible labels', async () => {
+  const s = setup(); await bootstrapWaitlist(s.prisma);
+  const withdrawn = s.state().statuses.find((row) => row.code === 'WITHDRAWN');
+  assert.equal(withdrawn.name, 'Retirada'); assert.equal(withdrawn.isFinal, true); assert.equal(withdrawn.active, true);
+  withdrawn.name = 'Custom label'; const before = structuredClone(s.state());
+  await bootstrapWaitlist(s.prisma); assert.deepEqual(s.state(), before);
+});
+for (const field of ['active', 'isFinal']) test(`WITHDRAWN incompatible ${field} fails without overwriting`, async () => {
+  const s = setup(); await bootstrapWaitlist(s.prisma);
+  s.state().statuses.find((row) => row.code === 'WITHDRAWN')[field] = false;
+  const before = structuredClone(s.state());
+  await assert.rejects(bootstrapWaitlist(s.prisma), /Incompatible WITHDRAWN/);
+  assert.deepEqual(s.state(), before);
+});

@@ -12,9 +12,9 @@ try {
   if (!['postgres:', 'postgresql:'].includes(url.protocol)) throw new Error('Invalid database configuration');
   prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
   const result = await bootstrapWaitlist(prisma);
-  console.log(`Waitlist ACTIVE provisioned; STANDARD provisioned for ${result.institutions} active institutions. Existing configuration preserved.`);
+  console.log(`Waitlist ACTIVE/WITHDRAWN provisioned; STANDARD provisioned for ${result.institutions} active institutions. Existing configuration preserved.`);
 } catch {
-  console.error('Waitlist bootstrap failed; check database, ACTIVE/ STANDARD configuration and institution priority level 0 conflicts.');
+  console.error('Waitlist bootstrap failed; check database, ACTIVE/WITHDRAWN/STANDARD configuration and institution priority level 0 conflicts.');
   process.exitCode = 1;
 } finally {
   if (prisma) await prisma.$disconnect();
