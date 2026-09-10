@@ -1,0 +1,171 @@
+name: Daily Scrum
+
+on:
+  schedule:
+    # 12:00 UTC corresponde aproximadamente a las
+    # 08:00 o 09:00 en Chile, dependiendo del horario estacional.
+    - cron: "0 12 * * 1-5"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  create-daily-scrum:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Crear Daily Scrum
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const formatter = new Intl.DateTimeFormat("en-CA", {
+              timeZone: "America/Santiago",
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            });
+
+            const parts = formatter.formatToParts(new Date());
+
+            const values = Object.fromEntries(
+              parts
+                .filter(part => part.type !== "literal")
+                .map(part => [part.type, part.value])
+            );
+
+            const date = `${values.year}-${values.month}-${values.day}`;
+            const title = `Daily Scrum · ${date}`;
+
+            const issues = await github.paginate(
+              github.rest.issues.listForRepo,
+              {
+                owner,
+                repo,
+                state: "all",
+                per_page: 100,
+              }
+            );
+
+            const alreadyExists = issues.some(
+              issue => !issue.pull_request && issue.title === title
+            );
+
+            if (alreadyExists) {
+              core.info(`Ya existe ${title}. No se creará un duplicado.`);
+              return;
+            }
+
+            try {
+              await github.rest.issues.getLabel({
+                owner,
+                repo,
+                name: "daily-scrum",
+              });
+            } catch (error) {
+              if (error.status === 404) {
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: "daily-scrum",
+                  description: "Registro diario del trabajo Scrum del equipo CitaJusta",
+                  color: "0E8A16",
+                });
+              } else {
+                throw error;
+              }
+            }
+
+            const body = `# Daily Scrum · ${date}
+
+            ## Estado del Sprint
+
+            **Sprint:**
+            **Estado:**
+            **Objetivo actual:**
+
+            ---
+
+            ## Matías Torres
+
+            ### ¿Qué completaste desde la última Daily?
+
+            -
+
+            ### ¿Qué harás ahora?
+
+            -
+
+            ### Bloqueos
+
+            - Ninguno.
+
+            ### Evidencia
+
+            -
+
+            ---
+
+            ## Bastian Sepúlveda
+
+            ### ¿Qué completaste desde la última Daily?
+
+            -
+
+            ### ¿Qué harás ahora?
+
+            -
+
+            ### Bloqueos
+
+            - Ninguno.
+
+            ### Evidencia
+
+            -
+
+            ---
+
+            ## Diego Simón
+
+            ### ¿Qué completaste desde la última Daily?
+
+            -
+
+            ### ¿Qué harás ahora?
+
+            -
+
+            ### Bloqueos
+
+            - Ninguno.
+
+            ### Evidencia
+
+            -
+
+            ---
+
+            ## Acuerdos / decisiones
+
+            -
+
+            ## Próximos pasos
+
+            -
+            `;
+
+            await github.rest.issues.create({
+              owner,
+              repo,
+              title,
+              body,
+              labels: ["daily-scrum"],
+            });
+
+            core.info(`Creado correctamente: ${title}`);

@@ -1,0 +1,204 @@
+[
+  {
+    "date": "2026-08-27",
+    "sprint": "Etapa inicial",
+    "status": "Desarrollo técnico inicial",
+    "goal": "Preparar la base técnica del proyecto",
+    "work": [
+      "Inicio del desarrollo técnico de CitaJusta.",
+      "Configuración del monorepo con npm workspaces.",
+      "Creación de la base de la API NestJS.",
+      "Implementación del endpoint de salud.",
+      "Creación de documentación inicial de arquitectura y configuración."
+    ],
+    "result": "Base técnica inicial del proyecto preparada.",
+    "blockers": "Ninguno documentado.",
+    "evidence": [
+      "Historial Git del repositorio.",
+      "Documentación de arquitectura y configuración."
+    ],
+    "nextStep": "Continuar configuración del backend y del entorno de desarrollo."
+  },
+  {
+    "date": "2026-08-28",
+    "sprint": "Etapa inicial",
+    "status": "Configuración técnica",
+    "goal": "Mejorar el flujo de desarrollo",
+    "work": [
+      "Configuración e inicialización de CodeGraph.",
+      "Actualización de AGENTS.md.",
+      "Actualización de arquitectura, decisiones y setup.",
+      "Exclusión de .codegraph del repositorio."
+    ],
+    "result": "Flujo de desarrollo y análisis del código mejorado.",
+    "blockers": "Ninguno documentado.",
+    "evidence": [
+      "Historial Git.",
+      "Documentación del repositorio."
+    ],
+    "nextStep": "Continuar configuración de API, persistencia y PostgreSQL."
+  },
+  {
+    "date": "2026-08-29",
+    "sprint": "Etapa inicial",
+    "status": "Configuración técnica",
+    "goal": "Validar configuración del backend",
+    "work": [
+      "Implementación de validación de entorno mediante Zod.",
+      "Configuración de NODE_ENV y PORT.",
+      "Ajuste de scripts build, start y test."
+    ],
+    "result": "API con configuración de entorno validada.",
+    "blockers": "Ninguno documentado.",
+    "evidence": [
+      "Código fuente del backend.",
+      "Historial Git."
+    ],
+    "nextStep": "Continuar con persistencia, seguridad y módulos base."
+  },
+  {
+    "date": "2026-08-31",
+    "sprint": "Sprint 4",
+    "status": "En progreso",
+    "goal": "Completar Agenda Base",
+    "work": [
+      "Avance de catálogos, profesionales y disponibilidad.",
+      "Integración de trabajo técnico del Sprint 4.",
+      "Preparación del checkpoint E2E con PostgreSQL real."
+    ],
+    "result": "Agenda Base preparada para validación con PostgreSQL.",
+    "blockers": "PostgreSQL local todavía no estaba disponible para ejecutar el checkpoint real.",
+    "evidence": [
+      "Historial Git.",
+      "Documentación Sprint 4."
+    ],
+    "nextStep": "Ejecutar checkpoint con PostgreSQL real."
+  },
+  {
+    "date": "2026-09-03",
+    "sprint": "Sprint 4",
+    "status": "Reunión de coordinación",
+    "goal": "Organizar la primera evaluación",
+    "work": [
+      "Reunión real del equipo realizada mediante Discord aproximadamente a las 20:00.",
+      "Matías Torres quedó a cargo de coordinación y revisión general.",
+      "Bastian Sepúlveda quedó encargado de avance y revisión documental.",
+      "Diego Simón quedó encargado de completar la presentación.",
+      "Se acordó realizar una revisión final conjunta."
+    ],
+    "result": "Responsabilidades distribuidas para completar la primera evaluación.",
+    "blockers": "PostgreSQL local se encontraba detenido para el checkpoint E2E.",
+    "evidence": [
+      "Minuta de reunión del 03-09-2026.",
+      "Documentación académica del proyecto."
+    ],
+    "nextStep": "Completar documentación y presentación de la primera evaluación."
+  },
+  {
+    "date": "2026-09-06",
+    "sprint": "Sprint 5",
+    "status": "En progreso",
+    "goal": "Implementar núcleo de citas",
+    "work": [
+      "Implementación de HU-004: Reservar una cita.",
+      "Transacción Serializable.",
+      "Uso de lockVersion.",
+      "Protección frente a doble asignación."
+    ],
+    "result": "Reserva de citas implementada.",
+    "blockers": "Ninguno documentado.",
+    "evidence": [
+      "PR #35",
+      "Issue HU-004."
+    ],
+    "nextStep": "Implementar HU-005: Consultar mis citas."
+  },
+  {
+    "date": "2026-09-07",
+    "sprint": "Sprint 5",
+    "status": "En progreso",
+    "goal": "Continuar núcleo de citas",
+    "work": [
+      "Implementación de HU-005: Consultar mis citas.",
+      "Ejecución exitosa del checkpoint PostgreSQL real."
+    ],
+    "result": "Consulta de citas propias y Agenda Base validadas.",
+    "blockers": "Ninguno documentado.",
+    "evidence": [
+      "Backend 96/96 PASS al cierre de HU-005.",
+      "E2E appointments 14/14 PASS.",
+      "Checkpoint PostgreSQL PASS."
+    ],
+    "nextStep": "Implementar HU-006: Cancelar una cita."
+  },
+  {
+    "date": "2026-09-08",
+    "sprint": "Sprint 5",
+    "status": "En progreso",
+    "goal": "Completar núcleo de citas e integración web",
+    "work": [
+      "Implementación de HU-006: Cancelar una cita.",
+      "Cancelación transaccional e idempotente.",
+      "AgendaSlot pasa de RESERVED a RELEASED.",
+      "Avance de aplicación web React, Vite y TypeScript."
+    ],
+    "result": "Reserva, consulta y cancelación de citas operativas.",
+    "blockers": "Ninguno documentado.",
+    "evidence": [
+      "PR #37",
+      "Código y pruebas del módulo appointments."
+    ],
+    "nextStep": "Completar integración frontend con API."
+  },
+  {
+    "date": "2026-09-09",
+    "sprint": "Sprint 5",
+    "status": "6/8 tareas completadas",
+    "goal": "Cerrar integración web y actualizar evidencia académica",
+    "work": [
+      "Integración de autenticación, catálogos y disponibilidad con frontend.",
+      "Integración del flujo de reserva, confirmación y Mis citas.",
+      "Validación Web/API/PostgreSQL.",
+      "Actualización de documentación académica y Capstone."
+    ],
+    "result": "Flujo principal web-backend validado de punta a punta.",
+    "blockers": "Ninguno documentado.",
+    "evidence": [
+      "PR #43",
+      "PR #44",
+      "Backend 114/114 PASS.",
+      "Web 39/39 PASS.",
+      "E2E appointments 22/22 PASS.",
+      "Web/API/PostgreSQL 13/13 PASS."
+    ],
+    "nextStep": "Completar evidencias individuales e implementar HU-007."
+  },
+  {
+    "date": "2026-09-10",
+    "sprint": "Sprint 5",
+    "status": "7/8 tareas completadas",
+    "goal": "Completar HU-007 e iniciar HU-008",
+    "work": [
+      "Evidencias individuales de Fase 1 completadas 9/9.",
+      "Implementación de HU-007: Ingresar a lista de espera.",
+      "Implementación de consulta de esperas activas propias.",
+      "Control de duplicados y concurrencia PostgreSQL.",
+      "Actualización del Kanban.",
+      "HU-007 movida a Done.",
+      "HU-008 movida a Ready.",
+      "Inicio de formalización del Daily Scrum en GitHub."
+    ],
+    "result": "HU-007 completada y Sprint 5 en 7/8.",
+    "blockers": "Se alcanzó el límite de uso de Codex durante la preparación de la automatización del Daily Scrum.",
+    "evidence": [
+      "PR #46",
+      "Backend 144/144 PASS.",
+      "HU-007/bootstrap 34/34 PASS.",
+      "E2E waitlist PostgreSQL 17/17 PASS.",
+      "E2E appointments 22/22 PASS.",
+      "Checkpoint PostgreSQL 1/1 PASS.",
+      "Kanban: 15 elementos acumulados en Done."
+    ],
+    "nextStep": "Implementar HU-008: Gestionar preferencias de lista de espera."
+  }
+]
