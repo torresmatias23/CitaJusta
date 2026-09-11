@@ -23,6 +23,20 @@ export interface AcceptanceResult {
   };
 }
 
+export interface RejectionResult {
+  data: {
+    offer: { id: string; status: 'REJECTED'; respondedAt: string };
+    reassignment: { id: string; status: 'OFFERING' | 'EXHAUSTED' };
+    nextOffer: {
+      id: string;
+      status: 'PENDING';
+      agendaSlotId: string;
+      createdAt: string;
+      expiresAt: string;
+    } | null;
+  };
+}
+
 @Injectable()
 export class ReassignmentsService {
   constructor(private readonly prisma: PrismaService, private readonly config: ConfigService) {}
@@ -399,6 +413,281 @@ export class ReassignmentsService {
       if (isTransactionConflict(error) && retry) return this.acceptOffer(offerId, principal, false);
       if (isTransactionConflict(error)) throw new ConflictException('Offer acceptance conflict; retry request');
       throw new InternalServerErrorException('Unable to accept offer', { cause: error });
+    }
+  }
+
+
+  async rejectOffer(offerId: string, principal: AuthenticatedPrincipal, retry = true): Promise<RejectionResult> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const now = new Date();
+        const user = await tx.user.findFirst({
+          where: { id: principal.userId, status: 'ACTIVE', deletedAt: null },
+          select: { id: true },
+        });
+        if (!user) throw new UnauthorizedException('Unauthorized');
+
+        const offer = await tx.appointmentOffer.findUnique({
+          where: { id: offerId },
+          select: {
+            id: true, reassignmentId: true, candidateId: true, agendaSlotId: true, attemptNumber: true,
+            status: true, expectedSlotVersion: true, expiresAt: true, respondedByUserId: true,
+            respondedAt: true, resolvedAt: true, lockVersion: true,
+            candidate: {
+              select: {
+                id: true, userId: true, waitlistEntryId: true, evaluationStatus: true,
+                rankingPosition: true, entryUpdatedAtSnapshot: true,
+              },
+            },
+            reassignment: {
+              select: {
+                id: true, institutionId: true, appointmentId: true, agendaSlotId: true,
+                serviceId: true, sourceUserId: true, status: true, lockVersion: true,
+              },
+            },
+          },
+        });
+        if (!offer || offer.candidate.userId !== principal.userId) {
+          throw new NotFoundException('Offer not found');
+        }
+
+        if (offer.status === 'REJECTED') {
+          if (offer.respondedByUserId !== principal.userId || !offer.respondedAt || !offer.resolvedAt) {
+            throw new ConflictException('Rejected offer state is inconsistent');
+          }
+          const nextOffer = await tx.appointmentOffer.findFirst({
+            where: {
+              reassignmentId: offer.reassignmentId,
+              status: 'PENDING',
+              attemptNumber: { gt: offer.attemptNumber },
+            },
+            orderBy: [{ attemptNumber: 'asc' }, { id: 'asc' }],
+            select: { id: true, agendaSlotId: true, createdAt: true, expiresAt: true },
+          });
+          if (
+            (offer.reassignment.status === 'OFFERING' && !nextOffer) ||
+            (offer.reassignment.status === 'EXHAUSTED' && nextOffer) ||
+            !['OFFERING', 'EXHAUSTED'].includes(offer.reassignment.status)
+          ) {
+            throw new ConflictException('Rejected offer state is inconsistent');
+          }
+          return {
+            data: {
+              offer: { id: offer.id, status: 'REJECTED', respondedAt: offer.respondedAt.toISOString() },
+              reassignment: { id: offer.reassignment.id, status: offer.reassignment.status as 'OFFERING' | 'EXHAUSTED' },
+              nextOffer: nextOffer ? {
+                id: nextOffer.id, status: 'PENDING', agendaSlotId: nextOffer.agendaSlotId,
+                createdAt: nextOffer.createdAt.toISOString(), expiresAt: nextOffer.expiresAt.toISOString(),
+              } : null,
+            },
+          };
+        }
+
+        if (offer.status !== 'PENDING') throw new ConflictException('Offer cannot be rejected');
+        if (offer.expiresAt <= now) throw new ConflictException('Offer has expired');
+        if (offer.candidate.evaluationStatus !== 'ELIGIBLE' || offer.candidate.rankingPosition === null ||
+            offer.reassignment.status !== 'OFFERING' || offer.reassignment.agendaSlotId !== offer.agendaSlotId) {
+          throw new ConflictException('Offer is no longer eligible');
+        }
+
+        const slot = await tx.agendaSlot.findUnique({
+          where: { id: offer.agendaSlotId },
+          select: {
+            id: true, status: true, lockVersion: true, startsAt: true, endsAt: true, blockedUntilAt: true,
+            availability: {
+              select: {
+                id: true, branchId: true, serviceId: true, professionalId: true, attentionPointId: true,
+                branch: {
+                  select: {
+                    institutionId: true,
+                    institution: { select: { timeZone: true } },
+                  },
+                },
+              },
+            },
+            appointment: {
+              select: {
+                id: true, institutionId: true, branchId: true, serviceId: true, professionalId: true,
+                attentionPointId: true, agendaSlotId: true, userId: true, deletedAt: true,
+                startsAt: true, endsAt: true,
+                status: { select: { code: true, isFinal: true } },
+              },
+            },
+          },
+        });
+        if (!slot) throw new ConflictException('Slot is no longer available');
+        const appointment = slot.appointment;
+        const availability = slot.availability;
+        if (
+          slot.status !== 'RELEASED' || slot.lockVersion !== offer.expectedSlotVersion ||
+          slot.startsAt <= now || slot.endsAt <= slot.startsAt ||
+          (slot.blockedUntilAt && slot.blockedUntilAt > now) ||
+          availability.branch.institutionId !== offer.reassignment.institutionId ||
+          availability.serviceId !== offer.reassignment.serviceId ||
+          !appointment || appointment.id !== offer.reassignment.appointmentId ||
+          appointment.agendaSlotId !== offer.agendaSlotId ||
+          appointment.userId !== offer.reassignment.sourceUserId ||
+          appointment.deletedAt || appointment.status.code !== 'CANCELADA' || !appointment.status.isFinal ||
+          appointment.institutionId !== offer.reassignment.institutionId ||
+          appointment.branchId !== availability.branchId ||
+          appointment.serviceId !== availability.serviceId ||
+          appointment.professionalId !== availability.professionalId ||
+          appointment.attentionPointId !== availability.attentionPointId ||
+          appointment.startsAt.getTime() !== slot.startsAt.getTime() ||
+          appointment.endsAt.getTime() !== slot.endsAt.getTime()
+        ) {
+          throw new ConflictException('Appointment or slot changed after offer generation');
+        }
+
+        const validAvailability = await tx.availability.count({
+          where: {
+            id: availability.id,
+            ...availableAvailabilityWhere(
+              {
+                institutionId: offer.reassignment.institutionId,
+                branchId: availability.branchId,
+                serviceId: availability.serviceId,
+              },
+              availability.professionalId,
+            ),
+          },
+        });
+        if (!validAvailability) throw new ConflictException('Slot is no longer available');
+
+        const rejected = await tx.appointmentOffer.updateMany({
+          where: {
+            id: offer.id, status: 'PENDING', lockVersion: offer.lockVersion,
+            respondedByUserId: null, respondedAt: null, resolvedAt: null, expiresAt: { gt: now },
+          },
+          data: {
+            status: 'REJECTED', respondedByUserId: principal.userId, respondedAt: now, resolvedAt: now,
+            resolutionReasonCode: 'REJECTED_BY_RECIPIENT',
+            resolutionDetails: { reassignmentId: offer.reassignment.id, candidateId: offer.candidate.id },
+            lockVersion: { increment: 1 },
+          },
+        });
+        if (rejected.count !== 1) throw new ConflictException('Offer changed; retry rejection');
+
+        const pendingOffers = await tx.appointmentOffer.count({
+          where: { reassignmentId: offer.reassignmentId, status: 'PENDING' },
+        });
+        if (pendingOffers) throw new ConflictException('Reassignment already has a pending offer');
+
+        const nextCandidates = await tx.reassignmentCandidate.findMany({
+          where: {
+            reassignmentId: offer.reassignmentId,
+            evaluationStatus: 'ELIGIBLE',
+            rankingPosition: { gt: offer.candidate.rankingPosition },
+            offers: { none: {} },
+            waitlistEntry: { deletedAt: null, status: { isFinal: false } },
+          },
+          select: {
+            id: true, userId: true, waitlistEntryId: true, rankingPosition: true,
+            entryUpdatedAtSnapshot: true,
+            waitlistEntry: { select: candidateSelect },
+          },
+          orderBy: [{ rankingPosition: 'asc' }, { id: 'asc' }],
+        });
+
+        const slotContext = {
+          institutionId: offer.reassignment.institutionId,
+          serviceId: offer.reassignment.serviceId,
+          branchId: availability.branchId,
+          sourceUserId: offer.reassignment.sourceUserId,
+          startsAt: slot.startsAt,
+          endsAt: slot.endsAt,
+          timeZone: availability.branch.institution.timeZone,
+        };
+        let winner: (typeof nextCandidates)[number] | undefined;
+        for (const candidate of nextCandidates) {
+          const entry = candidate.waitlistEntry;
+          if (
+            candidate.userId !== entry.userId ||
+            entry.updatedAt.getTime() !== candidate.entryUpdatedAtSnapshot.getTime() ||
+            exclusionReason(entry, slotContext, now) !== null
+          ) {
+            continue;
+          }
+          winner = candidate;
+          break;
+        }
+
+        if (!winner) {
+          const exhausted = await tx.reassignment.updateMany({
+            where: {
+              id: offer.reassignment.id,
+              status: 'OFFERING',
+              lockVersion: offer.reassignment.lockVersion,
+            },
+            data: {
+              status: 'EXHAUSTED',
+              finishedAt: now,
+              closureReasonCode: 'CANDIDATES_EXHAUSTED_AFTER_REJECTION',
+              closureDetails: {
+                rejectedOfferId: offer.id,
+                rejectedCandidateId: offer.candidate.id,
+                rejectedByUserId: principal.userId,
+              },
+              lockVersion: { increment: 1 },
+            },
+          });
+          if (exhausted.count !== 1) throw new ConflictException('Reassignment changed; retry rejection');
+          return {
+            data: {
+              offer: { id: offer.id, status: 'REJECTED', respondedAt: now.toISOString() },
+              reassignment: { id: offer.reassignment.id, status: 'EXHAUSTED' },
+              nextOffer: null,
+            },
+          };
+        }
+
+        const createdAt = new Date();
+        const ttl = this.config.getOrThrow<number>('WAITLIST_OFFER_TTL_MINUTES');
+        const expiresAt = new Date(createdAt.getTime() + ttl * 60_000);
+        if (!Number.isFinite(expiresAt.getTime())) {
+          throw new ServiceUnavailableException('Offer TTL out of supported range');
+        }
+        const slotStillAvailable = await tx.agendaSlot.count({
+          where: {
+            id: offer.agendaSlotId,
+            status: 'RELEASED',
+            lockVersion: offer.expectedSlotVersion,
+            startsAt: { gt: createdAt },
+          },
+        });
+        if (!slotStillAvailable) throw new ConflictException('Slot is no longer eligible');
+
+        const nextOffer = await tx.appointmentOffer.create({
+          data: {
+            id: randomUUID(),
+            reassignmentId: offer.reassignmentId,
+            candidateId: winner.id,
+            agendaSlotId: offer.agendaSlotId,
+            attemptNumber: offer.attemptNumber + 1,
+            status: 'PENDING',
+            expectedSlotVersion: offer.expectedSlotVersion,
+            createdAt,
+            expiresAt,
+          },
+          select: { id: true },
+        });
+
+        return {
+          data: {
+            offer: { id: offer.id, status: 'REJECTED', respondedAt: now.toISOString() },
+            reassignment: { id: offer.reassignment.id, status: 'OFFERING' },
+            nextOffer: {
+              id: nextOffer.id, status: 'PENDING', agendaSlotId: offer.agendaSlotId,
+              createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString(),
+            },
+          },
+        };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      if (isTransactionConflict(error) && retry) return this.rejectOffer(offerId, principal, false);
+      if (isTransactionConflict(error)) throw new ConflictException('Offer rejection conflict; retry request');
+      throw new InternalServerErrorException('Unable to reject offer', { cause: error });
     }
   }
 

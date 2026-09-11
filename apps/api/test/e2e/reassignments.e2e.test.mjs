@@ -5,7 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
 import { FIXTURE_EMAIL_PREFIX, ids, cleanupCheckpointFixtures, createCheckpointFixtures, assertCheckpointIsClean } from './fixture.mjs';
 
-test('HU-009/HU-010 real HTTP and PostgreSQL reassignment flow', { timeout: 120_000 }, async (t) => {
+test('HU-009/HU-010/HU-011 real HTTP and PostgreSQL reassignment flow', { timeout: 120_000 }, async (t) => {
   loadApiEnvironment(); assertSafeLocalDatabaseUrl(process.env.DATABASE_URL); process.env.NODE_ENV = 'test';
   process.env.WAITLIST_OFFER_TTL_MINUTES = '10';
   const [{ AppModule }, { configureApplication }, { PrismaService }, { bootstrapWaitlist }, { bootstrapAppointmentStatus }] = await Promise.all([
@@ -159,6 +159,17 @@ test('HU-009/HU-010 real HTTP and PostgreSQL reassignment flow', { timeout: 120_
       assert.deepEqual(Object.keys(generation.offer).sort(), ['agendaSlotId', 'createdAt', 'expiresAt', 'id', 'status']);
       assert.equal((await request('PUT', `/api/v1/waitlist/${nonWinner.entryId}/preferences`, nonWinner.token, { ...preferences, preferredDays: [1] })).status, 200);
       assert.deepEqual(await prisma.reassignmentCandidate.findMany({ where: { reassignmentId: generation.id }, orderBy: { rankingPosition: 'asc' } }), candidates);
+
+      // This test intentionally mutates the runner-up after candidate evaluation. Restore both
+      // preferences and updatedAt so the later HU-011 continuation tests start from the exact
+      // snapshot that was evaluated by HU-009 instead of leaking state between subtests.
+      const runnerUpSnapshot = candidates.find((candidate) => candidate.waitlistEntryId === nonWinner.entryId);
+      assert.ok(runnerUpSnapshot);
+      assert.equal((await request('PUT', `/api/v1/waitlist/${nonWinner.entryId}/preferences`, nonWinner.token, preferences)).status, 200);
+      await prisma.waitlistEntry.update({
+        where: { id: nonWinner.entryId },
+        data: { updatedAt: runnerUpSnapshot.entryUpdatedAtSnapshot },
+      });
     });
     await t.test('existing appointment stays unique, cancelled and unchanged; no transfer or history writes', async () => {
       assert.equal(await prisma.appointment.count({ where: { agendaSlotId: ids.slotAvailable } }), 1);
@@ -187,25 +198,125 @@ test('HU-009/HU-010 real HTTP and PostgreSQL reassignment flow', { timeout: 120_
       assert.equal((await generate(ids.slotOtherContext)).status, 409);
     });
 
-    await t.test('acceptance requires recipient identity and rejects arbitrary input', async () => {
+
+    let acceptanceOfferId = generation.offer.id;
+    let acceptanceUser = winnerUser;
+
+    await t.test('rejection requires recipient identity, rejects arbitrary input and keeps expired offers pending', async () => {
       const future = new Date(Date.now() + 600_000);
       await prisma.appointmentOffer.update({
         where: { id: generation.offer.id },
         data: { createdAt: new Date(), expiresAt: future },
       });
-      assert.equal((await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/accept`, null)).status, 401);
-      assert.equal((await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/accept`, source.token)).status, 404);
-      assert.equal((await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/accept?userId=${winnerUser.id}`, winnerUser.token)).status, 400);
-      assert.equal((await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/accept`, winnerUser.token, { userId: winnerUser.id })).status, 400);
-      assert.equal((await request('POST', '/api/v1/reassignments/offers/bad/accept', winnerUser.token)).status, 400);
-      assert.equal((await request('POST', `/api/v1/reassignments/offers/${randomUUID()}/accept`, winnerUser.token)).status, 404);
+      assert.equal((await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/reject`, null)).status, 401);
+      assert.equal((await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/reject`, source.token)).status, 404);
+      assert.equal((await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/reject?userId=${winnerUser.id}`, winnerUser.token)).status, 400);
+      assert.equal((await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/reject`, winnerUser.token, { userId: winnerUser.id })).status, 400);
+      assert.equal((await request('POST', '/api/v1/reassignments/offers/bad/reject', winnerUser.token)).status, 400);
+      assert.equal((await request('POST', `/api/v1/reassignments/offers/${randomUUID()}/reject`, winnerUser.token)).status, 404);
+
+      const expiredCreatedAt = new Date(Date.now() - 120_000);
+      const expiredAt = new Date(Date.now() - 60_000);
+      await prisma.appointmentOffer.update({
+        where: { id: generation.offer.id },
+        data: { createdAt: expiredCreatedAt, expiresAt: expiredAt },
+      });
+      assert.equal((await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/reject`, winnerUser.token)).status, 409);
+      assert.equal((await prisma.appointmentOffer.findUniqueOrThrow({ where: { id: generation.offer.id } })).status, 'PENDING');
+      await prisma.appointmentOffer.update({
+        where: { id: generation.offer.id },
+        data: { createdAt: new Date(), expiresAt: new Date(Date.now() + 600_000) },
+      });
+    });
+
+    await t.test('rejection rollback restores current offer when next offer persistence fails', async () => {
+      const offerBeforeReject = await prisma.appointmentOffer.findUniqueOrThrow({ where: { id: generation.offer.id } });
+      const slotBeforeReject = await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable } });
+      const appointmentBeforeReject = await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
+      const processBeforeReject = await prisma.reassignment.findUniqueOrThrow({ where: { id: generation.id } });
+      const originalTransaction = prisma.$transaction.bind(prisma); let inserted = false;
+      prisma.$transaction = (fn, options) => originalTransaction((tx) => fn(new Proxy(tx, {
+        get(target, key) {
+          if (key !== 'appointmentOffer') return target[key];
+          return new Proxy(target.appointmentOffer, { get(delegate, property) {
+            if (property !== 'create') return delegate[property];
+            return async (args) => { await delegate.create(args); inserted = true; throw new Error('private rejection storage failure'); };
+          } });
+        },
+      })), options);
+      try {
+        const response = await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/reject`, winnerUser.token);
+        assert.equal(response.status, 500); assert.ok(inserted);
+        assert.ok(!JSON.stringify(response.body).includes('private rejection'));
+      } finally { prisma.$transaction = originalTransaction; }
+      assert.deepEqual(await prisma.appointmentOffer.findUniqueOrThrow({ where: { id: generation.offer.id } }), offerBeforeReject);
+      assert.deepEqual(await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable } }), slotBeforeReject);
+      assert.deepEqual(await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } }), appointmentBeforeReject);
+      assert.deepEqual(await prisma.reassignment.findUniqueOrThrow({ where: { id: generation.id } }), processBeforeReject);
+      assert.equal(await prisma.appointmentOffer.count({ where: { reassignmentId: generation.id } }), 1);
+    });
+
+    await t.test('concurrent rejection resolves once and continues with the next valid candidate', async () => {
+      const slotBeforeReject = await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable } });
+      const appointmentBeforeReject = await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
+      const winnerEntryBeforeReject = await prisma.waitlistEntry.findUniqueOrThrow({ where: { id: winnerUser.entryId } });
+
+      const results = await Promise.all([
+        request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/reject`, winnerUser.token),
+        request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/reject`, winnerUser.token),
+      ]);
+      assert.ok(results.some((result) => result.status === 200));
+      assert.ok(results.every((result) => result.status === 200 || result.status === 409));
+
+      const replay = await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/reject`, winnerUser.token);
+      assert.equal(replay.status, 200);
+      assert.equal(replay.body.data.offer.status, 'REJECTED');
+      assert.equal(replay.body.data.reassignment.status, 'OFFERING');
+      assert.ok(replay.body.data.nextOffer);
+
+      const offers = await prisma.appointmentOffer.findMany({
+        where: { reassignmentId: generation.id },
+        orderBy: { attemptNumber: 'asc' },
+      });
+      assert.equal(offers.length, 2);
+      assert.equal(offers[0].status, 'REJECTED');
+      assert.equal(offers[0].respondedByUserId, winnerUser.id);
+      assert.equal(offers[0].resolutionReasonCode, 'REJECTED_BY_RECIPIENT');
+      assert.equal(offers[0].attemptNumber, 1);
+      assert.equal(offers[1].status, 'PENDING');
+      assert.equal(offers[1].attemptNumber, 2);
+      assert.equal(offers[1].expectedSlotVersion, offers[0].expectedSlotVersion);
+      assert.equal(offers[1].expiresAt.getTime() - offers[1].createdAt.getTime(), 600_000);
+
+      const nextCandidate = await prisma.reassignmentCandidate.findUniqueOrThrow({ where: { id: offers[1].candidateId } });
+      assert.equal(nextCandidate.waitlistEntryId, nonWinner.entryId);
+      assert.deepEqual(await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable } }), slotBeforeReject);
+      assert.deepEqual(await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } }), appointmentBeforeReject);
+      assert.deepEqual(await prisma.waitlistEntry.findUniqueOrThrow({ where: { id: winnerUser.entryId } }), winnerEntryBeforeReject);
+
+      acceptanceOfferId = offers[1].id;
+      acceptanceUser = nonWinner;
+    });
+
+    await t.test('acceptance requires recipient identity and rejects arbitrary input', async () => {
+      const future = new Date(Date.now() + 600_000);
+      await prisma.appointmentOffer.update({
+        where: { id: acceptanceOfferId },
+        data: { createdAt: new Date(), expiresAt: future },
+      });
+      assert.equal((await request('POST', `/api/v1/reassignments/offers/${acceptanceOfferId}/accept`, null)).status, 401);
+      assert.equal((await request('POST', `/api/v1/reassignments/offers/${acceptanceOfferId}/accept`, source.token)).status, 404);
+      assert.equal((await request('POST', `/api/v1/reassignments/offers/${acceptanceOfferId}/accept?userId=${acceptanceUser.id}`, acceptanceUser.token)).status, 400);
+      assert.equal((await request('POST', `/api/v1/reassignments/offers/${acceptanceOfferId}/accept`, acceptanceUser.token, { userId: acceptanceUser.id })).status, 400);
+      assert.equal((await request('POST', '/api/v1/reassignments/offers/bad/accept', acceptanceUser.token)).status, 400);
+      assert.equal((await request('POST', `/api/v1/reassignments/offers/${randomUUID()}/accept`, acceptanceUser.token)).status, 404);
     });
 
     await t.test('acceptance rollback restores every write when history persistence fails', async () => {
-      const offerBefore = await prisma.appointmentOffer.findUniqueOrThrow({ where: { id: generation.offer.id } });
+      const offerBefore = await prisma.appointmentOffer.findUniqueOrThrow({ where: { id: acceptanceOfferId } });
       const slotBeforeAccept = await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable } });
       const appointmentBeforeAccept = await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
-      const entryBeforeAccept = await prisma.waitlistEntry.findUniqueOrThrow({ where: { id: winnerUser.entryId } });
+      const entryBeforeAccept = await prisma.waitlistEntry.findUniqueOrThrow({ where: { id: acceptanceUser.entryId } });
       const processBeforeAccept = await prisma.reassignment.findUniqueOrThrow({ where: { id: generation.id } });
       const historyCount = await prisma.appointmentHistory.count({ where: { appointmentId } });
       const originalTransaction = prisma.$transaction.bind(prisma); let inserted = false;
@@ -219,14 +330,14 @@ test('HU-009/HU-010 real HTTP and PostgreSQL reassignment flow', { timeout: 120_
         },
       })), options);
       try {
-        const response = await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/accept`, winnerUser.token);
+        const response = await request('POST', `/api/v1/reassignments/offers/${acceptanceOfferId}/accept`, acceptanceUser.token);
         assert.equal(response.status, 500); assert.ok(inserted);
         assert.ok(!JSON.stringify(response.body).includes('private acceptance'));
       } finally { prisma.$transaction = originalTransaction; }
-      assert.deepEqual(await prisma.appointmentOffer.findUniqueOrThrow({ where: { id: generation.offer.id } }), offerBefore);
+      assert.deepEqual(await prisma.appointmentOffer.findUniqueOrThrow({ where: { id: acceptanceOfferId } }), offerBefore);
       assert.deepEqual(await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable } }), slotBeforeAccept);
       assert.deepEqual(await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId } }), appointmentBeforeAccept);
-      assert.deepEqual(await prisma.waitlistEntry.findUniqueOrThrow({ where: { id: winnerUser.entryId } }), entryBeforeAccept);
+      assert.deepEqual(await prisma.waitlistEntry.findUniqueOrThrow({ where: { id: acceptanceUser.entryId } }), entryBeforeAccept);
       assert.deepEqual(await prisma.reassignment.findUniqueOrThrow({ where: { id: generation.id } }), processBeforeAccept);
       assert.equal(await prisma.appointmentHistory.count({ where: { appointmentId } }), historyCount);
     });
@@ -234,33 +345,33 @@ test('HU-009/HU-010 real HTTP and PostgreSQL reassignment flow', { timeout: 120_
     await t.test('concurrent acceptance transfers the existing appointment exactly once and replay is idempotent', async () => {
       const historyBefore = await prisma.appointmentHistory.count({ where: { appointmentId } });
       const results = await Promise.all([
-        request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/accept`, winnerUser.token),
-        request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/accept`, winnerUser.token),
+        request('POST', `/api/v1/reassignments/offers/${acceptanceOfferId}/accept`, acceptanceUser.token),
+        request('POST', `/api/v1/reassignments/offers/${acceptanceOfferId}/accept`, acceptanceUser.token),
       ]);
       assert.ok(results.some((result) => result.status === 200));
       assert.ok(results.every((result) => result.status === 200 || result.status === 409));
 
-      const replay = await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/accept`, winnerUser.token);
+      const replay = await request('POST', `/api/v1/reassignments/offers/${acceptanceOfferId}/accept`, acceptanceUser.token);
       assert.equal(replay.status, 200);
       assert.equal(replay.body.data.offer.status, 'ACCEPTED');
       assert.equal(replay.body.data.appointment.status, 'AGENDADA');
       assert.equal(replay.body.data.reassignment.status, 'COMPLETED');
 
-      const offer = await prisma.appointmentOffer.findUniqueOrThrow({ where: { id: generation.offer.id } });
+      const offer = await prisma.appointmentOffer.findUniqueOrThrow({ where: { id: acceptanceOfferId } });
       const currentSlot = await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable } });
       const currentAppointment = await prisma.appointment.findUniqueOrThrow({
         where: { id: appointmentId }, include: { status: true, historyEntries: { orderBy: { occurredAt: 'asc' } } },
       });
       const currentEntry = await prisma.waitlistEntry.findUniqueOrThrow({
-        where: { id: winnerUser.entryId }, include: { status: true, preference: true, preferredBranches: true },
+        where: { id: acceptanceUser.entryId }, include: { status: true, preference: true, preferredBranches: true },
       });
       const process = await prisma.reassignment.findUniqueOrThrow({ where: { id: generation.id } });
 
       assert.equal(await prisma.appointment.count({ where: { agendaSlotId: ids.slotAvailable } }), 1);
-      assert.equal(offer.status, 'ACCEPTED'); assert.equal(offer.respondedByUserId, winnerUser.id);
+      assert.equal(offer.status, 'ACCEPTED'); assert.equal(offer.respondedByUserId, acceptanceUser.id);
       assert.ok(offer.respondedAt); assert.ok(offer.resolvedAt); assert.equal(offer.lockVersion, 1);
       assert.equal(currentSlot.status, 'RESERVED'); assert.equal(currentSlot.lockVersion, slotBefore.lockVersion + 2);
-      assert.equal(currentAppointment.userId, winnerUser.id); assert.equal(currentAppointment.status.code, 'AGENDADA');
+      assert.equal(currentAppointment.userId, acceptanceUser.id); assert.equal(currentAppointment.status.code, 'AGENDADA');
       assert.equal(currentAppointment.origin, 'REASSIGNMENT'); assert.equal(currentAppointment.agendaSlotId, ids.slotAvailable);
       assert.equal(currentEntry.status.code, 'FULFILLED'); assert.equal(currentEntry.status.isFinal, true);
       assert.ok(currentEntry.preference); assert.equal(process.status, 'COMPLETED');
@@ -268,7 +379,7 @@ test('HU-009/HU-010 real HTTP and PostgreSQL reassignment flow', { timeout: 120_
       assert.equal(await prisma.appointmentHistory.count({ where: { appointmentId } }), historyBefore + 1);
       const transferHistory = currentAppointment.historyEntries.filter((history) => history.reason === 'REASSIGNMENT_ACCEPTED');
       assert.equal(transferHistory.length, 1);
-      assert.equal(transferHistory[0].previousUserId, source.id); assert.equal(transferHistory[0].newUserId, winnerUser.id);
+      assert.equal(transferHistory[0].previousUserId, source.id); assert.equal(transferHistory[0].newUserId, acceptanceUser.id);
     });
   } finally {
     try {

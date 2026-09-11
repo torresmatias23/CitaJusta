@@ -53,4 +53,21 @@ export class ReassignmentsController {
     }
     return this.service.acceptOffer(parsed.data.offerId, request.principal);
   }
+
+  @Post('offers/:offerId/reject')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AccessTokenGuard)
+  reject(
+    @Param() params: unknown,
+    @Query() query: unknown,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    if (!request.principal) throw new UnauthorizedException('Unauthorized');
+    const parsed = offerParamsSchema.safeParse(params);
+    if (!parsed.success || !empty.safeParse(query).success || !empty.optional().safeParse(body).success) {
+      throw new BadRequestException('Invalid offer rejection request');
+    }
+    return this.service.rejectOffer(parsed.data.offerId, request.principal);
+  }
 }
