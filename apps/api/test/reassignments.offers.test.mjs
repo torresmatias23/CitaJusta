@@ -73,6 +73,7 @@ test('controller rejects missing identity, arbitrary body/query and missing cont
   const controller = new ReassignmentsController({
     generate: (id, context) => ({ id, context }),
     acceptOffer: (id, principal) => ({ id, principal }),
+    rejectOffer: (id, principal) => ({ id, principal }),
   });
   const request = { principal: { userId: randomUUID() }, authorization: { userId: randomUUID(), institutionId: slot.institutionId, permissions: ['reassignments.generate'] } };
   const params = { agendaSlotId: randomUUID() };
@@ -94,6 +95,16 @@ test('controller rejects missing identity, arbitrary body/query and missing cont
   ]) {
     assert.throws(() => controller.accept(p, q, b, r), (e) => e.getStatus() === status);
   }
+
+  assert.equal(controller.reject({ offerId }, {}, undefined, selfRequest).id, offerId);
+  for (const [p, q, b, r, status] of [
+    [{ offerId }, {}, undefined, {}, 401],
+    [{ offerId }, { userId: 'x' }, undefined, selfRequest, 400],
+    [{ offerId }, {}, { userId: 'x' }, selfRequest, 400],
+    [{ offerId: 'bad' }, {}, undefined, selfRequest, 400],
+  ]) {
+    assert.throws(() => controller.reject(p, q, b, r), (e) => e.getStatus() === status);
+  }
 });
 test('transaction retry is complete, bounded, and does not mask unexpected SQL errors', async () => {
   for (const [error, expected, count] of [[{ code: 'P2034' }, 409, 2], [new Error('secret storage detail'), 500, 1]]) {
@@ -112,6 +123,17 @@ test('acceptance transaction retry is bounded and storage errors remain sanitize
     const prisma = { $transaction: async (_fn, options) => { attempts++; assert.equal(options.isolationLevel, 'Serializable'); throw error; } };
     const service = new ReassignmentsService(prisma, {});
     await assert.rejects(service.acceptOffer(randomUUID(), principal), (e) => e.getStatus() === expected && !e.message.includes('private'));
+    assert.equal(attempts, count);
+  }
+});
+
+test('rejection transaction retry is bounded and storage errors remain sanitized', async () => {
+  const principal = { userId: randomUUID(), sessionId: randomUUID() };
+  for (const [error, expected, count] of [[{ code: 'P2034' }, 409, 2], [new Error('private rejection storage detail'), 500, 1]]) {
+    let attempts = 0;
+    const prisma = { $transaction: async (_fn, options) => { attempts++; assert.equal(options.isolationLevel, 'Serializable'); throw error; } };
+    const service = new ReassignmentsService(prisma, {});
+    await assert.rejects(service.rejectOffer(randomUUID(), principal), (e) => e.getStatus() === expected && !e.message.includes('private'));
     assert.equal(attempts, count);
   }
 });
