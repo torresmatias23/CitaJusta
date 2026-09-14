@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, Controller, HttpCode, HttpStatus, Param, Post, Query, Req,
+  BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Req,
   UnauthorizedException, UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
@@ -10,14 +10,29 @@ import { PermissionsGuard } from '../authorization/permissions.guard.js';
 import { RequirePermissions } from '../authorization/decorators/require-permissions.decorator.js';
 import type { AuthorizedRequest } from '../authorization/types/authorization-context.js';
 import { ReassignmentsService, GENERATE_OFFERS_PERMISSION } from './reassignments.service.js';
+import { ReassignmentSupervisionService, SUPERVISE_REASSIGNMENTS_PERMISSION } from './reassignment-supervision.service.js';
 
 const slotParamsSchema = z.object({ agendaSlotId: z.string().uuid() }).strict();
 const offerParamsSchema = z.object({ offerId: z.string().uuid() }).strict();
+const reassignmentParamsSchema = z.object({ reassignmentId: z.string().uuid() }).strict();
 const empty = z.object({}).strict();
 
 @Controller('reassignments')
 export class ReassignmentsController {
-  constructor(private readonly service: ReassignmentsService) {}
+  constructor(private readonly service: ReassignmentsService, private readonly supervision: ReassignmentSupervisionService) {}
+
+  @Get(':reassignmentId')
+  @UseGuards(AccessTokenGuard, AuthorizationContextGuard, PermissionsGuard)
+  @RequirePermissions(SUPERVISE_REASSIGNMENTS_PERMISSION)
+  getDetail(@Param() params: unknown, @Query() query: unknown, @Body() body: unknown, @Req() request: AuthorizedRequest) {
+    if (!request.principal || !request.authorization) throw new UnauthorizedException('Unauthorized');
+    const parsed = reassignmentParamsSchema.safeParse(params);
+    if (!parsed.success || !empty.safeParse(query).success || !empty.optional().safeParse(body).success) {
+      throw new BadRequestException('Invalid reassignment supervision request');
+    }
+    if (!request.authorization.institutionId) throw new BadRequestException('Institutional context required');
+    return this.supervision.getDetail(parsed.data.reassignmentId, request.authorization);
+  }
 
   @Post(':agendaSlotId/offers')
   @UseGuards(AccessTokenGuard, AuthorizationContextGuard, PermissionsGuard)

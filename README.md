@@ -160,6 +160,15 @@ El bootstrap crea los estados `ACTIVE`/`WITHDRAWN` y `STANDARD` para cada instit
 
 Validación enfocada: `npm run --workspace @citajusta/api test:e2e:reassignments` (PostgreSQL local, secuencial respecto de otros E2E). Unitarios: `node --test apps/api/test/reassignments.offers.test.mjs` después del build.
 
+### HU-016: supervisión de reasignaciones
+
+- `GET /api/v1/reassignments/:reassignmentId`: Bearer token, `x-institution-id` obligatorio y `x-branch-id` opcional; sin filtros query ni body. Reutiliza `AccessTokenGuard`, `AuthorizationContextGuard` y `PermissionsGuard`. Requiere el permiso independiente `reassignments.read` (`module=reassignments`, `action=read`), provisionado/asignado explícitamente a funcionarios autorizados; no concede generación, aceptación ni rechazo.
+- `200 { data: ... }` incluye identificación/estado del proceso, institución/sede/servicio, cupo y versión actuales, cita asociada, cancelación de origen, reglas/snapshots de evaluación, candidatos y ofertas con destinatario identificado por UUID. No incluye contactos, credenciales, notas operativas ni JSON arbitrario. Timestamps ISO UTC; puntuación decimal como string para preservar precisión.
+- Candidatos ordenados por `rankingPosition ASC NULLS LAST, id ASC`; ofertas por `attemptNumber ASC, id ASC`. Motivos, fechas de evaluación/resolución y estado final permiten reconstruir rechazo, continuación y aceptación. Se consultan también procesos históricos con catálogos actualmente inactivos, sin relajar aislamiento institucional.
+- `pendingOfferId` refleja estado persistido `PENDING`; `activeOfferId` sólo identifica una oferta pendiente no vencida de un proceso `OFFERING`, calculada en `observedAt`. El GET no ejecuta expiración, reevaluación, scoring, notificaciones ni escrituras. Usa `RepeatableRead` para obtener un snapshot consistente sin alterar estados, versiones, ofertas o historial.
+- Backlog HU-016 (RF-032/RF-033): se muestran reglas de evaluación y el actor de generación registrado como `AUTHORIZED_REQUEST`; si no existe, `NOT_RECORDED`. Esto distingue solicitud autorizada y evaluación por reglas, sin inventar intervenciones manuales o eventos no persistidos. No se añade intervención manual operativa.
+- Errores: `400` UUID/input/contexto inválido, `401` sin autenticación, `403` sin permiso aplicable, `404` inexistente/no visible/relaciones institucionales incoherentes con respuesta uniforme, `500` inesperado sin detalles internos. Sin migraciones ni cambios a HU-009/010/011.
+
 ## Variables de entorno
 
 El backend valida su configuración al arrancar. Usa [apps/api/.env.example](apps/api/.env.example) como contrato y crea un archivo local `apps/api/.env` con valores propios del entorno.

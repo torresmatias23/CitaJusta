@@ -5,7 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
 import { FIXTURE_EMAIL_PREFIX, ids, cleanupCheckpointFixtures, createCheckpointFixtures, assertCheckpointIsClean } from './fixture.mjs';
 
-test('HU-009/HU-010/HU-011 real HTTP and PostgreSQL reassignment flow', { timeout: 120_000 }, async (t) => {
+test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', { timeout: 120_000 }, async (t) => {
   loadApiEnvironment(); assertSafeLocalDatabaseUrl(process.env.DATABASE_URL); process.env.NODE_ENV = 'test';
   process.env.WAITLIST_OFFER_TTL_MINUTES = '10';
   const [{ AppModule }, { configureApplication }, { PrismaService }, { bootstrapWaitlist }, { bootstrapAppointmentStatus }] = await Promise.all([
@@ -13,7 +13,7 @@ test('HU-009/HU-010/HU-011 real HTTP and PostgreSQL reassignment flow', { timeou
     import('../../dist/database/waitlist.bootstrap.js'), import('../../dist/database/appointment-status.bootstrap.js'),
   ]);
   const app = await NestFactory.create(AppModule, { logger: false });
-  let prisma; let cleanupEnabled = false; let ownedPermission;
+  let prisma; let cleanupEnabled = false; let ownedPermission; let ownedSupervisionPermission;
   const users = []; const statusIds = []; const appointmentStatusIds = [];
   const permissionCode = 'reassignments.generate';
   try {
@@ -40,6 +40,14 @@ test('HU-009/HU-010/HU-011 real HTTP and PostgreSQL reassignment flow', { timeou
     const permission = existingPermission ?? await prisma.permission.create({ data: { id: randomUUID(), code: permissionCode, module: 'reassignments', action: 'generate' } });
     if (!existingPermission) ownedPermission = permission.id;
     await prisma.rolePermission.create({ data: { roleId: ids.roleInstitution, permissionId: permission.id } });
+    const existingReadPermission = await prisma.permission.findUnique({ where: { code: 'reassignments.read' } });
+    const readPermission = existingReadPermission ?? await prisma.permission.create({ data: {
+      id: randomUUID(), code: 'reassignments.read', module: 'reassignments', action: 'read',
+    } });
+    if (!existingReadPermission) ownedSupervisionPermission = readPermission.id;
+    await prisma.rolePermission.create({ data: { roleId: ids.roleInstitution, permissionId: readPermission.id } });
+    const otherOfficer = await register();
+    await prisma.userRole.create({ data: { id: randomUUID(), userId: otherOfficer.id, roleId: ids.roleInstitution, institutionId: ids.institutionB } });
     const originalStates = await prisma.waitlistStatus.findMany({ where: { code: { in: ['ACTIVE', 'WITHDRAWN', 'FULFILLED'] } }, select: { id: true } });
     await bootstrapWaitlist(prisma, ids.institutionA);
     const waitlistStates = await prisma.waitlistStatus.findMany({ where: { code: { in: ['ACTIVE', 'WITHDRAWN', 'FULFILLED'] } } });
@@ -49,6 +57,7 @@ test('HU-009/HU-010/HU-011 real HTTP and PostgreSQL reassignment flow', { timeou
     const appointmentStates = await prisma.appointmentStatus.findMany({ where: { code: { in: ['AGENDADA', 'CANCELADA'] } } });
     appointmentStatusIds.push(...appointmentStates.filter((s) => !originalAppointments.some((old) => old.id === s.id)).map((s) => s.id));
     const headers = { 'x-institution-id': ids.institutionA };
+    const supervise = (id, token = admin.token, scope = headers) => request('GET', `/api/v1/reassignments/${id}`, token, undefined, scope);
     const generate = (slotId = ids.slotAvailable, token = admin.token, extra = headers, body) => request('POST', `/api/v1/reassignments/${slotId}/offers`, token, body, extra);
     const preferences = { preferredDays: [1, 2, 3, 4, 5, 6, 7], timeRanges: [{ start: '00:00', end: '23:59' }], preferredBranchIds: [], allowsOtherBranches: false, acceptsAnyProfessional: true };
     async function enroll(patch = {}, serviceId = ids.serviceA) {
@@ -136,6 +145,27 @@ test('HU-009/HU-010/HU-011 real HTTP and PostgreSQL reassignment flow', { timeou
       assert.equal(current.lockVersion, slotBefore.lockVersion + 1); assert.equal(current.status, 'RELEASED');
       assert.equal((await generate()).status, 409);
     });
+    await t.test('HU-016 authenticated officers see candidates and pending offer only within authorized scope', async () => {
+      const response = await supervise(generation.id);
+      assert.equal(response.status, 200);
+      assert.equal(response.body.data.status, 'OFFERING');
+      assert.equal(response.body.data.activeOfferId, generation.offer.id);
+      assert.equal(response.body.data.pendingOfferId, generation.offer.id);
+      assert.equal(response.body.data.candidates.length, 3);
+      assert.equal(response.body.data.offers.length, 1);
+      assert.equal(response.body.data.evaluation.initiation.kind, 'AUTHORIZED_REQUEST');
+      assert.equal(response.body.data.evaluation.initiation.actorUserId, admin.id);
+      assert.equal(response.body.data.candidates[2].exclusionReasonCode, 'SPECIFIC_PROFESSIONAL_UNDEFINED');
+      assert.equal((await supervise(generation.id, null)).status, 401);
+      assert.equal((await supervise(generation.id, source.token)).status, 403);
+      assert.equal((await supervise(generation.id, otherOfficer.token)).status, 403);
+      const foreign = await supervise(generation.id, otherOfficer.token, { 'x-institution-id': ids.institutionB });
+      const missing = await supervise(randomUUID(), otherOfficer.token, { 'x-institution-id': ids.institutionB });
+      assert.equal(foreign.status, 404); assert.deepEqual(foreign.body, missing.body);
+      assert.equal((await supervise(generation.id, admin.token, { ...headers, 'x-branch-id': ids.branchA2 })).status, 404);
+      assert.equal((await supervise('bad')).status, 400);
+      assert.equal((await request('GET', `/api/v1/reassignments/${generation.id}?userId=${source.id}`, admin.token, undefined, headers)).status, 400);
+    });
     await t.test('persisted candidates have deterministic ranking, exclusion and complete independent snapshots', async () => {
       const candidates = await prisma.reassignmentCandidate.findMany({ where: { reassignmentId: generation.id }, orderBy: { rankingPosition: 'asc' } });
       assert.equal(candidates.length, 3);
@@ -181,6 +211,10 @@ test('HU-009/HU-010/HU-011 real HTTP and PostgreSQL reassignment flow', { timeou
       assert.equal((await generate()).status, 409);
       assert.equal((await request('POST', `/api/v1/reassignments/offers/${generation.offer.id}/accept`, winnerUser.token)).status, 409);
       assert.equal((await prisma.appointmentOffer.findUniqueOrThrow({ where: { id: generation.offer.id } })).status, 'PENDING');
+      const supervision = await supervise(generation.id);
+      assert.equal(supervision.body.data.pendingOfferId, generation.offer.id);
+      assert.equal(supervision.body.data.activeOfferId, null);
+      assert.equal(supervision.body.data.offers[0].status, 'PENDING');
     });
     await t.test('no eligible candidate persists EXHAUSTED evaluation without an offer or new appointment', async () => {
       assert.equal((await request('PUT', `/api/v1/waitlist/${otherService.entryId}/preferences`, otherService.token,
@@ -196,6 +230,9 @@ test('HU-009/HU-010/HU-011 real HTTP and PostgreSQL reassignment flow', { timeou
       assert.equal(await prisma.appointmentOffer.count({ where: { agendaSlotId: ids.slotOtherContext } }), 0);
       assert.equal(await prisma.appointment.count({ where: { agendaSlotId: ids.slotOtherContext } }), 1);
       assert.equal((await generate(ids.slotOtherContext)).status, 409);
+      const supervision = await supervise(process.id);
+      assert.equal(supervision.status, 200); assert.equal(supervision.body.data.status, 'EXHAUSTED');
+      assert.equal(supervision.body.data.activeOfferId, null); assert.deepEqual(supervision.body.data.offers, []);
     });
 
 
@@ -381,13 +418,54 @@ test('HU-009/HU-010/HU-011 real HTTP and PostgreSQL reassignment flow', { timeou
       assert.equal(transferHistory.length, 1);
       assert.equal(transferHistory[0].previousUserId, source.id); assert.equal(transferHistory[0].newUserId, acceptanceUser.id);
     });
+    await t.test('HU-016 supervision reconstructs rejection then acceptance with deterministic order and zero writes', async () => {
+      const snapshot = async () => ({
+        process: await prisma.reassignment.findUniqueOrThrow({ where: { id: generation.id }, include: { candidates: { orderBy: { id: 'asc' } }, offers: { orderBy: { attemptNumber: 'asc' } } } }),
+        slot: await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable } }),
+        appointment: await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId }, include: { historyEntries: { orderBy: { id: 'asc' } } } }),
+        entries: await prisma.waitlistEntry.findMany({ where: { userId: { in: users } }, orderBy: { id: 'asc' } }),
+      });
+      const before = await snapshot();
+      const response = await supervise(generation.id); assert.equal(response.status, 200);
+      const detail = response.body.data;
+      assert.equal(detail.status, 'COMPLETED'); assert.equal(detail.closureReasonCode, 'OFFER_ACCEPTED');
+      assert.equal(detail.appointment.id, appointmentId); assert.equal(detail.appointment.status, 'AGENDADA');
+      assert.equal(detail.appointment.currentUserId, acceptanceUser.id); assert.equal(detail.agendaSlot.status, 'RESERVED');
+      assert.deepEqual(detail.offers.map((offer) => offer.attemptNumber), [1, 2]);
+      assert.deepEqual(detail.offers.map((offer) => offer.status), ['REJECTED', 'ACCEPTED']);
+      assert.deepEqual(detail.offers.map((offer) => offer.recipient.id), [winnerUser.id, nonWinner.id]);
+      assert.ok(detail.offers.every((offer) => offer.resolvedAt && offer.respondedAt));
+      assert.equal(detail.activeOfferId, null); assert.equal(detail.pendingOfferId, null);
+      assert.deepEqual(detail.candidates.map((candidate) => candidate.rankingPosition), [1, 2, null]);
+      assert.ok(detail.candidates.every((candidate) => candidate.snapshot.entryUpdatedAt.endsWith('Z')));
+      assert.equal(detail.evaluation.ruleCode, 'PRIORITY_FIFO_V1');
+      assert.ok(!JSON.stringify(detail).includes('passwordHash')); assert.ok(!JSON.stringify(detail).includes('@example.com'));
+      const again = (await supervise(generation.id)).body.data;
+      assert.deepEqual(again.candidates, detail.candidates); assert.deepEqual(again.offers, detail.offers);
+      assert.deepEqual(await snapshot(), before);
+    });
+    await t.test('HU-016 shows EXHAUSTED after the only eligible recipient rejects', async () => {
+      assert.equal((await request('PUT', `/api/v1/waitlist/${winnerUser.entryId}/preferences`, winnerUser.token, preferences)).status, 200);
+      await prisma.agendaSlot.update({ where: { id: ids.slotBlocked }, data: { status: 'AVAILABLE', blockedUntilAt: null } });
+      const booked = await request('POST', '/api/v1/appointments', source.token, { agendaSlotId: ids.slotBlocked });
+      assert.equal(booked.status, 201);
+      assert.equal((await request('POST', `/api/v1/appointments/${booked.body.data.id}/cancel`, source.token)).status, 200);
+      const generated = await generate(ids.slotBlocked); assert.equal(generated.status, 201);
+      assert.ok(generated.body.data.offer);
+      const rejected = await request('POST', `/api/v1/reassignments/offers/${generated.body.data.offer.id}/reject`, winnerUser.token);
+      assert.equal(rejected.status, 200); assert.equal(rejected.body.data.reassignment.status, 'EXHAUSTED');
+      const detail = (await supervise(generated.body.data.id)).body.data;
+      assert.equal(detail.status, 'EXHAUSTED'); assert.equal(detail.activeOfferId, null);
+      assert.deepEqual(detail.offers.map((offer) => offer.status), ['REJECTED']);
+      assert.ok(detail.finishedAt); assert.equal(detail.agendaSlot.status, 'RELEASED'); assert.equal(detail.appointment.status, 'CANCELADA');
+    });
   } finally {
     try {
       if (prisma && cleanupEnabled) {
         await prisma.$transaction([
-          prisma.appointmentOffer.deleteMany({ where: { agendaSlotId: { in: [ids.slotAvailable, ids.slotOtherContext] }, reassignment: { sourceUserId: { in: users } } } }),
-          prisma.reassignmentCandidate.deleteMany({ where: { reassignment: { agendaSlotId: { in: [ids.slotAvailable, ids.slotOtherContext] }, sourceUserId: { in: users } } } }),
-          prisma.reassignment.deleteMany({ where: { agendaSlotId: { in: [ids.slotAvailable, ids.slotOtherContext] }, sourceUserId: { in: users } } }),
+          prisma.appointmentOffer.deleteMany({ where: { agendaSlotId: { in: [ids.slotAvailable, ids.slotOtherContext, ids.slotBlocked] }, reassignment: { sourceUserId: { in: users } } } }),
+          prisma.reassignmentCandidate.deleteMany({ where: { reassignment: { agendaSlotId: { in: [ids.slotAvailable, ids.slotOtherContext, ids.slotBlocked] }, sourceUserId: { in: users } } } }),
+          prisma.reassignment.deleteMany({ where: { agendaSlotId: { in: [ids.slotAvailable, ids.slotOtherContext, ids.slotBlocked] }, sourceUserId: { in: users } } }),
           prisma.waitlistPreferredDay.deleteMany({ where: { preference: { waitlistEntry: { userId: { in: users } } } } }),
           prisma.waitlistTimeRange.deleteMany({ where: { preference: { waitlistEntry: { userId: { in: users } } } } }),
           prisma.waitlistPreferredBranch.deleteMany({ where: { waitlistEntry: { userId: { in: users } } } }),
@@ -398,6 +476,7 @@ test('HU-009/HU-010/HU-011 real HTTP and PostgreSQL reassignment flow', { timeou
         ]);
         await cleanupCheckpointFixtures(prisma);
         if (ownedPermission) await prisma.permission.delete({ where: { id: ownedPermission } });
+        if (ownedSupervisionPermission) await prisma.permission.delete({ where: { id: ownedSupervisionPermission } });
         await prisma.appointmentStatus.deleteMany({ where: { id: { in: appointmentStatusIds } } });
         await assertCheckpointIsClean(prisma);
       }
