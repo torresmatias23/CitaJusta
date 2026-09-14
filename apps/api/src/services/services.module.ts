@@ -4,10 +4,12 @@ import { DatabaseModule } from '../database/database.module.js';
 import { BranchesController } from './branches.controller.js';
 import { ServicesController } from './services.controller.js';
 import { ServicesService } from './services.service.js';
+import { AuthorizationModule } from '../authorization/authorization.module.js';
+import { CatalogAdministrationService } from './catalog-administration.service.js';
 
 @Module({
-  imports: [DatabaseModule, AuthModule],
+  imports: [DatabaseModule, AuthModule, AuthorizationModule],
   controllers: [ServicesController, BranchesController],
-  providers: [ServicesService],
+  providers: [ServicesService, CatalogAdministrationService],
 })
 export class ServicesModule {}
