@@ -1,14 +1,36 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard.js';
 import { ProfessionalsService } from './professionals.service.js';
 import { parseProfessionalParams } from './schemas/professional-params.schemas.js';
+import { AuthorizationContextGuard } from '../authorization/authorization-context.guard.js';
+import { PermissionsGuard } from '../authorization/permissions.guard.js';
+import { RequirePermissions } from '../authorization/decorators/require-permissions.decorator.js';
+import type { AuthorizedRequest } from '../authorization/types/authorization-context.js';
+import { ProfessionalAdministrationService, PROFESSIONAL_PERMISSIONS } from './professional-administration.service.js';
+import { createProfessionalSchema, updateProfessionalSchema, parseProfessionalInput, professionalAdministrationContext } from './schemas/professional-administration.schemas.js';
 
 @Controller('professionals')
 @UseGuards(AccessTokenGuard)
 export class ProfessionalsController {
   constructor(
     private readonly professionalsService: ProfessionalsService,
+    private readonly administration: ProfessionalAdministrationService,
   ) {}
+
+  @Post()
+  @UseGuards(AuthorizationContextGuard, PermissionsGuard)
+  @RequirePermissions(PROFESSIONAL_PERMISSIONS.create)
+  create(@Body() body: unknown, @Query() query: unknown, @Req() request: AuthorizedRequest) {
+    return this.administration.create(parseProfessionalInput(createProfessionalSchema, body, query), professionalAdministrationContext(request));
+  }
+
+  @Patch(':professionalId')
+  @UseGuards(AuthorizationContextGuard, PermissionsGuard)
+  @RequirePermissions(PROFESSIONAL_PERMISSIONS.update)
+  update(@Param() params: unknown, @Body() body: unknown, @Query() query: unknown, @Req() request: AuthorizedRequest) {
+    const { professionalId } = parseProfessionalParams(params);
+    return this.administration.update(professionalId, parseProfessionalInput(updateProfessionalSchema, body, query), professionalAdministrationContext(request));
+  }
 
   @Get()
   findAll() {
