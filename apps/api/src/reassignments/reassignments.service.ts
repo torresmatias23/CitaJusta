@@ -7,7 +7,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import type { AuthenticatedPrincipal } from '../auth/types/authenticated-principal.js';
 import type { AuthorizationContext } from '../authorization/types/authorization-context.js';
 import { availableAvailabilityWhere } from '../availability/availability.policy.js';
-import { candidateSelect, compareCandidates, exclusionReason, localTime, preferenceSnapshot } from './reassignments.policy.js';
+import { candidateSelect, rankCandidates, exclusionReason, localTime, preferenceSnapshot } from './reassignments.policy.js';
 
 export const GENERATE_OFFERS_PERMISSION = 'reassignments.generate';
 const RULE = 'PRIORITY_FIFO_V1';
@@ -67,7 +67,9 @@ export class ReassignmentsService {
         const slot = await tx.agendaSlot.findFirst({
           where: { id: agendaSlotId, availability: { branch: { institutionId: context.institutionId }, ...(context.branchId ? { branchId: context.branchId } : {}) } },
           include: {
-            availability: { include: { branch: { include: { institution: { select: { timeZone: true } } } } } },
+            availability: { include: { branch: { include: { institution: { select: { timeZone: true,
+              currentReassignmentPolicy: { select: { id: true, rankingStrategy: true, offerTtlMinutes: true } },
+            } } } } } },
             appointment: { include: { status: true, cancellations: { where: { releasesSlot: true }, orderBy: [{ cancelledAt: 'desc' }, { id: 'desc' }], take: 1 } } },
           },
         });
@@ -109,14 +111,17 @@ export class ReassignmentsService {
         });
         const slotContext = { institutionId, serviceId: availability.serviceId, branchId: availability.branchId,
           sourceUserId: appointment.userId, startsAt: slot.startsAt, endsAt: slot.endsAt, timeZone };
-        const evaluations = entries.sort(compareCandidates).map((entry) => ({ entry, reason: exclusionReason(entry, slotContext, now), id: randomUUID() }));
+        const policy = availability.branch.institution.currentReassignmentPolicy;
+        const strategy = policy?.rankingStrategy ?? 'PRIORITY_THEN_WAITING';
+        const evaluations = rankCandidates(entries, strategy).map((entry) => ({ entry, reason: exclusionReason(entry, slotContext, now), id: randomUUID() }));
         const eligible = evaluations.filter((evaluation) => evaluation.reason === null);
-        const ttl = this.config.getOrThrow<number>('WAITLIST_OFFER_TTL_MINUTES');
+        const ttl = policy?.offerTtlMinutes ?? this.config.getOrThrow<number>('WAITLIST_OFFER_TTL_MINUTES');
         const reassignmentId = randomUUID();
         await tx.reassignment.create({ data: {
-          id: reassignmentId, institutionId, originCancellationId: cancellation.id, appointmentId: appointment.id,
+          id: reassignmentId, institutionId, policyId: policy?.id ?? null, originCancellationId: cancellation.id, appointmentId: appointment.id,
           agendaSlotId, serviceId: availability.serviceId, sourceUserId: appointment.userId,
-          initialSlotVersion: slot.lockVersion, ruleCode: RULE, scoringVersion: 'priority-level-asc-fifo-v1',
+          initialSlotVersion: slot.lockVersion, ruleCode: strategy === 'PRIORITY_THEN_WAITING' ? RULE : 'FIFO_PRIORITY_V1',
+          scoringVersion: strategy === 'PRIORITY_THEN_WAITING' ? 'priority-level-asc-fifo-v1' : 'fifo-priority-level-asc-v1',
           criteriaSnapshot: { timeZone, startsAt: slot.startsAt.toISOString(), endsAt: slot.endsAt.toISOString(), branchId: availability.branchId,
             professionalId: availability.professionalId, offerTtlMinutes: ttl, actorUserId: context.userId,
             emptyPreferences: 'EXCLUDE_UNLESS_EXPLICIT_TIME_OR_BRANCH_CONSENT', explicitDaysOverrideWeekendFlag: true },
@@ -129,7 +134,7 @@ export class ReassignmentsService {
           evaluationStatus: reason ? 'EXCLUDED' : 'ELIGIBLE', priorityLevelSnapshot: entry.priority.level,
           entryUpdatedAtSnapshot: entry.updatedAt, rankingPosition: reason ? null : ++rank,
           // Schema requires a score for eligible candidates. It is just inverse configured level;
-          // FIFO and UUID break ties, without an invented weighted scoring formula.
+          // Ranking uses the selected ordering; this legacy score representation is unchanged.
           totalScore: reason ? null : new Prisma.Decimal(-entry.priority.level),
           scoreFactors: [{ code: 'PRIORITY_LEVEL', value: entry.priority.level }, { code: 'ENTERED_AT', value: entry.enteredAt.toISOString() }],
           evaluationContext: preferenceSnapshot(entry), exclusionReasonCode: reason, evaluatedAt: now,
@@ -443,6 +448,7 @@ export class ReassignmentsService {
               select: {
                 id: true, institutionId: true, appointmentId: true, agendaSlotId: true,
                 serviceId: true, sourceUserId: true, status: true, lockVersion: true,
+                policy: { select: { offerTtlMinutes: true } },
               },
             },
           },
@@ -642,7 +648,7 @@ export class ReassignmentsService {
         }
 
         const createdAt = new Date();
-        const ttl = this.config.getOrThrow<number>('WAITLIST_OFFER_TTL_MINUTES');
+        const ttl = offer.reassignment.policy?.offerTtlMinutes ?? this.config.getOrThrow<number>('WAITLIST_OFFER_TTL_MINUTES');
         const expiresAt = new Date(createdAt.getTime() + ttl * 60_000);
         if (!Number.isFinite(expiresAt.getTime())) {
           throw new ServiceUnavailableException('Offer TTL out of supported range');

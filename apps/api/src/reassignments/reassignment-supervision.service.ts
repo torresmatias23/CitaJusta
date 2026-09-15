@@ -29,6 +29,7 @@ const factorsSchema = z.array(z.discriminatedUnion('code', [
 ]));
 const named = { id: true, name: true } as const;
 export const supervisionSelect = {
+  policy: { select: { id: true, version: true, rankingStrategy: true, offerTtlMinutes: true } },
   id: true, institutionId: true, serviceId: true, agendaSlotId: true, status: true,
   ruleCode: true, scoringVersion: true, criteriaSnapshot: true, initialSlotVersion: true,
   lockVersion: true, closureReasonCode: true, detectedAt: true, startedAt: true, finishedAt: true,
@@ -79,6 +80,8 @@ export function mapSupervision(record: SupervisionRecord, observedAt: Date) {
   }));
   const pending = record.offers.find((offer) => offer.status === 'PENDING');
   return { data: {
+    policy: record.policy ? { id: record.policy.id, version: record.policy.version,
+      rankingStrategy: record.policy.rankingStrategy, offerTtlMinutes: record.policy.offerTtlMinutes } : null,
     id: record.id, status: record.status, institution: { id: record.institution.id, name: record.institution.name },
     branch: { id: record.agendaSlot.availability.branch.id, name: record.agendaSlot.availability.branch.name },
     service: { id: record.service.id, name: record.service.name },
