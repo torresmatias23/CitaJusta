@@ -19,9 +19,9 @@ try {
     adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
   });
   await bootstrapAppointmentStatus(prisma);
-  console.log('AppointmentStatus AGENDADA and CANCELADA are present; existing configuration preserved.');
+  console.log('AppointmentStatus AGENDADA, CANCELADA, ATENDIDA and INASISTENCIA are present; existing configuration preserved.');
 } catch {
-  console.error('AppointmentStatus bootstrap failed; check database configuration and migrations.');
+  console.error('AppointmentStatus bootstrap failed; check database configuration, migrations and attendance status compatibility.');
   process.exitCode = 1;
 } finally {
   if (prisma) await prisma.$disconnect();

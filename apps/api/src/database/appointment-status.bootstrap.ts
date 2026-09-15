@@ -21,9 +21,20 @@ export async function bootstrapAppointmentStatus(
       allowsCancellation: false,
       allowsConfirmation: false,
       active: true,
-    }],
+    }, ...['ATENDIDA', 'INASISTENCIA'].map((code) => ({
+      id: randomUUID(), code, name: code === 'ATENDIDA' ? 'Atendida' : 'Inasistencia',
+      active: true, isFinal: true, allowsCancellation: false, allowsConfirmation: false,
+    }))],
     skipDuplicates: true,
   });
+
+  for (const code of ['ATENDIDA', 'INASISTENCIA']) {
+    const status = await prisma.appointmentStatus.findUniqueOrThrow({ where: { code },
+      select: { active: true, isFinal: true, allowsCancellation: true, allowsConfirmation: true } });
+    if (!status.active || !status.isFinal || status.allowsCancellation || status.allowsConfirmation) {
+      throw new Error('Incompatible attendance status configuration; existing configuration preserved');
+    }
+  }
 
   await prisma.appointmentStatus.findUniqueOrThrow({
     where: { code: 'CANCELADA' },
