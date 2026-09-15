@@ -13,7 +13,7 @@ function database(existing) {
     }),
     findUniqueOrThrow: mock.fn(async ({ where }) => {
       assert.ok(stored.has(where.code));
-      return { code: where.code };
+      return structuredClone(stored.get(where.code));
     }),
   };
   return { appointmentStatus, stored: (code = 'AGENDADA') => stored.get(code) };
@@ -67,3 +67,24 @@ test('cancellation status bootstrap never overwrites existing CANCELADA configur
   assert.deepEqual(db.stored('CANCELADA'), existing);
   assert.equal(db.stored().code, 'AGENDADA');
 });
+
+for (const code of ['ATENDIDA', 'INASISTENCIA']) {
+  test(`attendance bootstrap creates compatible ${code} once and preserves customized labels`, async () => {
+    const db = database(); await bootstrapAppointmentStatus(db);
+    const original = structuredClone(db.stored(code)); await bootstrapAppointmentStatus(db);
+    assert.deepEqual(db.stored(code), original);
+    assert.equal(original.active, true); assert.equal(original.isFinal, true);
+    assert.equal(original.allowsCancellation, false); assert.equal(original.allowsConfirmation, false);
+    const configured = { ...original, name: 'Custom label', order: 20 };
+    const existing = database(configured); await bootstrapAppointmentStatus(existing);
+    assert.deepEqual(existing.stored(code), configured);
+  });
+  for (const invalid of [{ active: false }, { isFinal: false }, { allowsCancellation: true }, { allowsConfirmation: true }]) {
+    test(`attendance bootstrap rejects incompatible ${code} ${Object.keys(invalid)[0]} without overwrite`, async () => {
+      const configured = { id: 'existing', code, active: true, isFinal: true, allowsCancellation: false, allowsConfirmation: false, ...invalid };
+      const db = database(configured);
+      await assert.rejects(bootstrapAppointmentStatus(db), /Incompatible attendance/);
+      assert.deepEqual(db.stored(code), configured);
+    });
+  }
+}
