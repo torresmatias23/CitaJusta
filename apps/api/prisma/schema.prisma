@@ -156,6 +156,7 @@ model User {
   reassignmentCandidates  ReassignmentCandidate[]
   respondedOffers         AppointmentOffer[]      @relation("AppointmentOfferRespondedByUser")
   authSessions            AuthSession[]
+  createdReassignmentPolicies ReassignmentPolicy[]
 
   @@index([status])
   @@index([lastNames, firstNames])
@@ -215,6 +216,9 @@ model Institution {
   priorities        Priority[]
   waitlistEntries   WaitlistEntry[]
   reassignments     Reassignment[]
+  currentReassignmentPolicyId String? @map("politica_reasignacion_actual_id") @db.Uuid
+  currentReassignmentPolicy ReassignmentPolicy? @relation("CurrentReassignmentPolicy", fields: [id, currentReassignmentPolicyId], references: [institutionId, id], onDelete: NoAction, onUpdate: NoAction)
+  reassignmentPolicies ReassignmentPolicy[] @relation("InstitutionPolicies")
 
   @@index([name])
   @@map("instituciones")
@@ -849,9 +853,38 @@ model WaitlistPreferredBranch {
   @@map("sedes_preferidas_lista_espera")
 }
 
+enum ReassignmentRankingStrategy {
+  PRIORITY_THEN_WAITING
+  WAITING_THEN_PRIORITY
+
+  @@map("estrategia_ranking_reasignacion")
+}
+
+model ReassignmentPolicy {
+  id String @id @db.Uuid
+  institutionId String @map("institucion_id") @db.Uuid
+  version Int @map("version")
+  rankingStrategy ReassignmentRankingStrategy @map("estrategia_ranking")
+  offerTtlMinutes Int @map("duracion_oferta_minutos")
+  createdByUserId String @map("creada_por_usuario_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  institution Institution @relation("InstitutionPolicies", fields: [institutionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  createdByUser User @relation(fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  currentInstitutions Institution[] @relation("CurrentReassignmentPolicy")
+  reassignments Reassignment[]
+
+  @@unique([institutionId, version])
+  @@unique([institutionId, id])
+  @@index([createdByUserId])
+  @@map("politicas_reasignacion")
+}
+
 model Reassignment {
   id                   String             @id @db.Uuid
   institutionId        String             @map("institucion_id") @db.Uuid
+  policyId             String?            @map("politica_id") @db.Uuid
+  policy               ReassignmentPolicy? @relation(fields: [institutionId, policyId], references: [institutionId, id], onDelete: Restrict, onUpdate: NoAction)
   originCancellationId String             @unique @map("cancelacion_origen_id") @db.Uuid
   appointmentId        String             @map("cita_id") @db.Uuid
   agendaSlotId         String             @map("cupo_id") @db.Uuid
@@ -882,6 +915,7 @@ model Reassignment {
 
   @@unique([id, agendaSlotId])
   @@index([institutionId, status])
+  @@index([institutionId, policyId])
   @@index([agendaSlotId, status])
   @@index([appointmentId])
   @@index([serviceId])

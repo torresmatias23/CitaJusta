@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ReassignmentPolicyModule } from './reassignment-policy/reassignment-policy.module.js';
 import { AgendaModule } from './agenda/agenda.module.js';
 import { ConfigModule } from '@nestjs/config';
 import { AppointmentsModule } from './appointments/appointments.module.js';
@@ -21,6 +22,7 @@ import { ReassignmentsModule } from './reassignments/reassignments.module.js';
       validate: validateEnvironment,
     }),
     DatabaseModule,
+    ReassignmentPolicyModule,
     AgendaModule,
     AuthModule,
     AppointmentsModule,

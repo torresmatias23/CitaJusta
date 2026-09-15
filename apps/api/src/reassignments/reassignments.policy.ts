@@ -1,4 +1,4 @@
-import type { Prisma } from '../generated/prisma/client.js';
+import type { Prisma, ReassignmentRankingStrategy } from '../generated/prisma/client.js';
 
 export const candidateSelect = {
   id: true, userId: true, institutionId: true, serviceId: true, branchId: true,
@@ -35,6 +35,12 @@ const seconds = (date: Date) => date.getUTCHours() * 3600 + date.getUTCMinutes()
 export function compareCandidates(a: CandidateEntry, b: CandidateEntry) {
   return a.priority.level - b.priority.level || a.enteredAt.getTime() - b.enteredAt.getTime() ||
     (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
+export function rankCandidates(candidates: CandidateEntry[], strategy: ReassignmentRankingStrategy) {
+  return [...candidates].sort(strategy === 'PRIORITY_THEN_WAITING' ? compareCandidates : (a, b) =>
+    a.enteredAt.getTime() - b.enteredAt.getTime() || a.priority.level - b.priority.level ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
 export function exclusionReason(entry: CandidateEntry, slot: EvaluationSlot, now: Date): string | null {
