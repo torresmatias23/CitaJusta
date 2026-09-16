@@ -21,6 +21,7 @@ function fixture() {
     attentionPoint: null, agendaSlot: { availability: { branchId, serviceId, professionalId, attentionPointId: null } } };
   const history = [];
   const tx = {
+    auditEvent: { create: mock.fn(async ({ data }) => ({ id: data.id })) },
     user: { findFirst: mock.fn(async () => ({ id: context.userId })) }, userRole: { count: mock.fn(async () => 1) },
     appointment: { findFirst: mock.fn(async () => structuredClone(row)), updateMany: mock.fn(async ({ data }) => { row.statusId = data.statusId; return { count: 1 }; }) },
     appointmentStatus: { findUnique: mock.fn(async ({ where }) => ({ id: randomUUID(), code: where.code, name: where.code,

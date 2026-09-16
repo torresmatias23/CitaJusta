@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
 // A fresh namespace per run; never cleans or reuses historical checkpoint IDs.
-export const FIXTURE_EMAIL_PREFIX = `e2e_reports+${randomUUID()}-`;
+export const FIXTURE_EMAIL_PREFIX = `e2e_audit+${randomUUID()}-`;
 export const ids = Object.fromEntries([
   'institutionA', 'institutionB', 'branchA1', 'branchA2', 'branchB1',
   'serviceA', 'serviceA2', 'serviceB', 'professionalA', 'professionalA2', 'professionalB',
@@ -11,25 +11,13 @@ export const ids = Object.fromEntries([
 ].map((name) => [name, randomUUID()]));
 const institutions = [ids.institutionA, ids.institutionB];
 const roles = [ids.roleInstitution, ids.roleBranch, ids.roleGlobal];
-// Retain detected actors for verification after deleting fixture users.
-const auditActorIds = new Set();
-async function reportsAuditScope(prisma) {
-  const users = await prisma.user.findMany({
-    where: { email: { startsWith: FIXTURE_EMAIL_PREFIX } }, select: { id: true },
-  });
-  for (const { id } of users) auditActorIds.add(id);
-  return { OR: [
-    { institutionId: { in: institutions } },
-    { actorUserId: { in: [...auditActorIds] } },
-  ] };
-}
 
-export async function createReportsFixtures(prisma, adminId, secondUserId) {
-  await prisma.institution.createMany({ data: institutions.map((id) => ({ id, name: `E2E Reports ${id}`, timeZone: 'America/Santiago' })) });
+export async function createAuditFixtures(prisma, adminId, secondUserId) {
+  await prisma.institution.createMany({ data: institutions.map((id) => ({ id, name: `E2E Audit ${id}`, timeZone: 'America/Santiago' })) });
   await prisma.role.createMany({ data: [
-    { id: ids.roleGlobal, code: `E2E_REPORTS_${ids.roleGlobal}`, name: 'Reports global', scope: 'GLOBAL' },
-    { id: ids.roleInstitution, code: `E2E_REPORTS_${ids.roleInstitution}`, name: 'Reports institution', scope: 'INSTITUTION' },
-    { id: ids.roleBranch, code: `E2E_REPORTS_${ids.roleBranch}`, name: 'Reports branch', scope: 'BRANCH' },
+    { id: ids.roleGlobal, code: `E2E_AUDIT_${ids.roleGlobal}`, name: 'Audit global', scope: 'GLOBAL' },
+    { id: ids.roleInstitution, code: `E2E_AUDIT_${ids.roleInstitution}`, name: 'Audit institution', scope: 'INSTITUTION' },
+    { id: ids.roleBranch, code: `E2E_AUDIT_${ids.roleBranch}`, name: 'Audit branch', scope: 'BRANCH' },
   ] });
   await prisma.userRole.create({ data: { id: randomUUID(), userId: adminId, roleId: ids.roleInstitution, institutionId: ids.institutionA } });
   const groups = [
@@ -39,8 +27,8 @@ export async function createReportsFixtures(prisma, adminId, secondUserId) {
   ];
   const startsAt = new Date(); startsAt.setUTCDate(startsAt.getUTCDate() + 7); startsAt.setUTCHours(15, 0, 0, 0);
   for (const [institutionId, branchId, serviceId, professionalId, userId, availabilityId] of groups) {
-    await prisma.branch.create({ data: { id: branchId, institutionId, code: branchId, name: 'Reports branch' } });
-    await prisma.service.create({ data: { id: serviceId, institutionId, code: `REPORTS_${serviceId}`, name: 'Reports service', durationMinutes: 30 } });
+    await prisma.branch.create({ data: { id: branchId, institutionId, code: branchId, name: 'Audit branch' } });
+    await prisma.service.create({ data: { id: serviceId, institutionId, code: `AUDIT_${serviceId}`, name: 'Audit service', durationMinutes: 30 } });
     await prisma.professional.create({ data: { id: professionalId, institutionId, userId } });
     await prisma.serviceBranch.create({ data: { branchId, serviceId } });
     await prisma.professionalService.create({ data: { professionalId, serviceId } });
@@ -52,9 +40,11 @@ export async function createReportsFixtures(prisma, adminId, secondUserId) {
     startsAt, endsAt: new Date(+startsAt + 1_800_000), status: 'AVAILABLE' } });
 }
 
-export async function cleanupReportsFixtures(prisma) {
-  await prisma.auditEvent.deleteMany({ where: await reportsAuditScope(prisma) });
+export async function cleanupAuditFixtures(prisma) {
   const appointmentScope = { institutionId: { in: institutions } };
+  await prisma.scheduleBlock.deleteMany({ where: { institutionId: { in: institutions } } });
+  await prisma.institution.updateMany({ where: { id: { in: institutions } }, data: { currentReassignmentPolicyId: null } });
+  await prisma.reassignmentPolicy.deleteMany({ where: { institutionId: { in: institutions } } });
   await prisma.appointmentHistory.deleteMany({ where: { appointment: appointmentScope } });
   await prisma.cancellation.deleteMany({ where: { appointment: appointmentScope } });
   await prisma.appointment.deleteMany({ where: appointmentScope });
@@ -71,12 +61,12 @@ export async function cleanupReportsFixtures(prisma) {
   await prisma.branch.deleteMany({ where: { institutionId: { in: institutions } } });
   await prisma.institution.deleteMany({ where: { id: { in: institutions } } });
   const userScope = { email: { startsWith: FIXTURE_EMAIL_PREFIX } };
+  await prisma.auditEvent.deleteMany({ where: { OR: [{ institutionId: { in: institutions } }, { actorUserId: { in: (await prisma.user.findMany({ where: userScope, select: { id: true } })).map((user) => user.id) } }] } });
   await prisma.authSession.deleteMany({ where: { user: userScope } });
   await prisma.user.deleteMany({ where: userScope });
 }
 
-export async function assertReportsClean(prisma) {
-  assert.equal(await prisma.auditEvent.count({ where: await reportsAuditScope(prisma) }), 0);
+export async function assertAuditClean(prisma) {
   assert.equal(await prisma.institution.count({ where: { id: { in: institutions } } }), 0);
   assert.equal(await prisma.user.count({ where: { email: { startsWith: FIXTURE_EMAIL_PREFIX } } }), 0);
 }

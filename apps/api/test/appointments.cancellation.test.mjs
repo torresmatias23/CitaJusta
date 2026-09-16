@@ -44,11 +44,12 @@ function setup(options = {}) {
     id: randomUUID(), code: 'CANCELADA', active: true, isFinal: true,
     allowsCancellation: false, allowsConfirmation: false, ...options.cancelledStatus,
   };
-  const state = { appointment, slot, cancellations: [], history: [] };
+  const state = { appointment, slot, cancellations: [], history: [], audit: [] };
   const original = structuredClone(state);
   let working;
   let transactionAttempt = 0;
   const tx = {
+    auditEvent: { create: mock.fn(async ({ data }) => { working.audit.push(data); return { id: data.id }; }) },
     user: { findFirst: mock.fn(async () => options.userMissing ? null : { id: principal.userId }) },
     appointment: {
       findFirst: mock.fn(async ({ where }) => {

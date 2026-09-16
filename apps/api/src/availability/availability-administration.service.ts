@@ -1,3 +1,4 @@
+import { AuditService } from '../audit/audit.service.js';
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthorizationContext } from '../authorization/types/authorization-context.js';
@@ -32,6 +33,8 @@ export class AvailabilityAdministrationService {
         ...window, origin: 'MANUAL', capacity: 1,
       } });
       const slots = await this.materialize(tx, availability, intervals, context.institutionId!, institution.timeZone);
+      await AuditService.record(tx, { institutionId: context.institutionId!, branchId: input.branchId, actorUserId: context.userId,
+        actorType: 'USER', actionCode: 'AVAILABILITY_CREATED', resourceType: 'AVAILABILITY', resourceId: availability.id, outcome: 'SUCCESS' });
       return { data: this.dto(availability, slots, institution.timeZone) };
     });
   }
@@ -70,6 +73,8 @@ export class AvailabilityAdministrationService {
       }
       const availability = await tx.availability.update({ where: { id }, data: { ...window, active } });
       const slots = active ? await this.materialize(tx, availability, intervals, context.institutionId, institution.timeZone) : [];
+      await AuditService.record(tx, { institutionId: context.institutionId, branchId: existing.branchId, actorUserId: context.userId,
+        actorType: 'USER', actionCode: 'AVAILABILITY_UPDATED', resourceType: 'AVAILABILITY', resourceId: id, outcome: 'SUCCESS' });
       return { data: this.dto(availability, slots, institution.timeZone) };
     });
   }
@@ -114,6 +119,8 @@ export class AvailabilityAdministrationService {
         }, data: { status: 'BLOCKED', lockVersion: { increment: 1 } } });
         if (changed.count !== 1) throw new ConflictException('Agenda slot changed');
       }
+      await AuditService.record(tx, { institutionId, branchId: input.branchId, actorUserId: context.userId, actorType: 'USER',
+        actionCode: 'SCHEDULE_BLOCK_CREATED', resourceType: 'SCHEDULE_BLOCK', resourceId: block.id, outcome: 'SUCCESS' });
       return { data: { id: block.id, branchId: block.branchId, professionalId: block.professionalId,
         attentionPointId: block.attentionPointId, type: block.type, reason: block.reason,
         startsAt: block.startsAt.toISOString(), endsAt: block.endsAt.toISOString(), createdAt: block.createdAt.toISOString() } };

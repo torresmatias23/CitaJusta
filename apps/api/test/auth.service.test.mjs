@@ -67,6 +67,7 @@ function createPrismaMock(initialUsers = []) {
     [...users.values()].find((user) => user.email === email) ?? null;
 
   const prisma = {
+    auditEvent: { create: mock.fn(async ({ data }) => ({ id: data.id })) },
     user: {
       findUnique: mock.fn(async ({ where }) => {
         if (where.email !== undefined) {
@@ -232,6 +233,15 @@ test('invalid login does not reveal whether the email exists', async () => {
   assert.equal(wrongPasswordError.status, 401);
   assert.equal(missingError.message, 'Invalid credentials');
   assert.equal(wrongPasswordError.message, missingError.message);
+});
+
+test('login audit failure preserves invalid credentials and never records identity or secrets', async () => {
+  const { service, prisma } = createService();
+  prisma.auditEvent.create.mock.mockImplementation(async () => { throw new Error('audit offline'); });
+  await assert.rejects(service.login({ email: 'unknown@example.com', password }), (error) => error.status === 401);
+  const data = prisma.auditEvent.create.mock.calls[0].arguments[0].data;
+  assert.equal(data.actionCode, 'AUTH_LOGIN_FAILURE'); assert.equal(data.actorUserId, undefined);
+  assert.equal(data.outcome, 'FAILURE'); assert.ok(!JSON.stringify(data).includes('unknown@example.com'));
 });
 
 test('login rejects a pending user without creating a session', async () => {

@@ -1,3 +1,4 @@
+import { AuditService } from '../audit/audit.service.js';
 import { randomUUID } from 'node:crypto';
 import {
   ConflictException,
@@ -197,6 +198,9 @@ export class AppointmentsService {
           },
           select: { id: true },
         });
+        await AuditService.record(tx, { institutionId: appointment.institutionId, branchId: appointment.branchId,
+          actorUserId: principal.userId, actorType: 'USER', actionCode: 'APPOINTMENT_CANCELLED', resourceType: 'APPOINTMENT',
+          resourceId: appointmentId, outcome: 'SUCCESS', previousState: 'AGENDADA', newState: 'CANCELADA' });
         return {
           data: mapAppointmentSummary({ ...appointment, status: { code: cancelledStatus.code } }),
         };
@@ -337,6 +341,9 @@ export class AppointmentsService {
           select: { id: true },
         });
 
+        await AuditService.record(tx, { institutionId: appointment.institutionId, branchId: appointment.branchId,
+          actorUserId: principal.userId, actorType: 'USER', actionCode: 'APPOINTMENT_CREATED', resourceType: 'APPOINTMENT',
+          resourceId: appointment.id, outcome: 'SUCCESS', newState: 'AGENDADA' });
         return {
           data: {
             id: appointment.id,

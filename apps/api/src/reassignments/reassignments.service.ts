@@ -1,3 +1,4 @@
+import { AuditService } from '../audit/audit.service.js';
 import { randomUUID } from 'node:crypto';
 import { ConflictException, ForbiddenException, HttpException, Injectable, InternalServerErrorException, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -139,8 +140,16 @@ export class ReassignmentsService {
           scoreFactors: [{ code: 'PRIORITY_LEVEL', value: entry.priority.level }, { code: 'ENTERED_AT', value: entry.enteredAt.toISOString() }],
           evaluationContext: preferenceSnapshot(entry), exclusionReasonCode: reason, evaluatedAt: now,
         })) });
+        const auditContext = { institutionId, branchId: availability.branchId, actorUserId: context.userId,
+          actorType: 'USER' as const, outcome: 'SUCCESS' as const };
+        await AuditService.record(tx, { ...auditContext, actionCode: 'REASSIGNMENT_STARTED', resourceType: 'REASSIGNMENT',
+          resourceId: reassignmentId, newState: eligible.length ? 'OFFERING' : 'EXHAUSTED' });
         const winner = eligible[0];
-        if (!winner) return { data: { id: reassignmentId, status: 'EXHAUSTED', offer: null } };
+        if (!winner) {
+          await AuditService.record(tx, { ...auditContext, actionCode: 'REASSIGNMENT_EXHAUSTED', resourceType: 'REASSIGNMENT',
+            resourceId: reassignmentId, newState: 'EXHAUSTED', reasonCode: 'NO_ELIGIBLE_CANDIDATES' });
+          return { data: { id: reassignmentId, status: 'EXHAUSTED', offer: null } };
+        }
         // Use the same instant for both timestamps, after the evaluation work.
         const createdAt = new Date();
         const expiresAt = new Date(createdAt.getTime() + ttl * 60_000);
@@ -151,6 +160,7 @@ export class ReassignmentsService {
           id: randomUUID(), reassignmentId, candidateId: winner.id, agendaSlotId, attemptNumber: 1,
           status: 'PENDING', expectedSlotVersion: slot.lockVersion + 1, createdAt, expiresAt,
         }, select: { id: true } });
+        await AuditService.record(tx, { ...auditContext, actionCode: 'OFFER_CREATED', resourceType: 'OFFER', resourceId: offer.id, newState: 'PENDING' });
         return { data: { id: reassignmentId, status: 'OFFERING', offer: { id: offer.id, status: 'PENDING', agendaSlotId,
           createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString() } } };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
@@ -385,6 +395,12 @@ export class ReassignmentsService {
           },
         });
         if (completed.count !== 1) throw new ConflictException('Reassignment changed; retry acceptance');
+        const auditContext = { institutionId: appointment.institutionId, branchId: availability.branchId,
+          actorUserId: principal.userId, actorType: 'USER' as const, outcome: 'SUCCESS' as const };
+        await AuditService.record(tx, { ...auditContext, actionCode: 'OFFER_ACCEPTED', resourceType: 'OFFER', resourceId: offer.id,
+          previousState: 'PENDING', newState: 'ACCEPTED' });
+        await AuditService.record(tx, { ...auditContext, actionCode: 'REASSIGNMENT_COMPLETED', resourceType: 'REASSIGNMENT',
+          resourceId: offer.reassignment.id, previousState: 'OFFERING', newState: 'COMPLETED' });
 
         await tx.appointmentHistory.create({
           data: {
@@ -573,6 +589,10 @@ export class ReassignmentsService {
           },
         });
         if (rejected.count !== 1) throw new ConflictException('Offer changed; retry rejection');
+        const auditContext = { institutionId: offer.reassignment.institutionId, branchId: availability.branchId,
+          actorUserId: principal.userId, actorType: 'USER' as const, outcome: 'SUCCESS' as const };
+        await AuditService.record(tx, { ...auditContext, actionCode: 'OFFER_REJECTED', resourceType: 'OFFER', resourceId: offer.id,
+          previousState: 'PENDING', newState: 'REJECTED' });
 
         const pendingOffers = await tx.appointmentOffer.count({
           where: { reassignmentId: offer.reassignmentId, status: 'PENDING' },
@@ -638,6 +658,8 @@ export class ReassignmentsService {
             },
           });
           if (exhausted.count !== 1) throw new ConflictException('Reassignment changed; retry rejection');
+          await AuditService.record(tx, { ...auditContext, actionCode: 'REASSIGNMENT_EXHAUSTED', resourceType: 'REASSIGNMENT',
+            resourceId: offer.reassignment.id, previousState: 'OFFERING', newState: 'EXHAUSTED', reasonCode: 'CANDIDATES_EXHAUSTED_AFTER_REJECTION' });
           return {
             data: {
               offer: { id: offer.id, status: 'REJECTED', respondedAt: now.toISOString() },
@@ -677,6 +699,8 @@ export class ReassignmentsService {
           },
           select: { id: true },
         });
+        await AuditService.record(tx, { ...auditContext, actorUserId: null, actorType: 'SYSTEM',
+          actionCode: 'OFFER_CREATED', resourceType: 'OFFER', resourceId: nextOffer.id, newState: 'PENDING' });
 
         return {
           data: {

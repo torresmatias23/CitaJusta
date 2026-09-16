@@ -22,6 +22,7 @@ const baseBranch = { code: 'BRANCH', name: 'Sede' };
 
 function fixture() {
   const tx = {
+    auditEvent: { create: mock.fn(async ({ data }) => ({ id: data.id })) },
     userRole: { count: mock.fn(async () => 1) },
     institution: { findFirst: mock.fn(async () => ({ id: context.institutionId })) },
     branch: {

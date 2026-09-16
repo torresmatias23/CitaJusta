@@ -94,6 +94,14 @@ const auxiliaryUserIds = [
   ids.professionalBUser,
   ids.professionalInactiveUser,
 ];
+// Retain detected actors so verification still works after their users are deleted.
+const auditActorIds = new Set(auxiliaryUserIds);
+function fixtureAuditScope() {
+  return { OR: [
+    { institutionId: { in: institutionIds } },
+    { actorUserId: { in: [...auditActorIds] } },
+  ] };
+}
 export const professionalIds = [
   ids.professionalA,
   ids.professionalA2,
@@ -299,6 +307,7 @@ export async function cleanupCheckpointFixtures(prisma) {
   }
   const appointmentIds = appointments.map((row) => row.id);
   const fixtureUserIds = await findFixtureUserIds(prisma);
+  for (const id of fixtureUserIds) auditActorIds.add(id);
   const relatedProfessionals = await prisma.professional.findMany({
     where: {
       OR: [
@@ -325,6 +334,7 @@ export async function cleanupCheckpointFixtures(prisma) {
   const relatedAvailabilityIds = relatedAvailabilities.map(({ id }) => id);
 
   await prisma.$transaction([
+    prisma.auditEvent.deleteMany({ where: fixtureAuditScope() }),
     prisma.cancellation.deleteMany({ where: { appointmentId: { in: appointmentIds } } }),
     prisma.appointmentHistory.deleteMany({
       where: { appointmentId: { in: appointmentIds } },
@@ -910,7 +920,9 @@ export async function createCheckpointFixtures(prisma, registeredUserId) {
 }
 
 export async function assertCheckpointIsClean(prisma) {
+  for (const id of await findFixtureUserIds(prisma)) auditActorIds.add(id);
   const counts = await Promise.all([
+    prisma.auditEvent.count({ where: fixtureAuditScope() }),
     prisma.appointment.count({ where: { agendaSlotId: { in: slotIds } } }),
     prisma.user.count({
       where: {

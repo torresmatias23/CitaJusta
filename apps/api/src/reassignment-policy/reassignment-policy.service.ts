@@ -1,3 +1,4 @@
+import { AuditService } from '../audit/audit.service.js';
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -56,6 +57,8 @@ export class ReassignmentPolicyService {
           const updated = await tx.institution.updateMany({ where: { id: institutionId, currentReassignmentPolicyId: previous?.id ?? null },
             data: { currentReassignmentPolicyId: policy.id } });
           if (updated.count !== 1) throw new ConflictException('Policy changed; retry request');
+          await AuditService.record(tx, { institutionId, actorUserId: context.userId, actorType: 'USER',
+            actionCode: 'REASSIGNMENT_POLICY_VERSION_CREATED', resourceType: 'REASSIGNMENT_POLICY', resourceId: policy.id, outcome: 'SUCCESS' });
           return { created: true, data: dto(policy) };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       } catch (error) {

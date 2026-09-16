@@ -28,9 +28,10 @@ function setup(options = {}) {
     ...options.slot,
   };
   const initialStatus = { id: randomUUID(), code: 'AGENDADA', active: true, isFinal: false };
-  const state = { slot: structuredClone(initial), appointments: [], history: [] };
+  const state = { slot: structuredClone(initial), appointments: [], history: [], audit: [] };
   let working;
   const tx = {
+    auditEvent: { create: mock.fn(async ({ data }) => { working.audit.push(data); return { id: data.id }; }) },
     user: { findFirst: mock.fn(async () => options.userMissing ? null : { id: principal.userId }) },
     agendaSlot: {
       findUnique: mock.fn(async () => options.slotMissing ? null : structuredClone(working.slot)),
