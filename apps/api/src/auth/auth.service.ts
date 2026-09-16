@@ -1,3 +1,4 @@
+import { AuditService } from '../audit/audit.service.js';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
   ConflictException,
@@ -143,6 +144,11 @@ export class AuthService {
       user.status !== UserStatus.ACTIVE ||
       user.deletedAt !== null
     ) {
+      // Do not identify an unverified actor or let an audit outage change invalid credentials to 500.
+      try {
+        await AuditService.record(this.prisma, { actorType: 'USER', actionCode: 'AUTH_LOGIN_FAILURE',
+          resourceType: 'AUTH', outcome: 'FAILURE', reasonCode: 'INVALID_CREDENTIALS' });
+      } catch { /* Invalid credentials retain their existing contract. */ }
       throw this.invalidCredentials();
     }
 
@@ -171,6 +177,8 @@ export class AuthService {
         where: { id: user.id },
         data: { lastLoginAt: now },
       });
+      await AuditService.record(transaction, { actorUserId: user.id, actorType: 'USER',
+        actionCode: 'AUTH_LOGIN_SUCCESS', resourceType: 'AUTH', outcome: 'SUCCESS' });
     });
 
     return tokens;
@@ -269,13 +277,13 @@ export class AuthService {
       throw this.invalidRefreshToken();
     }
 
-    await this.prisma.authSession.updateMany({
-      where: {
-        id: claims.sid,
-        userId: claims.sub,
-        revokedAt: null,
-      },
-      data: { revokedAt: new Date() },
+    await this.prisma.$transaction(async (tx) => {
+      const revoked = await tx.authSession.updateMany({
+        where: { id: claims.sid, userId: claims.sub, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      if (revoked.count === 1) await AuditService.record(tx, { actorUserId: claims.sub, actorType: 'USER',
+        actionCode: 'AUTH_LOGOUT', resourceType: 'AUTH', outcome: 'SUCCESS' });
     });
   }
 

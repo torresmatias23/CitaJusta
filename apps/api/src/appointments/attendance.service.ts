@@ -1,3 +1,4 @@
+import { AuditService } from '../audit/audit.service.js';
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import type { AuthorizationContext } from '../authorization/types/authorization-context.js';
@@ -63,6 +64,9 @@ export class AttendanceService {
             previousUserId: appointment.userId, newUserId: appointment.userId, actorUserId: context.userId,
             reason: status === 'ATENDIDA' ? 'ATTENDANCE_RECORDED' : 'NO_SHOW_RECORDED',
           } });
+          await AuditService.record(tx, { institutionId, branchId: appointment.branchId, actorUserId: context.userId,
+            actorType: 'USER', actionCode: status === 'ATENDIDA' ? 'ATTENDANCE_RECORDED' : 'NO_SHOW_RECORDED',
+            resourceType: 'APPOINTMENT', resourceId: appointment.id, outcome: 'SUCCESS', previousState: 'AGENDADA', newState: status });
           return { data: dto({ ...appointment, status: target }) };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       } catch (error) {

@@ -1,3 +1,4 @@
+import { AuditService } from '../audit/audit.service.js';
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthorizationContext } from '../authorization/types/authorization-context.js';
@@ -37,6 +38,8 @@ export class CatalogAdministrationService {
       const branch = await tx.branch.create({
         data: { ...input, id: randomUUID(), institutionId }, select: branchSelect,
       });
+      await AuditService.record(tx, { institutionId, branchId: branch.id, actorUserId: context.userId, actorType: 'USER',
+        actionCode: 'BRANCH_CREATED', resourceType: 'BRANCH', resourceId: branch.id, outcome: 'SUCCESS' });
       return { data: this.branchDto(branch) };
     });
   }
@@ -50,6 +53,8 @@ export class CatalogAdministrationService {
       const branch = await tx.branch.update({
         where: { id, institutionId, deletedAt: null }, data: input, select: branchSelect,
       });
+      await AuditService.record(tx, { institutionId, branchId: id, actorUserId: context.userId, actorType: 'USER',
+        actionCode: 'BRANCH_UPDATED', resourceType: 'BRANCH', resourceId: id, outcome: 'SUCCESS' });
       return { data: this.branchDto(branch) };
     });
   }
@@ -66,6 +71,8 @@ export class CatalogAdministrationService {
           branchAssignments: { create: (branchIds ?? []).map((branchId) => ({ branchId })) },
         }, select: serviceSelect,
       });
+      await AuditService.record(tx, { institutionId, actorUserId: context.userId, actorType: 'USER',
+        actionCode: 'SERVICE_CREATED', resourceType: 'SERVICE', resourceId: service.id, outcome: 'SUCCESS' });
       return { data: this.serviceDto(service) };
     });
   }
@@ -94,6 +101,8 @@ export class CatalogAdministrationService {
         }
       }
       const service = await tx.service.findUniqueOrThrow({ where: { id }, select: serviceSelect });
+      await AuditService.record(tx, { institutionId, actorUserId: context.userId, actorType: 'USER',
+        actionCode: 'SERVICE_UPDATED', resourceType: 'SERVICE', resourceId: id, outcome: 'SUCCESS' });
       return { data: this.serviceDto(service) };
     });
   }

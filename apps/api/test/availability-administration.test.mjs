@@ -20,6 +20,7 @@ function fixture() {
     attentionPointId: null, ...localWindow(new Date(input.startsAt), new Date(input.endsAt), 'UTC'), active: true, capacity: 1,
     origin: 'MANUAL', createdAt: new Date(), updatedAt: new Date() };
   const tx = {
+    auditEvent: { create: mock.fn(async ({ data }) => ({ id: data.id })) },
     userRole: { count: mock.fn(async () => 1) }, branch: { findFirst: mock.fn(async () => ({ institution: { timeZone: 'UTC' } })) },
     professional: { findFirst: mock.fn(async () => ({ serviceAssignments: [{ customDurationMinutes: null }] })) },
     service: { findFirst: mock.fn(async () => ({ durationMinutes: 30 })) },

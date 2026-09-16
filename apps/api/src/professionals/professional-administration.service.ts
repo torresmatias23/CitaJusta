@@ -1,3 +1,4 @@
+import { AuditService } from '../audit/audit.service.js';
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthorizationContext } from '../authorization/types/authorization-context.js';
@@ -40,6 +41,8 @@ export class ProfessionalAdministrationService {
           serviceAssignments: { create: serviceIds.map((serviceId) => ({ serviceId })) },
         }, select: professionalSelect(institutionId),
       });
+      await AuditService.record(tx, { institutionId, actorUserId: context.userId, actorType: 'USER',
+        actionCode: 'PROFESSIONAL_CREATED', resourceType: 'PROFESSIONAL', resourceId: professional.id, outcome: 'SUCCESS' });
       return { data: this.dto(professional) };
     });
   }
@@ -72,6 +75,8 @@ export class ProfessionalAdministrationService {
           });
         }
       }
+      await AuditService.record(tx, { institutionId, actorUserId: context.userId, actorType: 'USER',
+        actionCode: 'PROFESSIONAL_UPDATED', resourceType: 'PROFESSIONAL', resourceId: id, outcome: 'SUCCESS' });
       return { data: this.dto(await tx.professional.findUniqueOrThrow({ where: { id }, select: professionalSelect(institutionId) })) };
     });
   }

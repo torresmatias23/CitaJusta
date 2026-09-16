@@ -21,6 +21,7 @@ function fixture() {
     status: 'ACTIVE', createdAt: now, updatedAt: now,
     branchAssignments: input.branchIds.map((branchId) => ({ branchId })), serviceAssignments: input.serviceIds.map((serviceId) => ({ serviceId })) };
   const tx = {
+    auditEvent: { create: mock.fn(async ({ data }) => ({ id: data.id })) },
     userRole: { count: mock.fn(async () => 1) }, institution: { findFirst: mock.fn(async () => ({ id: context.institutionId })) },
     user: { findFirst: mock.fn(async () => ({ id: input.userId })) },
     branch: { count: mock.fn(async ({ where }) => where.id.in.length) }, service: { count: mock.fn(async ({ where }) => where.id.in.length) },

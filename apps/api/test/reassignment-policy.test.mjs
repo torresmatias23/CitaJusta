@@ -17,6 +17,7 @@ const hasStatus = (code) => (error) => error.getStatus?.() === code;
 function fixture() {
   let current = null; const versions = [];
   const db = {
+    auditEvent: { create: mock.fn(async ({ data }) => ({ id: data.id })) },
     user: { findFirst: async () => ({ id: context.userId }) }, userRole: { count: mock.fn(async () => 1) },
     institution: { findFirst: mock.fn(async () => ({ currentReassignmentPolicy: current })),
       updateMany: mock.fn(async ({ data }) => { current = versions.find((v) => v.id === data.currentReassignmentPolicyId); return { count: 1 }; }) },
@@ -52,8 +53,10 @@ test('first version, identical no-op and version 2 preserve immutable version 1 
   const first = await service.configure(input, context); assert.equal(first.created, true); assert.equal(first.data.version, 1);
   assert.equal(first.data.createdByUserId, context.userId); const before = structuredClone(versions[0]);
   const same = await service.configure(input, context); assert.equal(same.created, false); assert.deepEqual(same.data, first.data);
+  assert.equal(db.auditEvent.create.mock.callCount(), 1);
   const second = await service.configure({ ...input, offerTtlMinutes: 20 }, context); assert.equal(second.data.version, 2);
   assert.deepEqual(versions[0], before); assert.equal(versions.length, 2); assert.equal(db.institution.updateMany.mock.callCount(), 2);
+  assert.equal(db.auditEvent.create.mock.callCount(), 2);
   assert.equal((await service.get(context)).data.id, second.data.id);
 });
 test('institutional grants and current lookup cannot escape context; branch and revoked grant cannot write', async () => {
@@ -105,7 +108,8 @@ test('generation stores resolved policy or legacy null and leaves eligibility sn
         branch: { institution: { timeZone: 'UTC', currentReassignmentPolicy: policy } } },
       appointment: { id: randomUUID(), userId: randomUUID(), institutionId: context.institutionId, branchId, serviceId, professionalId,
         attentionPointId: null, startsAt, endsAt, deletedAt: null, status: { code: 'CANCELADA', isFinal: true }, cancellations: [{ id: randomUUID() }] } };
-    const tx = { user: { findFirst: async () => ({ id: context.userId }) }, userRole: { count: async () => 1 },
+    const tx = { auditEvent: { create: mock.fn(async ({ data }) => ({ id: data.id })) },
+      user: { findFirst: async () => ({ id: context.userId }) }, userRole: { count: async () => 1 },
       agendaSlot: { findFirst: async () => slot, updateMany: async () => ({ count: 1 }) }, availability: { count: async () => 1 },
       reassignment: { count: async () => 0, create: async ({ data }) => { saved = data; } }, appointmentOffer: { count: async () => 0 }, waitlistEntry: { findMany: async () => [] } };
     const service = new ReassignmentsService({ $transaction: (work) => work(tx) }, { getOrThrow: () => 10 });

@@ -8,6 +8,46 @@ datasource db {
   provider = "postgresql"
 }
 
+enum AuditActorType {
+  USER   @map("USUARIO")
+  SYSTEM @map("SISTEMA")
+
+  @@map("tipo_actor_auditoria")
+}
+
+enum AuditOutcome {
+  SUCCESS @map("EXITO")
+  FAILURE @map("FALLO")
+
+  @@map("resultado_auditoria")
+}
+
+// Historical identifiers intentionally survive deletion of the original resource/actor.
+model AuditEvent {
+  id            String         @id @db.Uuid
+  institutionId String?        @map("institucion_id") @db.Uuid
+  branchId      String?        @map("sede_id") @db.Uuid
+  actorUserId   String?        @map("actor_usuario_id") @db.Uuid
+  actorType     AuditActorType @map("tipo_actor")
+  actionCode    String         @map("codigo_accion") @db.VarChar(80)
+  resourceType  String         @map("tipo_recurso") @db.VarChar(60)
+  resourceId    String?        @map("recurso_id") @db.Uuid
+  outcome       AuditOutcome   @map("resultado")
+  previousState String?        @map("estado_anterior") @db.VarChar(60)
+  newState      String?        @map("estado_nuevo") @db.VarChar(60)
+  reasonCode    String?        @map("codigo_motivo") @db.VarChar(80)
+  // Millisecond precision preserves exact cursor boundaries through JavaScript Date.
+  occurredAt    DateTime       @default(now()) @map("ocurrido_at") @db.Timestamp(3)
+
+  @@index([institutionId, occurredAt(sort: Desc), id(sort: Desc)])
+  @@index([branchId, occurredAt(sort: Desc), id(sort: Desc)])
+  @@index([actorUserId, occurredAt(sort: Desc), id(sort: Desc)])
+  @@index([actionCode, occurredAt(sort: Desc), id(sort: Desc)])
+  @@index([resourceType, resourceId, occurredAt(sort: Desc), id(sort: Desc)])
+  @@index([occurredAt(sort: Desc), id(sort: Desc)])
+  @@map("eventos_auditoria")
+}
+
 enum UserStatus {
   PENDING  @map("PENDIENTE")
   ACTIVE   @map("ACTIVO")
