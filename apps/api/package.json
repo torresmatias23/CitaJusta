@@ -9,6 +9,8 @@
     "prisma:validate": "prisma validate",
     "bootstrap:appointment-status": "npm run build && node scripts/bootstrap-appointment-status.mjs",
     "bootstrap:waitlist": "npm run build && node scripts/bootstrap-waitlist.mjs",
+    "seed:dev": "npm run build && node scripts/seed-development.mjs",
+    "check:dev": "npm run build && node scripts/check-development.mjs",
     "start": "node dist/main.js",
     "test": "npm run build && node --test test/*.test.mjs",
     "test:e2e:checkpoint": "npm run build && node --test --test-concurrency=1 test/e2e/backend-checkpoint.e2e.test.mjs",

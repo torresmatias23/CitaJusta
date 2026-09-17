@@ -165,6 +165,8 @@ export function createAuthSession({ publicApi, authenticatedApi, storage }: {
       // Un 401 tardío del token anterior reutiliza la rotación ya completada.
       if (accessToken === sentToken) await rotate(expected);
       assertCurrent(expected, options.signal);
+      // Algunas escrituras requieren confirmación manual aun después de renovar la sesión.
+      if (options.retryAfterRefresh === false) throw new ApiError(401);
       try {
         const result = await transport.request(path, options);
         assertCurrent(expected, options.signal);

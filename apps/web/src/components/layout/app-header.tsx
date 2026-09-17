@@ -65,13 +65,9 @@ export function AppHeader() {
                 Mis citas
               </NavLink>
 
-              <button
-                type="button"
-                disabled
-                title="Lista de espera: próximamente"
-              >
-                <span>Lista de espera<small className="nav-soon">Próximamente</small></span>
-              </button>
+              <NavLink to="/lista-de-espera" onClick={() => setMenuOpen(false)}>
+                Lista de espera
+              </NavLink>
 
               <button
                 type="button"

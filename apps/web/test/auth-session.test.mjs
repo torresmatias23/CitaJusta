@@ -5,6 +5,17 @@ import { createSessionStorage } from '../src/features/auth/session-storage.ts';
 import { ApiError } from '../src/lib/http-client.ts';
 
 const credentials = { email: 'person@example.test', password: 'example-password' };
+
+test('escritura waitlist renueva sesión tras 401 sin reenviar automáticamente la operación', async () => {
+  const { session, calls } = setup((path) => {
+    if (path === 'waitlist') throw new ApiError(401);
+  });
+  await session.login(credentials);
+  await assert.rejects(session.api.request('waitlist', { method: 'POST', body: {}, retryAfterRefresh: false }), (error) => error instanceof ApiError && error.status === 401);
+  assert.equal(calls.filter((call) => call.path === 'waitlist').length, 1);
+  assert.equal(calls.filter((call) => call.path === 'auth/refresh').length, 1);
+  assert.equal(session.getSnapshot().status, 'authenticated');
+});
 const profile = { id: 'person-id', email: credentials.email, firstName: 'Ana', lastName: 'Pérez', status: 'ACTIVE', context: {}, roles: [], permissions: [] };
 const tokens = (suffix = '1') => ({ accessToken: `access-${suffix}`, refreshToken: `refresh-${suffix}`, tokenType: 'Bearer' });
 

@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { NestFactory } from '@nestjs/core';
 import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
 import { FIXTURE_EMAIL_PREFIX, ids, cleanupCheckpointFixtures, createCheckpointFixtures, assertCheckpointIsClean } from './fixture.mjs';
+import { provisionFixtureWaitlist } from './waitlist-catalog.fixture.mjs';
 
 test('HU-007/HU-008 real HTTP and PostgreSQL waitlist', { timeout: 120_000 }, async (t) => {
   loadApiEnvironment();
@@ -64,11 +65,7 @@ test('HU-007/HU-008 real HTTP and PostgreSQL waitlist', { timeout: 120_000 }, as
     await createCheckpointFixtures(prisma, first.id);
     // Both branches really offer this service; branch changes must still count as duplicates.
     await prisma.serviceBranch.create({ data: { serviceId: ids.serviceA, branchId: ids.branchA2 } });
-    const initialState = await prisma.waitlistStatus.findUnique({ where: { code: 'ACTIVE' } });
-    const initialWithdrawn = await prisma.waitlistStatus.findUnique({ where: { code: 'WITHDRAWN' } });
-    await bootstrapWaitlist(prisma, ids.institutionA);
-    if (!initialWithdrawn) statusIds.push((await prisma.waitlistStatus.findUniqueOrThrow({ where: { code: 'WITHDRAWN' } })).id);
-    if (!initialState) statusIds.push((await prisma.waitlistStatus.findUniqueOrThrow({ where: { code: 'ACTIVE' } })).id);
+    await provisionFixtureWaitlist(prisma, ids.institutionA, statusIds);
     priorityIds.push((await prisma.priority.findUniqueOrThrow({ where: { institutionId_code: { institutionId: ids.institutionA, code: 'STANDARD' } } })).id);
     await bootstrapWaitlist(prisma, ids.institutionB);
     priorityIds.push((await prisma.priority.findUniqueOrThrow({ where: { institutionId_code: { institutionId: ids.institutionB, code: 'STANDARD' } } })).id);
@@ -409,6 +406,7 @@ test('HU-007/HU-008 real HTTP and PostgreSQL waitlist', { timeout: 120_000 }, as
           prisma.waitlistStatus.deleteMany({ where: { id: { in: statusIds } } }),
         ]);
         assert.equal(await prisma.waitlistEntry.count({ where: { userId: { in: userIds } } }), 0);
+        assert.equal(await prisma.waitlistStatus.count({ where: { id: { in: statusIds } } }), 0, 'no catalog created by this run remains');
         await cleanupCheckpointFixtures(prisma);
         await assertCheckpointIsClean(prisma);
       }
