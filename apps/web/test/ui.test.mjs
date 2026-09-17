@@ -7,10 +7,15 @@ import { MemoryRouter } from 'react-router';
 import { createServer } from 'vite';
 
 // Renderiza los componentes reales; no sustituye las pruebas de interacción en navegador.
+// El servidor middleware de estas pruebas no realiza llamadas a la API.
+const previousProxy = process.env.API_PROXY_TARGET;
+process.env.API_PROXY_TARGET = 'http://localhost:3000';
 const vite = await createServer({
   server: { middlewareMode: true },
   appType: 'custom',
 });
+if (previousProxy === undefined) delete process.env.API_PROXY_TARGET;
+else process.env.API_PROXY_TARGET = previousProxy;
 
 after(() => vite.close());
 
@@ -34,6 +39,20 @@ const renderRoute = (path) =>
       ),
     ),
   );
+
+test('lista de espera exige verificar sesión antes de mostrar datos o formularios', () => {
+  const html = renderRoute('/lista-de-espera');
+  assert.match(html, /Verificando tu sesión/);
+  assert.doesNotMatch(html, /Ingresar a una lista de espera|Tus solicitudes abiertas|Esta página no está disponible/);
+});
+
+test('Inicio enlaza al flujo de waitlist y conserva notificaciones como funcionalidad futura', () => {
+  const html = renderRoute('/');
+  assert.match(html, /href="\/lista-de-espera"/);
+  assert.match(html, /Ver mi lista de espera/);
+  assert.match(html, /Próximamente/);
+  assert.doesNotMatch(html, /Podrás indicar tus preferencias/);
+});
 
 test('Inicio renderiza el shell, buscador accesible y cuatro tarjetas', () => {
   const html = renderRoute('/');

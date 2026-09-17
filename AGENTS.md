@@ -30,7 +30,7 @@ docs/
   development/
 ```
 
-Esta estructura aún no está creada; debe incorporarse de forma incremental.
+`apps/api` y `apps/web` están implementados; incorporar las demás partes sólo según el alcance solicitado.
 
 ## Convenciones
 
@@ -69,7 +69,7 @@ cargo --version
 & 'C:\Program Files\PostgreSQL\18\bin\psql.exe' --version
 ```
 
-Todavía no existen `package.json`, workspaces ni scripts del proyecto.
+Preparación local en `docs/development/SETUP.md`. Scripts API: `seed:dev` (catálogo demo idempotente) y `check:dev` (sólo lectura). Bootstrap, seed y fixtures E2E tienen responsabilidades distintas; no usar fixtures como datos de desarrollo.
 
 ## Reglas críticas de seguridad e integridad
 

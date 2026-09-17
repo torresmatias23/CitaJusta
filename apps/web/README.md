@@ -8,6 +8,8 @@ React + Vite + TypeScript estricto; Tailwind mediante su plugin Vite, React Rout
 
 Desde la raíz, después de `npm ci`:
 
+Preparar API/PostgreSQL según [SETUP.md](../../docs/development/SETUP.md). Copiar `apps/web/.env.example` a `apps/web/.env` sólo si no existe, configurar el proxy y reiniciar Vite. Los `.env` no se versionan.
+
 ```powershell
 npm run --workspace @citajusta/web dev
 npm run --workspace @citajusta/web typecheck
@@ -26,7 +28,8 @@ Desarrollo: `http://127.0.0.1:5173`. El Home público no requiere sesión; los f
 - `/citas/:appointmentId/confirmacion`: comprobante y estado actual de la reserva.
 - `*`: estado de página no disponible con layout público y regreso a Inicio.
 - Resultados, Mis citas y confirmación requieren sesión.
-- Lista de espera, notificaciones y ofertas no están implementadas. Las funciones futuras se indican como “Próximamente”.
+- `/lista-de-espera`: requiere sesión; listado propio, alta por servicio/sede opcional, preferencias completas y retiro confirmado. Contratos reales de HU-007/HU-008 sin identidad ni institución enviadas por el cliente.
+- Notificaciones y ofertas aún no están implementadas en Web y se indican como “Próximamente”.
 
 El header muestra el usuario real y permite cerrar sesión. El Home no contiene reservas, perfiles ni notificaciones ficticias: ofrece acceso a Mis citas e información de las funciones disponibles. La API decide disponibilidad, reservas y transiciones de estado.
 
@@ -51,7 +54,9 @@ Inter, navy/teal, bordes suaves y tarjetas pastel forman el diseño compartido p
 
 `VITE_API_BASE_URL` es pública, default `/api/v1`; admite ese prefijo relativo o una URL HTTP(S) terminada en `/api/v1`, sin credenciales, query ni fragmento. Configuración inválida bloquea el arranque con un aviso genérico. Nunca colocar secretos en `VITE_*`.
 
-`.env.example` incluye `API_PROXY_TARGET` para el proxy **sólo de desarrollo**. Puede configurarse en un `.env.local` no versionado o en la terminal. En producción se debe configurar un reverse proxy para `/api/v1` o una URL explícita con CORS permitido; Vite no provee ese proxy en producción.
+`.env.example` incluye `API_PROXY_TARGET=http://localhost:3000` para el proxy **sólo de desarrollo**. Copiarla a `.env`; también puede configurarse en `.env.local` o terminal. Vite dev falla con un mensaje accionable si falta el target o contiene credenciales/ruta/query/fragmento. Build y preview no dependen ni usan ese proxy. En producción configurar reverse proxy para `/api/v1` o una URL explícita con CORS permitido.
+
+Waitlist requiere `seed:dev` o catálogo institucional preparado y `bootstrap:waitlist` ejecutado después de crear la institución. Ante `503`, revisar `check:dev`, especialmente STANDARD institucional. Las escrituras Waitlist no se reenvían tras renovar la sesión; ante resultado incierto, recargar antes de repetir.
 
 `AuthProvider` proporciona el cliente autenticado a las features. El cliente HTTP devuelve `unknown` para exigir validación por feature; acepta paths relativos controlados, JSON y `AbortSignal`, y obtiene el Bearer mediante callback. La sesión administra los tokens y su renovación. Los errores HTTP no propagan cuerpos internos del servidor.
 

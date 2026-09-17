@@ -14,6 +14,7 @@ export type RequestOptions = {
   body?: unknown;
   signal?: AbortSignal;
   query?: Readonly<Record<string, string>>;
+  retryAfterRefresh?: boolean;
 };
 
 export type ApiClient = {

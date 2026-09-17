@@ -1,0 +1,27 @@
+.waitlist-page .waitlist-field {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.waitlist-page .waitlist-field :is(input, select) {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface, white);
+  color: inherit;
+  font: inherit;
+}
+.waitlist-page input[type='checkbox'] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--color-brand);
+}
+.waitlist-page :is(input, select):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+}
+.waitlist-page :disabled { opacity: 0.65; cursor: not-allowed; }

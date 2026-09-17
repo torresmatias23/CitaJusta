@@ -16,8 +16,9 @@ export function HomeWidgets() {
         <Link to={authenticated ? '/mis-citas' : '/login'} className="button button-outline mt-auto">{authenticated ? 'Ver mis citas' : 'Iniciar sesión'}</Link>
       </Card>
       <Card title="Lista de espera" icon={UsersRound} tone="blue">
-        <Badge>Próximamente</Badge>
-        <p className="mt-4 text-sm leading-relaxed text-muted">Podrás indicar tus preferencias cuando no encuentres una hora disponible.</p>
+        <h3 className="text-lg font-semibold">Tus preferencias de atención</h3>
+        <p className="mt-3 mb-5 text-sm leading-relaxed text-muted">Ingresa a una lista de espera, configura tus preferencias o retira una solicitud.</p>
+        <Link to="/lista-de-espera" className="button button-outline mt-auto">Ver mi lista de espera</Link>
       </Card>
       <Card title="Notificaciones" icon={Bell} tone="amber">
         <Badge>Próximamente</Badge>

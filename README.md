@@ -101,7 +101,9 @@ npm ci
 npm run --workspace @citajusta/api prisma:generate
 ```
 
-El cliente Prisma generado no se versiona. La preparación y migración completa de la base de datos todavía debe consolidarse y validarse en el manual técnico Capstone.
+El cliente Prisma generado no se versiona. Sigue [SETUP.md](docs/development/SETUP.md) para preparar PostgreSQL, variables locales, migraciones, seed y proxy Web sin resets.
+
+Catálogo demo: `npm run seed:dev -w @citajusta/api`. Diagnóstico de sólo lectura: `npm run check:dev -w @citajusta/api`. El seed preserva registros compatibles y provisiona STANDARD para la institución demo; no crea usuarios ni agenda. Registrar el usuario mediante la Web.
 
 Con las migraciones aplicadas y `DATABASE_URL` configurada, provisionar el estado inicial antes de reservar:
 
@@ -130,7 +132,7 @@ npm run --workspace @citajusta/api bootstrap:waitlist
 npm run --workspace @citajusta/api test:e2e:waitlist
 ```
 
-El bootstrap crea los estados `ACTIVE`/`WITHDRAWN` y `STANDARD` para cada institución activa/no eliminada. Sin instituciones sólo provisiona ambos estados. Una prioridad nueva usa nombre `Estándar`, nivel `0` y `active: true`; es un valor base técnico, no una fórmula de scoring. Conserva identificadores, nombres y niveles compatibles ya configurados. Si `ACTIVE` está inactivo/final, `WITHDRAWN` inactivo/no final, `STANDARD` inactiva o el nivel `0` pertenece a otra prioridad, falla con rollback sin sobrescribir ni escoger otro nivel. No utiliza prioridades globales, cuyos UNIQUE con institución nula no garantizan unicidad. Los endpoints nunca ejecutan bootstrap. E2E usa PostgreSQL local permitido y fixtures identificados; ejecutar secuencialmente con los E2E de appointments/checkpoint.
+El bootstrap crea los estados `ACTIVE`/`WITHDRAWN`/`FULFILLED` y `STANDARD` para cada institución activa/no eliminada. Sin instituciones sólo provisiona los tres estados. Una prioridad nueva usa nombre `Estándar`, nivel `0` y `active: true`; es un valor base técnico, no una fórmula de scoring. Conserva identificadores, nombres y niveles compatibles ya configurados. Si `ACTIVE` está inactivo/final, `WITHDRAWN` o `FULFILLED` inactivo/no final, `STANDARD` inactiva o el nivel `0` pertenece a otra prioridad, falla con rollback sin sobrescribir ni escoger otro nivel. No utiliza prioridades globales, cuyos UNIQUE con institución nula no garantizan unicidad. Los endpoints nunca ejecutan bootstrap. E2E usa PostgreSQL local permitido y fixtures identificados; ejecutar secuencialmente con los E2E de appointments/checkpoint.
 
 ### HU-008: preferencias y retirada de lista de espera
 
@@ -252,7 +254,7 @@ npm run --workspace @citajusta/api start
 
 ## Pruebas
 
-Fundación web y comandos de desarrollo/validación: [apps/web/README.md](apps/web/README.md). Arranque local desde la raíz: `npm run --workspace @citajusta/web dev`. Home usa datos sintéticos señalizados; no inicia sesión ni consulta/reserva/cancela citas.
+Integración web y comandos: [apps/web/README.md](apps/web/README.md). Arranque: `npm run --workspace @citajusta/web dev`, con `apps/web/.env` preparado. La Web integra autenticación, catálogo, disponibilidad, reserva, Mis citas, cancelación y lista de espera/preferencias/retiro con la API real; no simula datos de dominio.
 
 Suite unitaria, aislada de PostgreSQL:
 

@@ -8,6 +8,7 @@ import { ProtectedRoute } from '../features/auth/protected-route';
 import { RegisterPage } from '../features/auth/register-page';
 import { ResultsPage } from '../features/availability/results-page';
 import { HomePage } from '../features/home/home-page';
+import { WaitlistPage } from '../features/waitlist/waitlist-page';
 
 export function AppRoutes() {
   return (
@@ -21,6 +22,7 @@ export function AppRoutes() {
         <Route element={<ProtectedRoute />}>
           <Route path="resultados" element={<ResultsPage />} />
           <Route path="mis-citas" element={<AppointmentsPage />} />
+          <Route path="lista-de-espera" element={<WaitlistPage />} />
           <Route
             path="citas/:appointmentId/confirmacion"
             element={<AppointmentConfirmationPage />}
