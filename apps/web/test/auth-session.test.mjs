@@ -3,8 +3,21 @@ import { test } from 'node:test';
 import { createAuthSession, authErrorMessage, safeReturnTo } from '../src/features/auth/auth-session.ts';
 import { createSessionStorage } from '../src/features/auth/session-storage.ts';
 import { ApiError } from '../src/lib/http-client.ts';
+import { createOffersApi } from '../src/features/offers/offers-api.ts';
 
 const credentials = { email: 'person@example.test', password: 'example-password' };
+
+test('aceptar/rechazar ofertas renueva sesión tras 401 pero nunca reenvía el POST', async () => {
+  const id = '10000000-0000-4000-8000-000000000001';
+  for (const action of ['accept', 'reject']) {
+    const path = `reassignments/offers/${id}/${action}`;
+    const { session, calls } = setup((candidate) => { if (candidate === path) throw new ApiError(401); });
+    await session.login(credentials);
+    await assert.rejects(createOffersApi(session.api)[action](id), (error) => error instanceof ApiError && error.status === 401);
+    assert.equal(calls.filter((call) => call.path === path).length, 1);
+    assert.equal(calls.filter((call) => call.path === 'auth/refresh').length, 1);
+  }
+});
 
 test('escritura waitlist renueva sesión tras 401 sin reenviar automáticamente la operación', async () => {
   const { session, calls } = setup((path) => {

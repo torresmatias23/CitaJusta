@@ -5,6 +5,7 @@ import { DatabaseModule } from '../database/database.module.js';
 import { ReassignmentsController } from './reassignments.controller.js';
 import { ReassignmentsService } from './reassignments.service.js';
 import { ReassignmentSupervisionService } from './reassignment-supervision.service.js';
+import { RecipientOffersService } from './recipient-offers.service.js';
 
-@Module({ imports: [AuthModule, AuthorizationModule, DatabaseModule], controllers: [ReassignmentsController], providers: [ReassignmentsService, ReassignmentSupervisionService] })
+@Module({ imports: [AuthModule, AuthorizationModule, DatabaseModule], controllers: [ReassignmentsController], providers: [ReassignmentsService, ReassignmentSupervisionService, RecipientOffersService] })
 export class ReassignmentsModule {}

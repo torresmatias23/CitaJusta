@@ -79,6 +79,13 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
     const expectedWinner = [a.entryId, b.entryId].sort()[0];
     const winnerUser = a.entryId === expectedWinner ? a : b;
     const nonWinner = a.entryId === expectedWinner ? b : a;
+    const mine = (token, headers = {}) => request('GET', '/api/v1/reassignments/offers/me', token, undefined, headers);
+    await t.test('HU-022 own offers require auth, reject query and return empty without institutional role', async () => {
+      assert.equal((await mine(null)).status, 401);
+      assert.deepEqual(await mine(winnerUser.token), { status: 200, body: { data: [] } });
+      assert.equal((await request('GET', `/api/v1/reassignments/offers/me?userId=${source.id}`, winnerUser.token)).status, 400);
+      assert.equal((await request('GET', `/api/v1/reassignments/offers/me?institutionId=${ids.institutionA}`, winnerUser.token)).status, 400);
+    });
     const beforeEntries = await prisma.waitlistEntry.findMany({ where: { userId: { in: users } }, orderBy: { id: 'asc' } });
 
     await t.test('generation requires explicit permission and institutional scope, rejects arbitrary inputs', async () => {
@@ -144,6 +151,24 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
       const current = await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable } });
       assert.equal(current.lockVersion, slotBefore.lockVersion + 1); assert.equal(current.status, 'RELEASED');
       assert.equal((await generate()).status, 409);
+    });
+    await t.test('HU-022 recipient reads only own public offer, not another account, regardless of identity headers', async () => {
+      const before = await prisma.appointmentOffer.findUniqueOrThrow({ where: { id: generation.offer.id } });
+      const result = await mine(winnerUser.token);
+      assert.equal(result.status, 200); assert.equal(result.body.data.length, 1);
+      const offered = result.body.data[0];
+      const slot = await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable }, include: { availability: { include: { service: true, branch: true, professional: { include: { user: true } } } } } });
+      assert.deepEqual(offered, {
+        id: before.id, status: 'PENDING', createdAt: before.createdAt.toISOString(), expiresAt: before.expiresAt.toISOString(), respondedAt: null,
+        startsAt: slot.startsAt.toISOString(), endsAt: slot.endsAt.toISOString(),
+        service: { id: slot.availability.service.id, name: slot.availability.service.name },
+        branch: { id: slot.availability.branch.id, name: slot.availability.branch.name },
+        professional: { id: slot.availability.professional.id, firstNames: slot.availability.professional.user.firstNames, lastNames: slot.availability.professional.user.lastNames },
+      });
+      assert.deepEqual((await mine(nonWinner.token)).body, { data: [] });
+      assert.deepEqual((await mine(source.token, { 'x-user-id': winnerUser.id, 'x-institution-id': ids.institutionA })).body, { data: [] });
+      assert.deepEqual((await mine(winnerUser.token, { 'x-institution-id': ids.institutionB })).body, result.body);
+      assert.deepEqual(await prisma.appointmentOffer.findUniqueOrThrow({ where: { id: before.id } }), before);
     });
     await t.test('HU-016 authenticated officers see candidates and pending offer only within authorized scope', async () => {
       const response = await supervise(generation.id);
@@ -458,6 +483,34 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
       assert.equal(detail.status, 'EXHAUSTED'); assert.equal(detail.activeOfferId, null);
       assert.deepEqual(detail.offers.map((offer) => offer.status), ['REJECTED']);
       assert.ok(detail.finishedAt); assert.equal(detail.agendaSlot.status, 'RELEASED'); assert.equal(detail.appointment.status, 'CANCELADA');
+    });
+    await t.test('HU-022 history preserves every status/expiry, inactive catalogs and stable order without mutations', async () => {
+      const own = await prisma.appointmentOffer.findMany({ where: { candidate: { userId: winnerUser.id } } });
+      assert.ok(own.length >= 2);
+      const historical = await prisma.appointmentOffer.findFirstOrThrow({ where: { candidate: { userId: winnerUser.id }, reassignment: { status: 'EXHAUSTED' } } });
+      const branch = await prisma.branch.findUniqueOrThrow({ where: { id: ids.branchA1 } });
+      const service = await prisma.service.findUniqueOrThrow({ where: { id: ids.serviceA } });
+      try {
+        await prisma.branch.update({ where: { id: branch.id }, data: { status: 'INACTIVE' } });
+        await prisma.service.update({ where: { id: service.id }, data: { active: false } });
+        const tied = new Date('2026-01-01T12:00:00Z');
+        const expiredAt = new Date('2026-01-01T12:07:00Z');
+        await prisma.appointmentOffer.updateMany({ where: { id: { in: own.map((o) => o.id) } }, data: { createdAt: tied } });
+        for (const status of ['PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'INVALIDATED', 'CANCELLED']) {
+          await prisma.appointmentOffer.update({ where: { id: historical.id }, data: { status, expiresAt: expiredAt } });
+          const before = await prisma.appointmentOffer.findMany({ where: { id: { in: own.map((o) => o.id) } }, orderBy: { id: 'desc' } });
+          const result = await mine(winnerUser.token);
+          assert.equal(result.status, 200);
+          assert.deepEqual(result.body.data.map((o) => o.id), before.map((o) => o.id));
+          assert.equal(result.body.data.find((o) => o.id === historical.id).status, status);
+          assert.equal(result.body.data.find((o) => o.id === historical.id).expiresAt, expiredAt.toISOString());
+          assert.deepEqual(await prisma.appointmentOffer.findMany({ where: { id: { in: own.map((o) => o.id) } }, orderBy: { id: 'desc' } }), before);
+        }
+      } finally {
+        for (const row of own) await prisma.appointmentOffer.update({ where: { id: row.id }, data: { status: row.status, expiresAt: row.expiresAt, createdAt: row.createdAt } });
+        await prisma.branch.update({ where: { id: branch.id }, data: { status: branch.status, updatedAt: branch.updatedAt } });
+        await prisma.service.update({ where: { id: service.id }, data: { active: service.active, updatedAt: service.updatedAt } });
+      }
     });
   } finally {
     try {

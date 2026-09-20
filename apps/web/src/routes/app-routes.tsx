@@ -9,6 +9,7 @@ import { RegisterPage } from '../features/auth/register-page';
 import { ResultsPage } from '../features/availability/results-page';
 import { HomePage } from '../features/home/home-page';
 import { WaitlistPage } from '../features/waitlist/waitlist-page';
+import { OffersPage } from '../features/offers/offers-page';
 
 export function AppRoutes() {
   return (
@@ -23,6 +24,7 @@ export function AppRoutes() {
           <Route path="resultados" element={<ResultsPage />} />
           <Route path="mis-citas" element={<AppointmentsPage />} />
           <Route path="lista-de-espera" element={<WaitlistPage />} />
+          <Route path="ofertas" element={<OffersPage />} />
           <Route
             path="citas/:appointmentId/confirmacion"
             element={<AppointmentConfirmationPage />}
