@@ -20,6 +20,7 @@ else process.env.API_PROXY_TARGET = previousProxy;
 after(() => vite.close());
 
 const { AppRoutes } = await vite.ssrLoadModule('/src/routes/app-routes.tsx');
+const { OfferCard } = await vite.ssrLoadModule('/src/features/offers/offers-page.tsx');
 const { AsyncState } = await vite.ssrLoadModule(
   '/src/components/ui/async-state.tsx',
 );
@@ -39,6 +40,39 @@ const renderRoute = (path) =>
       ),
     ),
   );
+
+test('ofertas exige sesión y nunca muestra datos o acciones sin verificarla', () => {
+  const html = renderRoute('/ofertas');
+  assert.match(html, /Verificando tu sesión/);
+  assert.doesNotMatch(html, /Aceptar hora|Mis ofertas de atención|Esta página no está disponible/);
+});
+
+test('oferta vigente renderiza datos reales y acciones; vencida mantiene estado sin acciones habilitadas', () => {
+  const offer = { id: '10000000-0000-4000-8000-000000000001', status: 'PENDING',
+    startsAt: '2030-05-28T15:00:00Z', endsAt: '2030-05-28T15:30:00Z', expiresAt: '2030-05-27T13:07:00Z',
+    createdAt: '2030-05-27T13:00:00Z', respondedAt: null,
+    service: { name: 'Orientación' }, branch: { name: 'Centro' }, professional: { firstNames: 'Ana', lastNames: 'Pérez' } };
+  const render = (now, busy = false) => renderToStaticMarkup(createElement(OfferCard, { offer, now, busy, onRespond() {} }));
+  const active = render(Date.parse('2030-05-27T13:01:00Z'));
+  for (const text of ['Orientación', 'Centro', 'Ana Pérez']) assert.ok(active.includes(text));
+  assert.match(active, /Aceptar hora/); assert.match(active, /No puedo asistir/);
+  assert.doesNotMatch(active, /disabled/);
+  assert.match(active, /datetime="2030-05-27T13:07:00Z"/i);
+  assert.equal((render(Date.parse(offer.expiresAt)).match(/disabled/g) ?? []).length, 2);
+  assert.match(render(Date.parse(offer.expiresAt)), /estado registrado sigue pendiente/);
+  assert.equal((render(Date.parse(offer.createdAt), true).match(/disabled/g) ?? []).length, 2);
+  assert.equal(offer.status, 'PENDING');
+});
+
+test('estados finales de ofertas tienen etiquetas y no permiten aceptar/rechazar', () => {
+  for (const [status, label] of Object.entries({ ACCEPTED: 'Aceptada', REJECTED: 'Rechazada', EXPIRED: 'Vencida', INVALIDATED: 'Invalidada', CANCELLED: 'Cancelada' })) {
+    const offer = { id: '1', status, startsAt: '2030-05-28T15:00:00Z', endsAt: '2030-05-28T15:30:00Z', expiresAt: '2030-05-27T13:07:00Z',
+      respondedAt: null, service: { name: 'Atención' }, branch: { name: 'Centro' }, professional: { firstNames: 'Ana', lastNames: 'Pérez' } };
+    const html = renderToStaticMarkup(createElement(MemoryRouter, null, createElement(OfferCard, { offer, now: 0, busy: false, onRespond() {} })));
+    assert.match(html, new RegExp(label)); assert.doesNotMatch(html, /Aceptar hora|No puedo asistir/);
+    if (status === 'ACCEPTED') assert.match(html, /href="\/mis-citas"/);
+  }
+});
 
 test('lista de espera exige verificar sesión antes de mostrar datos o formularios', () => {
   const html = renderRoute('/lista-de-espera');

@@ -89,14 +89,62 @@ Seed/check aceptan únicamente `NODE_ENV=development` (o ausente), host loopback
 
 El seed es transaccional e idempotente: no actualiza registros compatibles ni sus timestamps. Si un ID demo tiene otra identidad, relación o configuración incompatible, falla sin sobrescribir. Colisiones de códigos/nivel también provocan rollback. Revisar la colisión; no sortearla con SQL manual.
 
-Booking queda para fase 2: necesita identidad profesional, relaciones y disponibilidad mediante los servicios existentes de administración/materialización, sin insertar cupos manualmente.
+`seed:dev` no prepara booking. Para el escenario acotado de reserva/cancelación/reasignación existe el tooling opcional descrito abajo; una agenda demo general sigue fuera de ese seed.
+
+## Escenario local de reasignación para HU-022
+
+Tooling opcional; `check:dev` no exige tener un escenario preparado. Reutiliza las protecciones de `seed:dev`: sólo NODE_ENV development (o ausente), loopback y base `citajusta_dev`/sufijo permitido, verificando además el nombre real de la base. No modifica `.env`, contraseñas, sesiones ni roles del destinatario. No hay cleanup global ni reset.
+
+Desde la raíz, con PostgreSQL y configuración API preparados:
+
+```powershell
+npm run check:dev -w @citajusta/api
+$env:REASSIGNMENT_DEMO_RECIPIENT_EMAIL = 'Usuario1test@test.com'
+npm run seed:reassignment-demo -w @citajusta/api -- --scenario=reject
+# Repetir antes de responder debe mostrar el mismo offerId/expiresAt:
+npm run seed:reassignment-demo -w @citajusta/api -- --scenario=reject
+```
+
+El email se normaliza igual que en Auth. La cuenta debe existir, estar ACTIVE y no estar eliminada; no se registra una cuenta ni se obtiene su password/token. Las identidades técnicas tienen un marcador no verificable como password hash: no hay contraseña utilizable ni login emitido. El rol técnico se asigna sólo al operador demo, con permisos mínimos en la institución demo.
+
+Se reutilizan Institución Demo CitaJusta y Sede Centro Demo. Cada combinación destinatario/escenario tiene códigos `DEMO-REASSIGN-*`, servicio de 30 minutos, usuario origen, usuario profesional y profesional propios. Así no cambia una espera/preferencia previa en Atención General Demo ni compite con otra persona en ese servicio. Servicio/relaciones, profesional/relaciones y agenda se crean mediante los servicios administrativos reales; éstos materializan un único cupo para una semana después. Sólo usuarios técnicos, rol y asignaciones/permisos fundacionales se crean directamente mediante Prisma.
+
+La secuencia usa servicios reales de reserva → cancelación (`RELEASED`) y entrada/preferencias Waitlist → generación HU-009. No inserta ofertas/procesos ni acepta/rechaza por fuera del dominio. El destinatario recibe preferencias compatibles sólo para el nuevo servicio demo; si fueron modificadas, el tooling falla sin sobrescribirlas.
+
+Si la institución demo no tiene política ni historial, HU-018 configura explícitamente `PRIORITY_THEN_WAITING` y **30 minutos** para pruebas locales. Si ya tiene política, se conserva intacta y HU-009 utiliza su TTL real. Nunca se fija `expiresAt` en el tooling. La política demo afecta futuros procesos de esa institución; no modifica políticas de otras instituciones.
+
+La preparación se serializa mediante un advisory lock PostgreSQL propio del tooling; las transacciones de dominio no se sustituyen. Un fallo puede dejar recursos DEMO intermedios: la siguiente ejecución reanuda lo compatible, sin deshacer historia. Detecta colisiones por códigos, identidad, relaciones y auditoría de creación. Si la oferta ya existe, muestra esa misma; si está finalizada o venció, informa que fue consumida, sin renovar su plazo. No crea una segunda oferta ni desplaza una agenda que ya pasó.
+
+Prueba manual de REJECT: iniciar API/Web, entrar con el destinatario en `/ofertas`, localizar **Atención Demo Reasignación REJECT**, comprobar horario/vigencia y pulsar **No puedo asistir**. Debe mostrarse Rechazada después de consultar el backend; no debe aparecer una cita transferida. No hay siguiente candidato en este servicio aislado.
+
+Después de rechazar manualmente, preparar el escenario separado:
+
+```powershell
+npm run seed:reassignment-demo -w @citajusta/api -- --scenario=accept
+```
+
+En `/ofertas`, aceptar **Atención Demo Reasignación ACCEPT** y comprobar su cita real en `/mis-citas`. El comando nunca responde automáticamente ninguna oferta. Si el TTL venció, no lo revive: detener la prueba y revisar antes de preparar otra iteración.
+
+Pruebas del tooling (secuenciales con otros E2E): `node --test apps/api/test/reassignment-demo.test.mjs` después del build, y `node --test --test-concurrency=1 apps/api/test/e2e/reassignment-demo.e2e.test.mjs`. El E2E usa una identidad temporal, elimina sólo sus dos escenarios/cuentas de test y conserva la fundación demo reutilizable. Nunca responde ofertas del usuario manual.
 
 ## Validación del flujo
+
+HU-021 Web (lista de espera/preferencias) y HU-022 Web (ofertas) están implementadas. Para probar `/ofertas` con API/PostgreSQL:
+
+1. Preparar entorno con `seed:dev` / `check:dev` como arriba. El seed no crea profesionales, agenda ni ofertas; no basta por sí solo para este escenario.
+2. Con un operador autorizado, preparar profesional, relaciones y disponibilidad futura mediante los flujos institucionales existentes. No insertar cupos manualmente ni asignar roles a usuarios públicos automáticamente.
+3. Registrar dos cuentas controladas de prueba. Una reserva y cancela una cita; la otra ingresa a la lista del servicio con preferencias compatibles (incluida aceptación de cualquier profesional).
+4. El operador con `reassignments.generate` genera una oferta sobre el cupo `RELEASED` mediante `POST /api/v1/reassignments/:agendaSlotId/offers` y contexto institucional autorizado.
+5. El destinatario abre `/ofertas`: consulta `GET /api/v1/reassignments/offers/me` sin permisos institucionales. Aceptar debe reflejar la cita transferida en Mis citas; rechazar sólo debe actualizar sus ofertas, nunca mostrar la siguiente oferta de otra persona. Para probar ambas acciones, preparar escenarios distintos.
+6. Comprobar aislamiento con la otra cuenta y plazo vencido según `expiresAt`. Web no cambia estados ni expira ofertas automáticamente. El TTL lo resuelve backend desde la política institucional o el fallback global.
+
+La consulta de ofertas es de sólo lectura, limitada a 100 recientes. No hay notificaciones automáticas ni datos demo que simulen ofertas. La prueba manual de interacción en navegador queda separada de los tests de contrato y renderizado.
 
 ```powershell
 npm test -w @citajusta/web
 npm run build -w @citajusta/web
 npm run test:e2e:waitlist -w @citajusta/api
+npm run test:e2e:reassignments -w @citajusta/api
 git diff --check
 ```
 

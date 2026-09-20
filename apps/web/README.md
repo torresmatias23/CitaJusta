@@ -29,7 +29,14 @@ Desarrollo: `http://127.0.0.1:5173`. El Home público no requiere sesión; los f
 - `*`: estado de página no disponible con layout público y regreso a Inicio.
 - Resultados, Mis citas y confirmación requieren sesión.
 - `/lista-de-espera`: requiere sesión; listado propio, alta por servicio/sede opcional, preferencias completas y retiro confirmado. Contratos reales de HU-007/HU-008 sin identidad ni institución enviadas por el cliente.
-- Notificaciones y ofertas aún no están implementadas en Web y se indican como “Próximamente”.
+- `/ofertas`: requiere sesión; ofertas propias, vigencia, aceptación/rechazo y estados históricos con contratos reales de reasignación (HU-022).
+- Notificaciones aún no están implementadas y se indican como “Próximamente”.
+
+HU-021 (Lista de espera/preferencias) y HU-022 (ofertas) están implementadas. `GET /api/v1/reassignments/offers/me` consulta hasta 100 ofertas propias, `createdAt DESC, id DESC`, sin contexto institucional del cliente. Muestra servicio, sede, nombre público del profesional, horario y estados `PENDING`, `ACCEPTED`, `REJECTED`, `EXPIRED`, `INVALIDATED`, `CANCELLED`. No consulta el GET administrativo de supervisión.
+
+La vigencia usa `expiresAt` real, no un TTL Web: contador local cada segundo, sin polling. Una oferta `PENDING` cuyo plazo terminó muestra “Plazo vencido” y deshabilita respuestas, conservando el estado persistido. El reloj del dispositivo es orientativo; el backend decide si una respuesta es válida. Los horarios se muestran en la zona horaria del dispositivo, indicada en la página.
+
+Aceptar/rechazar usa POST sin body, bloqueo de doble envío y `retryAfterRefresh: false`. Se consulta nuevamente la lista tras la respuesta, también ante resultado incierto; nunca se reenvía automáticamente la escritura. Aceptar confirma el horario real de la cita transferida; Mis citas vuelve a consultar `/appointments/me` al entrar. Rechazar descarta `nextOffer`, que puede pertenecer a otra persona. No hay datos simulados, generación de ofertas ni reglas de ranking en Web.
 
 El header muestra el usuario real y permite cerrar sesión. El Home no contiene reservas, perfiles ni notificaciones ficticias: ofrece acceso a Mis citas e información de las funciones disponibles. La API decide disponibilidad, reservas y transiciones de estado.
 
@@ -42,6 +49,7 @@ src/features/home/# Home, buscador y tarjetas informativas
 src/features/auth/# sesión, Login/Registro y protección de rutas
 src/features/availability/ # catálogos, selección y resultados
 src/features/appointments/ # reserva, comprobante, Mis citas y cancelación
+src/features/offers/ # consulta propia, vigencia visual y respuesta a ofertas
 src/lib/          # configuración pública y cliente HTTP
 src/routes/       # rutas existentes; punto de extensión
 src/styles/       # tokens y diseño responsive

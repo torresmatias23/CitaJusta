@@ -11,6 +11,7 @@ import { RequirePermissions } from '../authorization/decorators/require-permissi
 import type { AuthorizedRequest } from '../authorization/types/authorization-context.js';
 import { ReassignmentsService, GENERATE_OFFERS_PERMISSION } from './reassignments.service.js';
 import { ReassignmentSupervisionService, SUPERVISE_REASSIGNMENTS_PERMISSION } from './reassignment-supervision.service.js';
+import { RecipientOffersService } from './recipient-offers.service.js';
 
 const slotParamsSchema = z.object({ agendaSlotId: z.string().uuid() }).strict();
 const offerParamsSchema = z.object({ offerId: z.string().uuid() }).strict();
@@ -19,7 +20,17 @@ const empty = z.object({}).strict();
 
 @Controller('reassignments')
 export class ReassignmentsController {
-  constructor(private readonly service: ReassignmentsService, private readonly supervision: ReassignmentSupervisionService) {}
+  constructor(private readonly service: ReassignmentsService, private readonly supervision: ReassignmentSupervisionService, private readonly recipientOffers: RecipientOffersService) {}
+
+  @Get('offers/me')
+  @UseGuards(AccessTokenGuard)
+  findMine(@Query() query: unknown, @Body() body: unknown, @Req() request: AuthenticatedRequest) {
+    if (!request.principal) throw new UnauthorizedException('Unauthorized');
+    if (!empty.safeParse(query).success || !empty.optional().safeParse(body).success) {
+      throw new BadRequestException('Invalid recipient offers request');
+    }
+    return this.recipientOffers.findMine(request.principal);
+  }
 
   @Get(':reassignmentId')
   @UseGuards(AccessTokenGuard, AuthorizationContextGuard, PermissionsGuard)

@@ -105,6 +105,8 @@ El cliente Prisma generado no se versiona. Sigue [SETUP.md](docs/development/SET
 
 Catálogo demo: `npm run seed:dev -w @citajusta/api`. Diagnóstico de sólo lectura: `npm run check:dev -w @citajusta/api`. El seed preserva registros compatibles y provisiona STANDARD para la institución demo; no crea usuarios ni agenda. Registrar el usuario mediante la Web.
 
+Para la prueba manual HU-022 existe tooling opcional: configurar `REASSIGNMENT_DEMO_RECIPIENT_EMAIL` con una cuenta ACTIVE registrada y ejecutar `npm run seed:reassignment-demo -w @citajusta/api -- --scenario=reject` (después, `--scenario=accept`). Sólo PostgreSQL local de desarrollo; no emite credenciales ni usa tokens del destinatario. Crea servicios/agenda DEMO aislados y llega a PENDING mediante reserva, cancelación, Waitlist, preferencias y generación HU-009 reales. Una repetición devuelve la misma oferta; no revive estados ni borra historia. Instrucciones y política demo en [SETUP.md](docs/development/SETUP.md).
+
 Con las migraciones aplicadas y `DATABASE_URL` configurada, provisionar el estado inicial antes de reservar:
 
 ```powershell
@@ -145,6 +147,15 @@ El bootstrap crea los estados `ACTIVE`/`WITHDRAWN`/`FULFILLED` y `STANDARD` para
 - PUT y retirada usan `Serializable` con un reintento completo ante los conflictos ya reconocidos. PUT actualiza explícitamente `WaitlistEntry.updatedAt` a un instante mayor que el anterior, incluso al cambiar sólo hijos; no modifica `enteredAt`. La retirada efectiva también avanza `updatedAt`. Cualquier fallo revierte todas las escrituras.
 - Errores: `400` contrato inválido, `401` autenticación/usuario inválido, `404` espera no accesible o sede/relación inválida, `409` espera finalizada/conflicto persistente, `503` catálogo de retirada faltante/incompatible y `500` inesperado sin detalles internos.
 - HU-008 no interpreta los campos preexistentes `acceptsAnyTime`/`acceptsWeekend`, ni crea candidatos, ofertas o cambios en citas/cupos. La evaluación HU-009 descrita abajo conserva las preferencias y el snapshot `entryUpdatedAtSnapshot`.
+
+### HU-022: ofertas propias en Web
+
+- Web `/ofertas` autenticada: consulta, vigencia y aceptación/rechazo, complementando HU-021 Lista de espera y preferencias.
+- `GET /api/v1/reassignments/offers/me`: sólo `AccessTokenGuard`, sin rol institucional. Identidad exclusiva del principal; query/body extra devuelve `400`. Headers de identidad/contexto no seleccionan destinatario ni tenant.
+- `200 { data: [...] }`, hasta 100 ofertas, `createdAt DESC, id DESC`. Cada elemento contiene `id`, `status`, `createdAt`, `expiresAt`, `respondedAt` (nullable), `startsAt`, `endsAt`, `service: { id, name }`, `branch: { id, name }`, `professional: { id, firstNames, lastNames }`. Fechas ISO UTC. No incluye scoring, ranking, contactos, identidad del usuario origen ni otros candidatos.
+- Lectura sin mutaciones: conserva los seis estados persistidos, incluso `PENDING` vencido, y el historial con catálogos inactivos. Excluye relaciones institucionales/servicio/destinatario incoherentes; no recalcula elegibilidad.
+- Web usa `expiresAt` real; deshabilita aceptar/rechazar al terminar el plazo según el reloj local sin cambiar el estado persistido. Los POST existentes `/reassignments/offers/:offerId/accept` y `/reject` no llevan body ni se reenvían automáticamente tras refresh. Bloquea doble envío y vuelve a consultar ofertas. Mis citas obtiene la cita transferida del backend; `nextOffer` de rechazo no se presenta como propia.
+- Pruebas: `node --test apps/api/test/recipient-offers.test.mjs` después de compilar API; `npm run test:e2e:reassignments -w @citajusta/api`; `npm test -w @citajusta/web`. Preparación manual en SETUP; no requiere migraciones nuevas.
 
 ### HU-009: generación institucional de ofertas
 

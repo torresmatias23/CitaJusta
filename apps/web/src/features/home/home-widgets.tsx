@@ -19,6 +19,7 @@ export function HomeWidgets() {
         <h3 className="text-lg font-semibold">Tus preferencias de atención</h3>
         <p className="mt-3 mb-5 text-sm leading-relaxed text-muted">Ingresa a una lista de espera, configura tus preferencias o retira una solicitud.</p>
         <Link to="/lista-de-espera" className="button button-outline mt-auto">Ver mi lista de espera</Link>
+        {authenticated && <Link to="/ofertas" className="mt-3 font-semibold text-brand underline underline-offset-4">Consultar mis ofertas</Link>}
       </Card>
       <Card title="Notificaciones" icon={Bell} tone="amber">
         <Badge>Próximamente</Badge>

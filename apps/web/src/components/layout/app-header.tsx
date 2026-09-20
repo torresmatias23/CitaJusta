@@ -68,6 +68,7 @@ export function AppHeader() {
               <NavLink to="/lista-de-espera" onClick={() => setMenuOpen(false)}>
                 Lista de espera
               </NavLink>
+              <NavLink to="/ofertas" onClick={() => setMenuOpen(false)}>Ofertas</NavLink>
 
               <button
                 type="button"
