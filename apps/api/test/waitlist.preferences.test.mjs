@@ -13,6 +13,7 @@ function setup(overrides = {}) {
     service: { institutionId }, branch: null, preference: null, preferredBranches: [], ...overrides };
   let reads = 0; let writes = 0; let attempts = 0;
   const tx = {
+    notification: { createMany: async () => ({ count: 1 }) },
     user: { findFirst: async () => ({ id: principal.userId }) },
     waitlistEntry: {
       findFirst: async ({ where }) => { reads++; assert.deepEqual(where, { id: entry.id, userId: principal.userId, deletedAt: null }); return entry; },

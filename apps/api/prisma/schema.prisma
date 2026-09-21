@@ -8,6 +8,47 @@ datasource db {
   provider = "postgresql"
 }
 
+enum NotificationType {
+  APPOINTMENT_BOOKED
+  APPOINTMENT_CANCELLED
+  WAITLIST_ENTERED
+  WAITLIST_WITHDRAWN
+  OFFER_CREATED
+  OFFER_ACCEPTED
+  OFFER_REJECTED
+  OFFER_EXPIRED
+
+  @@map("tipo_notificacion")
+}
+
+enum NotificationResourceType {
+  APPOINTMENT
+  WAITLIST_ENTRY
+  OFFER
+
+  @@map("recurso_notificacion")
+}
+
+model Notification {
+  id              String                   @id @db.Uuid
+  recipientUserId String                   @map("destinatario_usuario_id") @db.Uuid
+  type            NotificationType         @map("tipo")
+  institutionId   String?                  @map("institucion_id") @db.Uuid
+  branchId        String?                  @map("sede_id") @db.Uuid
+  resourceType    NotificationResourceType @map("tipo_recurso")
+  resourceId      String?                  @map("recurso_id") @db.Uuid
+  dedupeKey       String                   @map("clave_deduplicacion") @db.VarChar(140)
+  data            Json                     @map("datos") @db.JsonB
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamp(3)
+  readAt          DateTime?                @map("leida_at") @db.Timestamp(3)
+  recipient       User                     @relation(fields: [recipientUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([recipientUserId, dedupeKey])
+  @@index([recipientUserId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([recipientUserId, readAt, createdAt(sort: Desc), id(sort: Desc)])
+  @@map("notificaciones")
+}
+
 enum AuditActorType {
   USER   @map("USUARIO")
   SYSTEM @map("SISTEMA")
@@ -196,6 +237,7 @@ model User {
   reassignmentCandidates  ReassignmentCandidate[]
   respondedOffers         AppointmentOffer[]      @relation("AppointmentOfferRespondedByUser")
   authSessions            AuthSession[]
+  notifications           Notification[]
   createdReassignmentPolicies ReassignmentPolicy[]
 
   @@index([status])

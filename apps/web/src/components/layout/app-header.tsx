@@ -3,10 +3,13 @@ import { useState } from 'react';
 import { NavLink } from 'react-router';
 import { useAuth } from '../../features/auth/auth-provider';
 import { Brand } from './brand';
+import { useNotifications } from '../../features/notifications/notifications-provider';
+import { NotificationCount } from '../../features/notifications/notifications-page';
 
 export function AppHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { status, user, logout } = useAuth();
+  const { unreadCount } = useNotifications();
 
   const authenticated = status === 'authenticated' && user;
 
@@ -70,14 +73,10 @@ export function AppHeader() {
               </NavLink>
               <NavLink to="/ofertas" onClick={() => setMenuOpen(false)}>Ofertas</NavLink>
 
-              <button
-                type="button"
-                disabled
-                title="Notificaciones: próximamente"
-              >
+              <NavLink to="/notificaciones" onClick={() => setMenuOpen(false)}>
                 <Bell size={20} aria-hidden="true" />
-                <span>Notificaciones<small className="nav-soon">Próximamente</small></span>
-              </button>
+                <span>Notificaciones<NotificationCount count={unreadCount} /></span>
+              </NavLink>
 
               <div
                 className="user-profile"

@@ -334,6 +334,7 @@ export async function cleanupCheckpointFixtures(prisma) {
   const relatedAvailabilityIds = relatedAvailabilities.map(({ id }) => id);
 
   await prisma.$transaction([
+    prisma.notification.deleteMany({ where: { OR: [{ institutionId: { in: institutionIds } }, { recipientUserId: { in: fixtureUserIds } }] } }),
     prisma.auditEvent.deleteMany({ where: fixtureAuditScope() }),
     prisma.cancellation.deleteMany({ where: { appointmentId: { in: appointmentIds } } }),
     prisma.appointmentHistory.deleteMany({
@@ -922,6 +923,7 @@ export async function createCheckpointFixtures(prisma, registeredUserId) {
 export async function assertCheckpointIsClean(prisma) {
   for (const id of await findFixtureUserIds(prisma)) auditActorIds.add(id);
   const counts = await Promise.all([
+    prisma.notification.count({ where: { OR: [{ institutionId: { in: institutionIds } }, { recipientUserId: { in: [...auditActorIds] } }] } }),
     prisma.auditEvent.count({ where: fixtureAuditScope() }),
     prisma.appointment.count({ where: { agendaSlotId: { in: slotIds } } }),
     prisma.user.count({

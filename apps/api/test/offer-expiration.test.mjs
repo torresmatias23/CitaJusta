@@ -37,6 +37,7 @@ function fixture() {
     transactions++; assert.equal(options.isolationLevel, 'Serializable');
     const working = structuredClone(state);
     const tx = {
+    notification: { createMany: async () => ({ count: 1 }) },
       appointmentOffer: {
         findUnique: async () => ({ ...structuredClone(working.offer), reassignment: structuredClone(working.process) }),
         updateMany: async ({ where, data }) => {

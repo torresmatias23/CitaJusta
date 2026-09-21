@@ -1,3 +1,4 @@
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { randomUUID } from 'node:crypto';
 import {
@@ -182,7 +183,7 @@ export class AppointmentsService {
         });
         if (cancelled.count !== 1) throw new ConflictException('Appointment changed; retry cancellation');
 
-        await tx.cancellation.create({
+        const cancellation = await tx.cancellation.create({
           data: {
             id: randomUUID(), appointmentId,
             cancelledByUserId: principal.userId, releasesSlot: true,
@@ -201,6 +202,9 @@ export class AppointmentsService {
         await AuditService.record(tx, { institutionId: appointment.institutionId, branchId: appointment.branchId,
           actorUserId: principal.userId, actorType: 'USER', actionCode: 'APPOINTMENT_CANCELLED', resourceType: 'APPOINTMENT',
           resourceId: appointmentId, outcome: 'SUCCESS', previousState: 'AGENDADA', newState: 'CANCELADA' });
+        await NotificationsService.create(tx, { recipientUserId: principal.userId, type: 'APPOINTMENT_CANCELLED',
+          institutionId: appointment.institutionId, branchId: appointment.branchId, resourceType: 'APPOINTMENT', resourceId: appointmentId,
+          dedupeKey: `APPOINTMENT_CANCELLED:${cancellation.id}`, data: { startsAt: appointment.startsAt.toISOString() } });
         return {
           data: mapAppointmentSummary({ ...appointment, status: { code: cancelledStatus.code } }),
         };
@@ -344,6 +348,9 @@ export class AppointmentsService {
         await AuditService.record(tx, { institutionId: appointment.institutionId, branchId: appointment.branchId,
           actorUserId: principal.userId, actorType: 'USER', actionCode: 'APPOINTMENT_CREATED', resourceType: 'APPOINTMENT',
           resourceId: appointment.id, outcome: 'SUCCESS', newState: 'AGENDADA' });
+        await NotificationsService.create(tx, { recipientUserId: principal.userId, type: 'APPOINTMENT_BOOKED',
+          institutionId: appointment.institutionId, branchId: appointment.branchId, resourceType: 'APPOINTMENT', resourceId: appointment.id,
+          dedupeKey: `APPOINTMENT_BOOKED:${appointment.id}`, data: { startsAt: appointment.startsAt.toISOString() } });
         return {
           data: {
             id: appointment.id,

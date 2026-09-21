@@ -71,6 +71,7 @@ export async function cleanupReportsFixtures(prisma) {
   await prisma.branch.deleteMany({ where: { institutionId: { in: institutions } } });
   await prisma.institution.deleteMany({ where: { id: { in: institutions } } });
   const userScope = { email: { startsWith: FIXTURE_EMAIL_PREFIX } };
+  await prisma.notification.deleteMany({ where: { OR: [{ institutionId: { in: institutions } }, { recipient: userScope }] } });
   await prisma.authSession.deleteMany({ where: { user: userScope } });
   await prisma.user.deleteMany({ where: userScope });
 }

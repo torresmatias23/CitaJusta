@@ -1,3 +1,4 @@
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { ConflictException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import type { Prisma } from '../generated/prisma/client.js';
@@ -68,7 +69,7 @@ export async function expireOfferInTransaction(tx: Prisma.TransactionClient, con
     outcome: 'SUCCESS', previousState: 'PENDING', newState: 'EXPIRED', reasonCode: 'OFFER_TTL_ELAPSED',
   });
   const closure = closureFor(offer, slot, now);
-  if (closure) return closeProcess(tx, offer, now, closure);
+  if (closure?.status === 'FAILED') return closeProcess(tx, offer, now, closure);
   if (!slot) throw new Error('Unreachable missing expiration slot');
   // Relational incoherence is distinct from a normally deactivated operational context.
   const coherent = await tx.availability.count({ where: { id: slot.availability.id,
@@ -81,6 +82,10 @@ export async function expireOfferInTransaction(tx: Prisma.TransactionClient, con
       recipient.serviceId !== offer.reassignment.serviceId || recipient.userId !== offer.candidate.userId) {
     return closeProcess(tx, offer, now, { status: 'FAILED', reason: 'REASSIGNMENT_INVARIANT_VIOLATION' });
   }
+  await NotificationsService.create(tx, { recipientUserId: offer.candidate.userId, type: 'OFFER_EXPIRED',
+    institutionId: offer.reassignment.institutionId, branchId: slot.availability.branchId, resourceType: 'OFFER', resourceId: offer.id,
+    dedupeKey: `OFFER_EXPIRED:${offer.id}`, data: {} });
+  if (closure) return closeProcess(tx, offer, now, closure);
   const available = await tx.availability.count({ where: { id: slot.availability.id,
     ...availableAvailabilityWhere({ institutionId: offer.reassignment.institutionId, branchId: slot.availability.branchId,
       serviceId: slot.availability.serviceId }, slot.availability.professionalId),

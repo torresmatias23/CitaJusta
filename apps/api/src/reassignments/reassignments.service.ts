@@ -1,3 +1,4 @@
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { expireOfferInTransaction, ExpirationContention } from './offer-expiration.js';
 import { advanceReassignment, continuationOfferSelect, continuationSlotSelect } from './reassignment-continuation.js';
 import { AuditService } from '../audit/audit.service.js';
@@ -163,6 +164,9 @@ export class ReassignmentsService {
           status: 'PENDING', expectedSlotVersion: slot.lockVersion + 1, createdAt, expiresAt,
         }, select: { id: true } });
         await AuditService.record(tx, { ...auditContext, actionCode: 'OFFER_CREATED', resourceType: 'OFFER', resourceId: offer.id, newState: 'PENDING' });
+        await NotificationsService.create(tx, { recipientUserId: winner.entry.userId, type: 'OFFER_CREATED',
+          institutionId, branchId: availability.branchId, resourceType: 'OFFER', resourceId: offer.id,
+          dedupeKey: `OFFER_CREATED:${offer.id}`, data: { startsAt: slot.startsAt.toISOString(), expiresAt: expiresAt.toISOString() } });
         return { data: { id: reassignmentId, status: 'OFFERING', offer: { id: offer.id, status: 'PENDING', agendaSlotId,
           createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString() } } };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
@@ -401,6 +405,9 @@ export class ReassignmentsService {
           actorUserId: principal.userId, actorType: 'USER' as const, outcome: 'SUCCESS' as const };
         await AuditService.record(tx, { ...auditContext, actionCode: 'OFFER_ACCEPTED', resourceType: 'OFFER', resourceId: offer.id,
           previousState: 'PENDING', newState: 'ACCEPTED' });
+        await NotificationsService.create(tx, { recipientUserId: principal.userId, type: 'OFFER_ACCEPTED',
+          institutionId: appointment.institutionId, branchId: availability.branchId, resourceType: 'OFFER', resourceId: offer.id,
+          dedupeKey: `OFFER_ACCEPTED:${offer.id}`, data: { startsAt: slot.startsAt.toISOString() } });
         await AuditService.record(tx, { ...auditContext, actionCode: 'REASSIGNMENT_COMPLETED', resourceType: 'REASSIGNMENT',
           resourceId: offer.reassignment.id, previousState: 'OFFERING', newState: 'COMPLETED' });
 
@@ -557,6 +564,9 @@ export class ReassignmentsService {
           actorUserId: principal.userId, actorType: 'USER' as const, outcome: 'SUCCESS' as const };
         await AuditService.record(tx, { ...auditContext, actionCode: 'OFFER_REJECTED', resourceType: 'OFFER', resourceId: offer.id,
           previousState: 'PENDING', newState: 'REJECTED' });
+        await NotificationsService.create(tx, { recipientUserId: principal.userId, type: 'OFFER_REJECTED',
+          institutionId: offer.reassignment.institutionId, branchId: availability.branchId, resourceType: 'OFFER', resourceId: offer.id,
+          dedupeKey: `OFFER_REJECTED:${offer.id}`, data: {} });
 
         const continuation = await advanceReassignment(tx, this.config, offer, slot, now,
           { kind: 'REJECTION', actorUserId: principal.userId });

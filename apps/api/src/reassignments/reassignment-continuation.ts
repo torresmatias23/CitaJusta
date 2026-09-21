@@ -1,3 +1,4 @@
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
@@ -162,6 +163,9 @@ export async function advanceReassignment(tx: Prisma.TransactionClient, config: 
   });
   await AuditService.record(tx, { ...auditContext, actorUserId: null, actorType: 'SYSTEM',
     actionCode: 'OFFER_CREATED', resourceType: 'OFFER', resourceId: nextOffer.id, newState: 'PENDING' });
+  await NotificationsService.create(tx, { recipientUserId: winner.userId, type: 'OFFER_CREATED',
+    institutionId: offer.reassignment.institutionId, branchId: availability.branchId, resourceType: 'OFFER', resourceId: nextOffer.id,
+    dedupeKey: `OFFER_CREATED:${nextOffer.id}`, data: { startsAt: slot.startsAt.toISOString(), expiresAt: expiresAt.toISOString() } });
 
   return { status: 'OFFERING', nextOffer: { id: nextOffer.id, status: 'PENDING', agendaSlotId: offer.agendaSlotId,
     createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString() } };

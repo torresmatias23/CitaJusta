@@ -1,3 +1,4 @@
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { randomUUID } from 'node:crypto';
 import {
   ConflictException, HttpException, Injectable, InternalServerErrorException,
@@ -10,7 +11,7 @@ import type { AuthenticatedPrincipal } from '../auth/types/authenticated-princip
 import type { WaitlistPreferencesInput } from './waitlist.schemas.js';
 
 const entrySelect = {
-  id: true, institutionId: true, serviceId: true, updatedAt: true, allowsOtherBranches: true,
+  id: true, institutionId: true, branchId: true, serviceId: true, updatedAt: true, allowsOtherBranches: true,
   status: { select: { code: true, isFinal: true } },
   service: { select: { institutionId: true } },
   branch: { select: { institutionId: true } },
@@ -115,6 +116,9 @@ export class WaitlistPreferencesService {
         where: { id: entry.id }, data: { statusId: status.id, updatedAt: nextUpdatedAt(entry.updatedAt) },
         select: { id: true },
       });
+      await NotificationsService.create(tx, { recipientUserId: principal.userId, type: 'WAITLIST_WITHDRAWN',
+        institutionId: entry.institutionId, branchId: entry.branchId ?? null, resourceType: 'WAITLIST_ENTRY', resourceId: entry.id,
+        dedupeKey: `WAITLIST_WITHDRAWN:${entry.id}`, data: {} });
       return { data: { id: entry.id, status: 'WITHDRAWN' } };
     });
   }
