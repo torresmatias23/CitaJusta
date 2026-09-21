@@ -49,6 +49,7 @@ function setup(options = {}) {
   let working;
   let transactionAttempt = 0;
   const tx = {
+    notification: { createMany: async () => ({ count: 1 }) },
     auditEvent: { create: mock.fn(async ({ data }) => { working.audit.push(data); return { id: data.id }; }) },
     user: { findFirst: mock.fn(async () => options.userMissing ? null : { id: principal.userId }) },
     appointment: {

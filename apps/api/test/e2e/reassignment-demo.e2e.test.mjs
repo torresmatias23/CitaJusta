@@ -122,6 +122,7 @@ test('local demo uses real services, isolates recipients/scenarios and resumes w
       await prisma.service.deleteMany({ where: { id: { in: serviceIds } } });
       const resourceIds = [...serviceIds, ...professionalIds, ...availabilities.map((a) => a.id), ...processes.map((p) => p.id), ...offers.map((o) => o.id), ...appointmentIds];
       await prisma.auditEvent.deleteMany({ where: { resourceId: { in: resourceIds }, institutionId: demo.institution.id } });
+      await prisma.notification.deleteMany({ where: { recipientUserId: { in: [recipientId, foreignId, ...identities.flatMap((i) => [i.sourceId, i.professionalUserId])] } } });
       await prisma.user.deleteMany({ where: { id: { in: [recipientId, foreignId, ...identities.flatMap((i) => [i.sourceId, i.professionalUserId])] } } });
       assert.equal(await prisma.service.count({ where: { id: { in: serviceIds } } }), 0);
       assert.equal(await prisma.user.count({ where: { id: recipientId } }), 0);

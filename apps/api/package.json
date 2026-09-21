@@ -18,6 +18,7 @@
     "test:e2e:agenda": "npm run build && node --test --test-concurrency=1 test/e2e/agenda.e2e.test.mjs",
     "test:e2e:reports": "npm run build && node --test --test-concurrency=1 test/e2e/reports.e2e.test.mjs",
     "test:e2e:expiration": "npm run build && node --test --test-concurrency=1 test/e2e/offer-expiration.e2e.test.mjs",
+    "test:e2e:notifications": "npm run build && node --test --test-concurrency=1 test/e2e/notifications.e2e.test.mjs",
     "test:e2e:audit": "npm run build && node --test --test-concurrency=1 test/e2e/audit.e2e.test.mjs",
     "test:e2e:attendance": "npm run build && node --test --test-concurrency=1 test/e2e/attendance.e2e.test.mjs",
     "test:e2e:catalog": "npm run build && node --test --test-concurrency=1 test/e2e/catalog-administration.e2e.test.mjs",

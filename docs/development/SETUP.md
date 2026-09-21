@@ -138,7 +138,7 @@ HU-021 Web (lista de espera/preferencias) y HU-022 Web (ofertas) están implemen
 5. El destinatario abre `/ofertas`: consulta `GET /api/v1/reassignments/offers/me` sin permisos institucionales. Aceptar debe reflejar la cita transferida en Mis citas; rechazar sólo debe actualizar sus ofertas, nunca mostrar la siguiente oferta de otra persona. Para probar ambas acciones, preparar escenarios distintos.
 6. Comprobar aislamiento con la otra cuenta y plazo vencido según `expiresAt`. Web no cambia estados ni expira ofertas automáticamente. El TTL lo resuelve backend desde la política institucional o el fallback global.
 
-La consulta de ofertas es de sólo lectura, limitada a 100 recientes. No hay notificaciones automáticas ni datos demo que simulen ofertas. La prueba manual de interacción en navegador queda separada de los tests de contrato y renderizado.
+La consulta de ofertas es de sólo lectura, limitada a 100 recientes. HU-024 agrega notificaciones internas persistentes; no se envían mensajes externos ni se simulan ofertas. La prueba manual de interacción en navegador queda separada de los tests de contrato y renderizado.
 
 ```powershell
 npm test -w @citajusta/web
@@ -173,3 +173,20 @@ npm run test:e2e:expiration -w @citajusta/api
 ```
 
 Este E2E usa un namespace propio con UUID aleatorios, verifica carreras con PostgreSQL real y limpia sus datos y auditoría. No utiliza escenarios manuales ni IDs checkpoint.
+
+## HU-024: notificaciones internas
+
+Migración aditiva `20260921000000_internal_notifications`: dos enums, tabla `notificaciones`, índices de destinatario/fecha/lectura y clave única destinatario + evento. En entornos nuevos aplicar las migraciones existentes con `prisma migrate deploy`; no usar `db push` ni reset. No editar una migración ya aplicada. No agrega variables ni dependencias.
+
+API autenticada: `GET /api/v1/notifications/me` (cursor opcional, limit 50 por defecto, máximo 100), `GET /api/v1/notifications/me/unread-count`, `POST /api/v1/notifications/:notificationId/read` (sin body funcional). La identidad proviene del token, sin contexto institucional requerido. Lectura ajena/inexistente devuelve el mismo 404; replay conserva el primer readAt. El listado es histórico e incluye unreadCount; los mensajes de fecha indican UTC explícitamente.
+
+Los ocho eventos se escriben dentro de la transacción de reserva, cancelación, ingreso/retiro de lista de espera, creación/aceptación/rechazo/expiración de oferta. La clave es `TIPO:ID_EVENTO`; cancelación utiliza cancellationId, los demás appointmentId, waitlistEntryId u offerId. Un fallo de persistencia revierte el dominio; el replay no modifica una notificación preexistente. El E2E usa un namespace propio y limpia notificaciones antes de usuarios; los fixtures históricos conservan su propio scope.
+
+```powershell
+npm run test:e2e:notifications -w @citajusta/api
+Push-Location apps/web
+node --test test/notifications.test.mjs test/ui.test.mjs
+Pop-Location
+```
+
+No se incluyen envío externo, mark-all-read, WebSocket, polling ni retención/borrado automático.

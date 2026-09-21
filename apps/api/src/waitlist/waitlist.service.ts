@@ -1,3 +1,4 @@
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { randomUUID } from 'node:crypto';
 import {
   ConflictException, HttpException, Injectable, InternalServerErrorException,
@@ -103,6 +104,9 @@ export class WaitlistService {
           },
           select: summarySelect,
         });
+        await NotificationsService.create(tx, { recipientUserId: principal.userId, type: 'WAITLIST_ENTERED',
+          institutionId: entry.institutionId, branchId: input.branchId ?? null, resourceType: 'WAITLIST_ENTRY', resourceId: entry.id,
+          dedupeKey: `WAITLIST_ENTERED:${entry.id}`, data: {} });
         return { data: toSummary(entry) };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {

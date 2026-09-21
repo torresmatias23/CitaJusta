@@ -1,6 +1,5 @@
 import { Bell, CalendarCheck2, CircleHelp, Heart, Search, UsersRound } from 'lucide-react';
 import { Link } from 'react-router';
-import { Badge } from '../../components/ui/badge';
 import { Card } from '../../components/ui/card';
 import { useAuth } from '../auth/auth-provider';
 
@@ -22,8 +21,9 @@ export function HomeWidgets() {
         {authenticated && <Link to="/ofertas" className="mt-3 font-semibold text-brand underline underline-offset-4">Consultar mis ofertas</Link>}
       </Card>
       <Card title="Notificaciones" icon={Bell} tone="amber">
-        <Badge>Próximamente</Badge>
-        <p className="mt-4 text-sm leading-relaxed text-muted">Aquí podrás consultar novedades sobre tus atenciones cuando esta función esté disponible.</p>
+        <h3 className="text-lg font-semibold">Tus novedades, en un solo lugar</h3>
+        <p className="mt-3 mb-5 text-sm leading-relaxed text-muted">Consulta avisos sobre tus reservas, solicitudes y ofertas de atención.</p>
+        <Link to={authenticated ? '/notificaciones' : '/login'} className="button button-outline mt-auto">{authenticated ? 'Ver notificaciones' : 'Iniciar sesión'}</Link>
       </Card>
       <Card title="¿Cómo funciona?" icon={CircleHelp} tone="purple" id="como-funciona">
         <ol className="steps-list">

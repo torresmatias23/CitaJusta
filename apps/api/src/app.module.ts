@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from './notifications/notifications.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { ReassignmentPolicyModule } from './reassignment-policy/reassignment-policy.module.js';
@@ -24,6 +25,7 @@ import { ReassignmentsModule } from './reassignments/reassignments.module.js';
       validate: validateEnvironment,
     }),
     DatabaseModule,
+    NotificationsModule,
     AuditModule,
     ReportsModule,
     ReassignmentPolicyModule,

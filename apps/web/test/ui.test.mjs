@@ -80,11 +80,12 @@ test('lista de espera exige verificar sesión antes de mostrar datos o formulari
   assert.doesNotMatch(html, /Ingresar a una lista de espera|Tus solicitudes abiertas|Esta página no está disponible/);
 });
 
-test('Inicio enlaza al flujo de waitlist y conserva notificaciones como funcionalidad futura', () => {
+test('Inicio enlaza al flujo de waitlist y ofrece notificaciones mediante sesión real', () => {
   const html = renderRoute('/');
   assert.match(html, /href="\/lista-de-espera"/);
   assert.match(html, /Ver mi lista de espera/);
-  assert.match(html, /Próximamente/);
+  assert.match(html, /Notificaciones/);
+  assert.doesNotMatch(html, /Próximamente/);
   assert.doesNotMatch(html, /Podrás indicar tus preferencias/);
 });
 
@@ -252,3 +253,43 @@ test(
     assert.match(empty, /role="status"/);
   },
 );
+
+// HU-024 shares the existing SSR server; no second HMR listener.
+{
+const h = createElement;
+const { NotificationsView, NotificationCard, NotificationCount } = await vite.ssrLoadModule('/src/features/notifications/notifications-page.tsx');
+const item = { id: '10000000-0000-4000-8000-000000000001', type: 'WAITLIST_ENTERED', title: 'Ingreso a lista de espera',
+  message: 'Tu solicitud fue registrada.', createdAt: '2030-01-01T12:00:00Z', readAt: null, path: '/lista-de-espera' };
+const state = { items: [item], status: 'ready', error: null, nextCursor: null, unreadCount: 1, countError: false, loadingMore: false, reading: [] };
+const render = (element) => renderToStaticMarkup(h(MemoryRouter, null, element));
+const view = (patch = {}) => render(h(NotificationsView, { state: { ...state, ...patch }, onLoad() {}, onRead() {} }));
+
+test('notification route protects unverified session and anonymous Home has no center link', () => {
+  const route = (path) => renderToStaticMarkup(h(MemoryRouter, { initialEntries: [path] }, h(AuthProvider, null, h(AppRoutes))));
+  assert.match(route('/notificaciones'), /Verificando tu sesión/);
+  assert.doesNotMatch(route('/notificaciones'), /Notificaciones propias|Marcar como leída/);
+  assert.doesNotMatch(route('/'), /href="\/notificaciones"/);
+});
+test('badge hides 0/unknown and announces positive full count, capping only visual text', () => {
+  for (const count of [0, null]) assert.equal(render(h(NotificationCount, { count })), '');
+  assert.match(render(h(NotificationCount, { count: 3 })), /aria-label="3 notificaciones sin leer"/);
+  assert.match(render(h(NotificationCount, { count: 125 })), /125 notificaciones sin leer.*99\+/);
+});
+test('list shows unread/read, date and safe navigation; busy read disables button', () => {
+  const html = view(); assert.match(html, /Sin leer/); assert.match(html, /Marcar como leída/);
+  assert.match(html, /datetime="2030-01-01T12:00:00Z"/i); assert.match(html, /href="\/lista-de-espera"/);
+  assert.match(html, /Tu solicitud fue registrada/);
+  const read = render(h(NotificationCard, { item: { ...item, readAt: item.createdAt }, busy: false, onRead() {} }));
+  assert.match(read, /Leída/); assert.doesNotMatch(read, /Marcar como leída/);
+  assert.match(render(h(NotificationCard, { item, busy: true, onRead() {} })), /disabled/);
+});
+test('empty, loading, error/retry, load more and zero unread render coherent states', () => {
+  assert.match(view({ items: [], unreadCount: 0 }), /Aún no tienes notificaciones/);
+  assert.match(view({ items: [], unreadCount: 0 }), /No tienes notificaciones sin leer/);
+  assert.match(view({ status: 'loading' }), /Cargando notificaciones/);
+  assert.match(view({ status: 'error', error: 'Error controlado' }), /Error controlado/);
+  assert.match(view({ status: 'error' }), /Reintentar/);
+  assert.match(view({ nextCursor: 'next' }), /Cargar más/);
+  assert.match(view({ nextCursor: 'next', loadingMore: true }), /Cargando/);
+});
+}

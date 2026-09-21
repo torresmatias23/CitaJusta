@@ -18,6 +18,7 @@ function setup() {
     status: { code: 'ACTIVE' }, service: { ...service, name: 'Atención general' }, branch: null,
   };
   const tx = {
+    notification: { createMany: async () => ({ count: 1 }) },
     user: { findFirst: mock.fn(async () => ({ id: principal.userId })) },
     service: { findFirst: mock.fn(async () => service) },
     branch: { findFirst: mock.fn(async () => branch) },

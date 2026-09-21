@@ -30,7 +30,7 @@ Desarrollo: `http://127.0.0.1:5173`. El Home público no requiere sesión; los f
 - Resultados, Mis citas y confirmación requieren sesión.
 - `/lista-de-espera`: requiere sesión; listado propio, alta por servicio/sede opcional, preferencias completas y retiro confirmado. Contratos reales de HU-007/HU-008 sin identidad ni institución enviadas por el cliente.
 - `/ofertas`: requiere sesión; ofertas propias, vigencia, aceptación/rechazo y estados históricos con contratos reales de reasignación (HU-022).
-- Notificaciones aún no están implementadas y se indican como “Próximamente”.
+- `/notificaciones`: centro protegido de notificaciones persistentes, paginado y con lectura individual.
 
 HU-021 (Lista de espera/preferencias) y HU-022 (ofertas) están implementadas. `GET /api/v1/reassignments/offers/me` consulta hasta 100 ofertas propias, `createdAt DESC, id DESC`, sin contexto institucional del cliente. Muestra servicio, sede, nombre público del profesional, horario y estados `PENDING`, `ACCEPTED`, `REJECTED`, `EXPIRED`, `INVALIDATED`, `CANCELLED`. No consulta el GET administrativo de supervisión.
 
@@ -79,3 +79,9 @@ Los contratos contra NestJS/PostgreSQL se comprueban con `node --test apps/web/t
 > Use case: stylized-concept. Asset type: decorative illustration for a medical appointment web dashboard, displayed on the right of a pale icy-blue hero. Create a friendly editorial flat illustration of a young adult woman with long wavy navy hair, warm medium skin and a teal sweater, looking at a smartphone held naturally in her hands. Beside her is a large upright spiral desk calendar with simple blank square cells and one teal checkmark; a small round clock and a potted plant with soft blue leaves complete the scene. Wide landscape composition, all subjects fully contained, generous clean margins, no text or letters, no numbers, no logo, no watermark. Soft polished vector-like raster illustration, subtle shading, calm healthcare mood, navy #172b50, teal #009b9d and pale powder blues. Transparent background, with only a very pale blue organic shape behind the objects. No UI, no buttons, no page mockup.
 
 Pendiente: revisión visual/interactiva en navegador a 1440, 768 y 375 px (incluyendo teclado/zoom), y optimización del PNG antes de publicación. Los tests de renderizado no sustituyen esta revisión.
+
+## HU-024: notificaciones internas
+
+Header y página comparten contador y estado por identidad autenticada. Se consulta al iniciar/restaurar sesión, entrar al centro, recuperar foco y marcar una notificación como leída; no hay polling ni WebSocket. Al cerrar o invalidar sesión y cambiar de cuenta se descartan los datos y respuestas pendientes. El Home anónimo no consulta estos endpoints.
+
+La página muestra contenido controlado e histórico, fecha, estado y enlaces a Mis citas, Lista de espera u Ofertas. Incluye carga, vacío, error/reintento y cargar más mediante cursor. El POST de lectura es idempotente y admite el reintento del cliente tras renovar sesión. Los tests de estado/contrato y renderizado no sustituyen una prueba de interacción en navegador.
