@@ -17,6 +17,9 @@ test('environment validation applies safe defaults', () => {
     NODE_ENV: 'development',
     PORT: 3000,
     WAITLIST_OFFER_TTL_MINUTES: 10,
+    OFFER_EXPIRATION_ENABLED: true,
+    OFFER_EXPIRATION_INTERVAL_MS: 30000,
+    OFFER_EXPIRATION_BATCH_SIZE: 50,
     DATABASE_URL: databaseUrl,
     JWT_ACCESS_SECRET: jwtAccessSecret,
     JWT_REFRESH_SECRET: jwtRefreshSecret,
@@ -38,6 +41,9 @@ test('environment validation accepts and coerces valid values', () => {
       NODE_ENV: 'test',
       PORT: 4100,
       WAITLIST_OFFER_TTL_MINUTES: 10,
+      OFFER_EXPIRATION_ENABLED: false,
+      OFFER_EXPIRATION_INTERVAL_MS: 30000,
+      OFFER_EXPIRATION_BATCH_SIZE: 50,
       DATABASE_URL: databaseUrl,
       JWT_ACCESS_SECRET: jwtAccessSecret,
       JWT_REFRESH_SECRET: jwtRefreshSecret,
@@ -143,4 +149,15 @@ test('environment validation rejects invalid JWT TTL values', () => {
       );
     }
   }
+});
+
+
+test('expiration settings use strict booleans, bounded timers/batches and explicit test opt-in', () => {
+  assert.equal(validateEnvironment({ ...validEnvironment, OFFER_EXPIRATION_ENABLED: 'false' }).OFFER_EXPIRATION_ENABLED, false);
+  assert.equal(validateEnvironment({ ...validEnvironment, NODE_ENV: 'test', OFFER_EXPIRATION_ENABLED: 'true' }).OFFER_EXPIRATION_ENABLED, true);
+  for (const value of ['yes', '0', '', true]) assert.throws(() => validateEnvironment({ ...validEnvironment, OFFER_EXPIRATION_ENABLED: value }));
+  for (const key of ['OFFER_EXPIRATION_INTERVAL_MS', 'OFFER_EXPIRATION_BATCH_SIZE']) {
+    for (const value of ['0', '-1', '1.5', 'bad', '2147483648']) assert.throws(() => validateEnvironment({ ...validEnvironment, [key]: value }));
+  }
+  assert.throws(() => validateEnvironment({ ...validEnvironment, OFFER_EXPIRATION_BATCH_SIZE: '1001' }));
 });

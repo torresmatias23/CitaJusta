@@ -203,6 +203,24 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
       const exhausted = await write('POST', `/reassignments/${empty.slotId}/offers`); assert.equal(exhausted.status, 201);
       assert.equal(exhausted.body.data.offer, null); assert.equal((await auditRows('REASSIGNMENT_EXHAUSTED', exhausted.body.data.id)).length, 1);
     });
+    await t.test('automatic expiration emits one SYSTEM event and replay is read-only', async () => {
+      const user = await register();
+      const entry = await write('POST', '/waitlist', { serviceId: ids.serviceA, branchId: ids.branchA1 }, user.token);
+      assert.equal(entry.status, 201);
+      await write('PUT', `/waitlist/${entry.body.data.id}/preferences`, { preferredDays: [1,2,3,4,5,6,7],
+        timeRanges: [{ start: '00:00', end: '23:59' }], preferredBranchIds: [], allowsOtherBranches: false, acceptsAnyProfessional: true }, user.token);
+      const booking = await bookExtra(5);
+      await write('POST', `/appointments/${booking.appointmentId}/cancel`, null, source.token);
+      const generated = await write('POST', `/reassignments/${booking.slotId}/offers`); assert.equal(generated.status, 201);
+      const offerId = generated.body.data.offer.id;
+      await prisma.appointmentOffer.update({ where: { id: offerId }, data: {
+        createdAt: new Date(Date.now() - 120000), expiresAt: new Date(Date.now() - 60000) } });
+      const { ReassignmentsService } = await import('../../dist/reassignments/reassignments.service.js');
+      for (let i = 0; i < 2; i++) await app.get(ReassignmentsService).expireOffer(offerId);
+      const rows = await auditRows('OFFER_EXPIRED', offerId); assert.equal(rows.length, 1);
+      assert.equal(rows[0].actorType, 'SYSTEM'); assert.equal(rows[0].actorUserId, null);
+      assert.equal(rows[0].newState, 'EXPIRED'); assert.equal(rows[0].reasonCode, 'OFFER_TTL_ELAPSED');
+    });
     await t.test('all specified action codes emitted with no private payloads', async () => {
       const rows = await prisma.auditEvent.findMany({ where: { OR: [{ institutionId: ids.institutionA }, { actorUserId: { in: users } }, { id: { in: anonymousEvents } }] } });
       const emitted = new Set(rows.map((row) => row.actionCode));

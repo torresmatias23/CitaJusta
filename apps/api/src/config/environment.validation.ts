@@ -21,6 +21,9 @@ const environmentSchema = z
       .default('development'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     WAITLIST_OFFER_TTL_MINUTES: z.coerce.number().int().positive().default(10),
+    OFFER_EXPIRATION_ENABLED: z.enum(['true', 'false']).transform((value) => value === 'true').optional(),
+    OFFER_EXPIRATION_INTERVAL_MS: z.coerce.number().int().positive().max(2_147_483_647).default(30_000),
+    OFFER_EXPIRATION_BATCH_SIZE: z.coerce.number().int().positive().max(1000).default(50),
     DATABASE_URL: z.string().refine(isPostgresqlUrl, {
       message: 'must be a valid PostgreSQL URL',
     }),
@@ -45,7 +48,9 @@ const environmentSchema = z
         message: 'must differ from JWT_ACCESS_SECRET',
       });
     }
-  });
+  }).transform((environment) => ({ ...environment,
+    OFFER_EXPIRATION_ENABLED: environment.OFFER_EXPIRATION_ENABLED ?? environment.NODE_ENV !== 'test',
+  }));
 
 export type Environment = z.infer<typeof environmentSchema>;
 

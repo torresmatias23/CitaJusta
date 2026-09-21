@@ -4,20 +4,20 @@ import { z } from 'zod';
 export const actions = [
   'AUTH_LOGIN_SUCCESS', 'AUTH_LOGIN_FAILURE', 'AUTH_LOGOUT',
   'APPOINTMENT_CREATED', 'APPOINTMENT_CANCELLED', 'ATTENDANCE_RECORDED', 'NO_SHOW_RECORDED',
-  'OFFER_CREATED', 'OFFER_ACCEPTED', 'OFFER_REJECTED',
+  'OFFER_CREATED', 'OFFER_ACCEPTED', 'OFFER_REJECTED', 'OFFER_EXPIRED',
   'REASSIGNMENT_STARTED', 'REASSIGNMENT_COMPLETED', 'REASSIGNMENT_EXHAUSTED',
   'BRANCH_CREATED', 'BRANCH_UPDATED', 'SERVICE_CREATED', 'SERVICE_UPDATED',
   'PROFESSIONAL_CREATED', 'PROFESSIONAL_UPDATED', 'AVAILABILITY_CREATED', 'AVAILABILITY_UPDATED',
   'SCHEDULE_BLOCK_CREATED', 'REASSIGNMENT_POLICY_VERSION_CREATED',
 ] as const;
 export const resources = ['AUTH', 'APPOINTMENT', 'OFFER', 'REASSIGNMENT', 'BRANCH', 'SERVICE', 'PROFESSIONAL', 'AVAILABILITY', 'SCHEDULE_BLOCK', 'REASSIGNMENT_POLICY'] as const;
-const states = z.enum(['AGENDADA', 'CANCELADA', 'ATENDIDA', 'INASISTENCIA', 'PENDING', 'ACCEPTED', 'REJECTED', 'OFFERING', 'COMPLETED', 'EXHAUSTED', 'ACTIVE', 'INACTIVE']);
+const states = z.enum(['AGENDADA', 'CANCELADA', 'ATENDIDA', 'INASISTENCIA', 'PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'OFFERING', 'COMPLETED', 'EXHAUSTED', 'ACTIVE', 'INACTIVE']);
 const nullableId = z.string().uuid().nullable().optional();
 export const auditRecordSchema = z.object({
   institutionId: nullableId, branchId: nullableId, actorUserId: nullableId,
   actorType: z.enum(['USER', 'SYSTEM']), actionCode: z.enum(actions), resourceType: z.enum(resources), resourceId: nullableId,
   outcome: z.enum(['SUCCESS', 'FAILURE']), previousState: states.nullable().optional(), newState: states.nullable().optional(),
-  reasonCode: z.enum(['INVALID_CREDENTIALS', 'NO_ELIGIBLE_CANDIDATES', 'CANDIDATES_EXHAUSTED_AFTER_REJECTION']).nullable().optional(),
+  reasonCode: z.enum(['INVALID_CREDENTIALS', 'NO_ELIGIBLE_CANDIDATES', 'CANDIDATES_EXHAUSTED_AFTER_REJECTION', 'CANDIDATES_EXHAUSTED_AFTER_EXPIRATION', 'OFFER_TTL_ELAPSED']).nullable().optional(),
 }).strict().refine((value) => !value.branchId || !!value.institutionId);
 export type AuditRecord = z.infer<typeof auditRecordSchema>;
 

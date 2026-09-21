@@ -1,3 +1,5 @@
+import { expireOfferInTransaction, ExpirationContention } from './offer-expiration.js';
+import { advanceReassignment, continuationOfferSelect, continuationSlotSelect } from './reassignment-continuation.js';
 import { AuditService } from '../audit/audit.service.js';
 import { randomUUID } from 'node:crypto';
 import { ConflictException, ForbiddenException, HttpException, Injectable, InternalServerErrorException, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
@@ -450,24 +452,7 @@ export class ReassignmentsService {
 
         const offer = await tx.appointmentOffer.findUnique({
           where: { id: offerId },
-          select: {
-            id: true, reassignmentId: true, candidateId: true, agendaSlotId: true, attemptNumber: true,
-            status: true, expectedSlotVersion: true, expiresAt: true, respondedByUserId: true,
-            respondedAt: true, resolvedAt: true, lockVersion: true,
-            candidate: {
-              select: {
-                id: true, userId: true, waitlistEntryId: true, evaluationStatus: true,
-                rankingPosition: true, entryUpdatedAtSnapshot: true,
-              },
-            },
-            reassignment: {
-              select: {
-                id: true, institutionId: true, appointmentId: true, agendaSlotId: true,
-                serviceId: true, sourceUserId: true, status: true, lockVersion: true,
-                policy: { select: { offerTtlMinutes: true } },
-              },
-            },
-          },
+          select: continuationOfferSelect,
         });
         if (!offer || offer.candidate.userId !== principal.userId) {
           throw new NotFoundException('Offer not found');
@@ -514,28 +499,7 @@ export class ReassignmentsService {
 
         const slot = await tx.agendaSlot.findUnique({
           where: { id: offer.agendaSlotId },
-          select: {
-            id: true, status: true, lockVersion: true, startsAt: true, endsAt: true, blockedUntilAt: true,
-            availability: {
-              select: {
-                id: true, branchId: true, serviceId: true, professionalId: true, attentionPointId: true,
-                branch: {
-                  select: {
-                    institutionId: true,
-                    institution: { select: { timeZone: true } },
-                  },
-                },
-              },
-            },
-            appointment: {
-              select: {
-                id: true, institutionId: true, branchId: true, serviceId: true, professionalId: true,
-                attentionPointId: true, agendaSlotId: true, userId: true, deletedAt: true,
-                startsAt: true, endsAt: true,
-                status: { select: { code: true, isFinal: true } },
-              },
-            },
-          },
+          select: continuationSlotSelect,
         });
         if (!slot) throw new ConflictException('Slot is no longer available');
         const appointment = slot.appointment;
@@ -594,124 +558,14 @@ export class ReassignmentsService {
         await AuditService.record(tx, { ...auditContext, actionCode: 'OFFER_REJECTED', resourceType: 'OFFER', resourceId: offer.id,
           previousState: 'PENDING', newState: 'REJECTED' });
 
-        const pendingOffers = await tx.appointmentOffer.count({
-          where: { reassignmentId: offer.reassignmentId, status: 'PENDING' },
-        });
-        if (pendingOffers) throw new ConflictException('Reassignment already has a pending offer');
-
-        const nextCandidates = await tx.reassignmentCandidate.findMany({
-          where: {
-            reassignmentId: offer.reassignmentId,
-            evaluationStatus: 'ELIGIBLE',
-            rankingPosition: { gt: offer.candidate.rankingPosition },
-            offers: { none: {} },
-            waitlistEntry: { deletedAt: null, status: { isFinal: false } },
-          },
-          select: {
-            id: true, userId: true, waitlistEntryId: true, rankingPosition: true,
-            entryUpdatedAtSnapshot: true,
-            waitlistEntry: { select: candidateSelect },
-          },
-          orderBy: [{ rankingPosition: 'asc' }, { id: 'asc' }],
-        });
-
-        const slotContext = {
-          institutionId: offer.reassignment.institutionId,
-          serviceId: offer.reassignment.serviceId,
-          branchId: availability.branchId,
-          sourceUserId: offer.reassignment.sourceUserId,
-          startsAt: slot.startsAt,
-          endsAt: slot.endsAt,
-          timeZone: availability.branch.institution.timeZone,
-        };
-        let winner: (typeof nextCandidates)[number] | undefined;
-        for (const candidate of nextCandidates) {
-          const entry = candidate.waitlistEntry;
-          if (
-            candidate.userId !== entry.userId ||
-            entry.updatedAt.getTime() !== candidate.entryUpdatedAtSnapshot.getTime() ||
-            exclusionReason(entry, slotContext, now) !== null
-          ) {
-            continue;
-          }
-          winner = candidate;
-          break;
-        }
-
-        if (!winner) {
-          const exhausted = await tx.reassignment.updateMany({
-            where: {
-              id: offer.reassignment.id,
-              status: 'OFFERING',
-              lockVersion: offer.reassignment.lockVersion,
-            },
-            data: {
-              status: 'EXHAUSTED',
-              finishedAt: now,
-              closureReasonCode: 'CANDIDATES_EXHAUSTED_AFTER_REJECTION',
-              closureDetails: {
-                rejectedOfferId: offer.id,
-                rejectedCandidateId: offer.candidate.id,
-                rejectedByUserId: principal.userId,
-              },
-              lockVersion: { increment: 1 },
-            },
-          });
-          if (exhausted.count !== 1) throw new ConflictException('Reassignment changed; retry rejection');
-          await AuditService.record(tx, { ...auditContext, actionCode: 'REASSIGNMENT_EXHAUSTED', resourceType: 'REASSIGNMENT',
-            resourceId: offer.reassignment.id, previousState: 'OFFERING', newState: 'EXHAUSTED', reasonCode: 'CANDIDATES_EXHAUSTED_AFTER_REJECTION' });
-          return {
-            data: {
-              offer: { id: offer.id, status: 'REJECTED', respondedAt: now.toISOString() },
-              reassignment: { id: offer.reassignment.id, status: 'EXHAUSTED' },
-              nextOffer: null,
-            },
-          };
-        }
-
-        const createdAt = new Date();
-        const ttl = offer.reassignment.policy?.offerTtlMinutes ?? this.config.getOrThrow<number>('WAITLIST_OFFER_TTL_MINUTES');
-        const expiresAt = new Date(createdAt.getTime() + ttl * 60_000);
-        if (!Number.isFinite(expiresAt.getTime())) {
-          throw new ServiceUnavailableException('Offer TTL out of supported range');
-        }
-        const slotStillAvailable = await tx.agendaSlot.count({
-          where: {
-            id: offer.agendaSlotId,
-            status: 'RELEASED',
-            lockVersion: offer.expectedSlotVersion,
-            startsAt: { gt: createdAt },
-          },
-        });
-        if (!slotStillAvailable) throw new ConflictException('Slot is no longer eligible');
-
-        const nextOffer = await tx.appointmentOffer.create({
-          data: {
-            id: randomUUID(),
-            reassignmentId: offer.reassignmentId,
-            candidateId: winner.id,
-            agendaSlotId: offer.agendaSlotId,
-            attemptNumber: offer.attemptNumber + 1,
-            status: 'PENDING',
-            expectedSlotVersion: offer.expectedSlotVersion,
-            createdAt,
-            expiresAt,
-          },
-          select: { id: true },
-        });
-        await AuditService.record(tx, { ...auditContext, actorUserId: null, actorType: 'SYSTEM',
-          actionCode: 'OFFER_CREATED', resourceType: 'OFFER', resourceId: nextOffer.id, newState: 'PENDING' });
-
-        return {
-          data: {
-            offer: { id: offer.id, status: 'REJECTED', respondedAt: now.toISOString() },
-            reassignment: { id: offer.reassignment.id, status: 'OFFERING' },
-            nextOffer: {
-              id: nextOffer.id, status: 'PENDING', agendaSlotId: offer.agendaSlotId,
-              createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString(),
-            },
-          },
-        };
+        const continuation = await advanceReassignment(tx, this.config, offer, slot, now,
+          { kind: 'REJECTION', actorUserId: principal.userId });
+        if (continuation.status === 'UNAVAILABLE') throw new ConflictException('Slot is no longer eligible');
+        return { data: {
+          offer: { id: offer.id, status: 'REJECTED', respondedAt: now.toISOString() },
+          reassignment: { id: offer.reassignment.id, status: continuation.status },
+          nextOffer: continuation.nextOffer,
+        } };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -721,5 +575,17 @@ export class ReassignmentsService {
     }
   }
 
+
+  async expireOffer(offerId: string, retry = true): Promise<Awaited<ReturnType<typeof expireOfferInTransaction>>> {
+    try {
+      return await this.prisma.$transaction((tx) => expireOfferInTransaction(tx, this.config, offerId),
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if ((error instanceof ExpirationContention || isTransactionConflict(error)) && retry) return this.expireOffer(offerId, false);
+      if (error instanceof ExpirationContention || isTransactionConflict(error)) throw new ConflictException('Offer expiration conflict; retry later');
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException('Unable to expire offer', { cause: error });
+    }
+  }
 
 }

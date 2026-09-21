@@ -149,3 +149,27 @@ git diff --check
 ```
 
 Vite dev exige el proxy. Build/preview no lo usan: producción requiere reverse proxy para `/api/v1` o una URL API explícita con CORS autorizado. Nunca incluir secretos en variables `VITE_*`.
+
+## HU-023: expiración automática de ofertas
+
+El backend procesa ofertas `PENDING` con `expiresAt <= now`. Los GET de ofertas y supervisión siguen siendo de sólo lectura; el frontend no persiste expiraciones.
+
+| Variable | Default | Valores |
+| --- | --- | --- |
+| `OFFER_EXPIRATION_ENABLED` | `true`, excepto `NODE_ENV=test` | `true` / `false` explícitos |
+| `OFFER_EXPIRATION_INTERVAL_MS` | `30000` | Entero entre 1 y 2147483647 |
+| `OFFER_EXPIRATION_BATCH_SIZE` | `50` | Entero entre 1 y 1000 |
+
+Cuando está habilitado, el provider procesa un lote al arrancar y programa el siguiente ciclo después de terminar el anterior. Busca por vencimiento e ID ascendente; cada oferta se procesa secuencialmente en su propia transacción. Un error se registra sin payload privado y permite continuar con las demás ofertas; la pendiente vuelve a ser elegible en otro ciclo. La demora de resolución depende del intervalo y del backlog, no cambia `expiresAt`.
+
+El runner sólo dispara la operación de dominio. La seguridad multi-instancia e idempotencia descansan en transacciones `Serializable`, actualizaciones condicionales por estado/versión y constraints PostgreSQL. Un conflicto reconocido reintenta la transacción una vez; un error transitorio persistente hace rollback y se reintentará en una ejecución posterior. No hay nuevas dependencias ni migración.
+
+La expiración guarda `EXPIRED`, `resolvedAt` y auditoría `SYSTEM`, sin simular respuesta humana. Continúa usando ranking y política del proceso. Sin candidatos elegibles cierra `EXHAUSTED`; si el cupo/contexto ya no es utilizable cierra `CANCELLED`; una relación incoherente en un proceso activo cierra `FAILED`, sin reparar datos. Los motivos son códigos controlados. Una oferta pendiente ligada a un proceso ya terminal se considera inconsistente: rollback y aviso operativo, sin sobrescribir ese proceso.
+
+Al cerrar NestJS se cancela el temporizador y se espera la operación en curso; Prisma se desconecta en `onApplicationShutdown`, después del drenaje. Para pruebas manuales que necesiten mantener una oferta vencida pendiente, configurar `OFFER_EXPIRATION_ENABLED=false` antes de arrancar la API. El helper de entorno E2E lo deshabilita explícitamente, incluso si `.env` lo habilita; las pruebas específicas del runner controlan su activación.
+
+```powershell
+npm run test:e2e:expiration -w @citajusta/api
+```
+
+Este E2E usa un namespace propio con UUID aleatorios, verifica carreras con PostgreSQL real y limpia sus datos y auditoría. No utiliza escenarios manuales ni IDs checkpoint.
