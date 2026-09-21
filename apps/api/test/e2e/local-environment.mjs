@@ -9,6 +9,8 @@ export function loadApiEnvironment() {
       throw new Error('E2E environment could not be loaded');
     }
   }
+  // Historical suites explicitly control expired PENDING offers. Opt in after loading only in runner tests.
+  process.env.OFFER_EXPIRATION_ENABLED = 'false';
 }
 
 export function assertSafeLocalDatabaseUrl(connectionString) {

@@ -1,12 +1,12 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '../generated/prisma/client.js';
 
 @Injectable()
 export class PrismaService
   extends PrismaClient
-  implements OnModuleDestroy
+  implements OnApplicationShutdown
 {
   constructor(configService: ConfigService) {
     super({
@@ -16,7 +16,8 @@ export class PrismaService
     });
   }
 
-  async onModuleDestroy(): Promise<void> {
+  // Disconnect after runners have drained their work during onModuleDestroy.
+  async onApplicationShutdown(): Promise<void> {
     await this.$disconnect();
   }
 }
