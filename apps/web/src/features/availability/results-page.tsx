@@ -1,7 +1,6 @@
 import { CalendarDays, Clock3, MapPin, Search } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { AsyncState } from '../../components/ui/async-state';
-import { Button } from '../../components/ui/button';
 import { useResource } from '../../lib/use-resource';
 import { useAuth } from '../auth/auth-provider';
 import { BookingButton } from '../appointments/booking-button';
@@ -34,7 +33,8 @@ export function ResultsPage() {
         {resource.data.slots.length === 0 ? <div className="content-panel empty-availability">
           <AsyncState kind="empty" title="No encontramos horas en este rango" description="Prueba otra sede, servicio o un rango de fechas más amplio." />
           <Link to="/#buscar-horas" className="button button-primary">Cambiar búsqueda</Link>
-          <div className="coming-soon"><h2>Lista de espera</h2><p>En una próxima etapa podrás indicar tus preferencias para una hora que se libere.</p><Button variant="outline" disabled>Lista de espera · Próximamente</Button></div>
+          <div className="coming-soon"><h2>Lista de espera</h2><p>¿No encontraste una hora? Ingresa a la lista de espera y configura tus preferencias de atención.</p><Link to="/lista-de-espera" className="button button-outline">Ir a lista de espera</Link>
+</div>
         </div> : <ul className="results-list" aria-label="Horas disponibles">
           {resource.data.slots.map((slot) => <li className="result-card" key={slot.id}>
             <span className="avatar" aria-hidden="true">{slot.professional.firstNames.slice(0, 1)}{slot.professional.lastNames.slice(0, 1)}</span>
