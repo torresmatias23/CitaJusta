@@ -17,8 +17,10 @@ import { createCatalogApi } from '../availability/catalog-api';
 import {
   changeSelection,
   initialSelection,
+  localDateValue,
   searchParameters,
 } from '../availability/search-selection';
+import type { SearchSelection } from '../availability/search-selection';
 
 function SearchField({
   name,
@@ -75,11 +77,63 @@ function SearchField({
   );
 }
 
+export function SearchDateFields({ selection, update, disabled, now }: {
+  selection: SearchSelection;
+  update: (field: keyof SearchSelection, value: string) => void;
+  disabled: boolean;
+  now: Date;
+}) {
+  const invalid = selection.mode === 'specific' && selection.date !== '' && !searchParameters(selection, now);
+  return (
+    <fieldset className="search-dates" disabled={disabled}>
+      <legend>¿Cuándo quieres tu atención?</legend>
+      <div className="search-date-options">
+        <label>
+          <input type="radio" name="date-mode" value="specific" checked={selection.mode === 'specific'}
+            onChange={() => update('mode', 'specific')} />
+          Fecha específica
+        </label>
+        <label>
+          <input type="radio" name="date-mode" value="flexible" checked={selection.mode === 'flexible'}
+            onChange={() => update('mode', 'flexible')} />
+          Soy flexible
+        </label>
+      </div>
+      {selection.mode === 'flexible' ? (
+        <SearchField name="preference" label="Rango de búsqueda" value={selection.days}
+          onChange={(value) => update('days', value)}
+          options={[
+            { id: '7', name: 'Próximos 7 días' },
+            { id: '14', name: 'Próximos 14 días' },
+            { id: '30', name: 'Próximos 30 días' },
+          ]}
+          icon={CalendarDays} disabled={disabled} placeholder="Selecciona un rango" />
+      ) : (
+        <div className="search-field">
+          <CalendarDays className="search-field-icon" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <label htmlFor="specific-date">Fecha de atención</label>
+            <input id="specific-date" name="specific-date" type="date" required
+              className="search-date-input" value={selection.date} min={localDateValue(now)}
+              aria-describedby="search-date-help" aria-invalid={invalid || undefined}
+              onChange={(event) => update('date', event.target.value)} />
+          </div>
+        </div>
+      )}
+      <p id="search-date-help" className="search-date-help" role="status">
+        {invalid ? 'Selecciona una fecha válida desde hoy.' : 'Según la fecha y hora local de tu dispositivo.'}
+      </p>
+    </fieldset>
+  );
+}
+
 export function SearchForm() {
   const { api, user, status } = useAuth();
   const navigate = useNavigate();
 
   const [selection, setSelection] = useState(initialSelection);
+  const [, refreshDateValidation] = useState<Date>();
+  const now = new Date();
 
   const authenticated = status === 'authenticated' && user !== null;
 
@@ -128,7 +182,7 @@ export function SearchForm() {
     ) &&
     serviceOptions.some(
       (item) => item.id === selection.serviceId,
-    );
+    ) && searchParameters(selection, now) !== null;
 
   const update = (
     field: keyof typeof selection,
@@ -161,9 +215,13 @@ export function SearchForm() {
         onSubmit={(event) => {
           event.preventDefault();
 
-          if (canSearch) {
+          const submittedNow = new Date();
+          // Refresh the minimum date and feedback if the form stayed open overnight.
+          refreshDateValidation(submittedNow);
+          const parameters = searchParameters(selection, submittedNow);
+          if (canSearch && parameters) {
             navigate(
-              `/resultados?${searchParameters(selection).toString()}`,
+              `/resultados?${parameters.toString()}`,
             );
           }
         }}
@@ -242,22 +300,7 @@ export function SearchForm() {
           }
         />
 
-        <SearchField
-          name="preference"
-          label="Fecha o preferencia"
-          value={selection.days}
-          onChange={(value) =>
-            update('days', value)
-          }
-          options={[
-            { id: '7', name: 'Próximos 7 días' },
-            { id: '14', name: 'Próximos 14 días' },
-            { id: '30', name: 'Próximos 30 días' },
-          ]}
-          icon={CalendarDays}
-          disabled={!authenticated}
-          placeholder="Selecciona un rango"
-        />
+        <SearchDateFields selection={selection} update={update} disabled={!authenticated} now={now} />
 
         {authenticated ? (
           <Button
