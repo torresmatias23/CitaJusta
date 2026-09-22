@@ -2,6 +2,8 @@
 
 ## Estado actual
 
+Al 22-09-2026, el MVP Web está cerrado funcionalmente, incluidas HU-021/HU-022 Web y HU-023 a HU-026. La siguiente etapa es Desktop con Tauri + React + TypeScript; `apps/desktop` todavía no existe. Docker, OpenAPI y hardening siguen pendientes.
+
 | Componente | Versión verificada |
 | --- | --- |
 | Sistema operativo | Windows |
@@ -99,7 +101,7 @@ Después de `seed:dev` y `bootstrap:appointment-status` (preparación inicial), 
 npm run seed:booking-demo -w @citajusta/api
 ```
 
-Usa Institución Demo CitaJusta → Sede Centro Demo → Atención General Demo y crea **Profesional Demo Booking** mediante el servicio administrativo. Un intervalo futuro de dos horas produce cuatro cupos de 30 minutos mediante `AvailabilityAdministrationService`, nunca insertando agenda/cupos directamente. El comando imprime horarios institucionales y UTC; buscar desde Web con **Próximos 30 días**.
+Usa Institución Demo CitaJusta → Sede Centro Demo → Atención General Demo y crea **Profesional Demo Booking** mediante el servicio administrativo. Un intervalo futuro de dos horas produce cuatro cupos de 30 minutos mediante `AvailabilityAdministrationService`, nunca insertando agenda/cupos directamente. El comando imprime horarios institucionales y UTC; buscar desde Web con **Soy flexible → Próximos 30 días** o **Fecha específica**, seleccionando la fecha correspondiente en el calendario local del dispositivo.
 
 Reutiliza cupos futuros AVAILABLE sin cita, reasignación ni bloqueo. Si no quedan, busca otra fecha dentro de los próximos 28 días, evitando agenda existente, bloqueos y feriados. No reactiva, borra ni modifica cupos anteriores. Conserva incluso un único cupo disponible, sin rellenar lo consumido. Sin fechas utilizables, falla de forma explícita.
 
@@ -125,7 +127,7 @@ El email se normaliza igual que en Auth. La cuenta debe existir, estar ACTIVE y 
 
 Se reutilizan Institución Demo CitaJusta y Sede Centro Demo. Cada combinación destinatario/escenario tiene códigos `DEMO-REASSIGN-*`, servicio de 30 minutos, usuario origen, usuario profesional y profesional propios. Así no cambia una espera/preferencia previa en Atención General Demo ni compite con otra persona en ese servicio. Servicio/relaciones, profesional/relaciones y agenda se crean mediante los servicios administrativos reales; éstos materializan un único cupo para una semana después. Sólo usuarios técnicos, rol y asignaciones/permisos fundacionales se crean directamente mediante Prisma.
 
-La secuencia usa servicios reales de reserva → cancelación (`RELEASED`) y entrada/preferencias Waitlist → generación HU-009. No inserta ofertas/procesos ni acepta/rechaza por fuera del dominio. El destinatario recibe preferencias compatibles sólo para el nuevo servicio demo; si fueron modificadas, el tooling falla sin sobrescribirlas.
+La secuencia usa servicios reales de reserva y entrada/preferencias Waitlist antes de cancelar. La cancelación (`RELEASED`) inicia automáticamente la reasignación HU-025 en la misma transacción `Serializable`, con actor `SYSTEM` para inicio/oferta y `USER` para cancelación. No inserta ofertas/procesos ni acepta/rechaza por fuera del dominio. El destinatario recibe preferencias compatibles sólo para el nuevo servicio demo; si fueron modificadas, el tooling falla sin sobrescribirlas.
 
 Si la institución demo no tiene política ni historial, HU-018 configura explícitamente `PRIORITY_THEN_WAITING` y **30 minutos** para pruebas locales. Si ya tiene política, se conserva intacta y HU-009 utiliza su TTL real. Nunca se fija `expiresAt` en el tooling. La política demo afecta futuros procesos de esa institución; no modifica políticas de otras instituciones.
 
@@ -149,12 +151,16 @@ HU-021 Web (lista de espera/preferencias) y HU-022 Web (ofertas) están implemen
 
 1. Preparar entorno con `seed:dev` / `check:dev` como arriba. El seed no crea profesionales, agenda ni ofertas; no basta por sí solo para este escenario.
 2. Con un operador autorizado, preparar profesional, relaciones y disponibilidad futura mediante los flujos institucionales existentes. No insertar cupos manualmente ni asignar roles a usuarios públicos automáticamente.
-3. Registrar dos cuentas controladas de prueba. Una reserva y cancela una cita; la otra ingresa a la lista del servicio con preferencias compatibles (incluida aceptación de cualquier profesional).
-4. El operador con `reassignments.generate` genera una oferta sobre el cupo `RELEASED` mediante `POST /api/v1/reassignments/:agendaSlotId/offers` y contexto institucional autorizado.
+3. Registrar dos cuentas controladas de prueba. Una reserva una cita; la otra ingresa a la lista del servicio y guarda preferencias compatibles (incluida aceptación de cualquier profesional) **antes de la cancelación**.
+4. Cancelar la cita: si el cupo es reutilizable, HU-025 inicia automáticamente el proceso y su primera oferta; sin candidatos elegibles queda `EXHAUSTED`. Repetir la cancelación no duplica efectos. La generación manual con `reassignments.generate` y `POST /api/v1/reassignments/:agendaSlotId/offers` queda para casos históricos/administrativos con contexto autorizado.
 5. El destinatario abre `/ofertas`: consulta `GET /api/v1/reassignments/offers/me` sin permisos institucionales. Aceptar debe reflejar la cita transferida en Mis citas; rechazar sólo debe actualizar sus ofertas, nunca mostrar la siguiente oferta de otra persona. Para probar ambas acciones, preparar escenarios distintos.
-6. Comprobar aislamiento con la otra cuenta y plazo vencido según `expiresAt`. Web no cambia estados ni expira ofertas automáticamente. El TTL lo resuelve backend desde la política institucional o el fallback global.
+6. Comprobar aislamiento con la otra cuenta y plazo vencido según `expiresAt`. Web no cambia estados; el runner/provider interno HU-023 expira las ofertas en el backend y continúa al siguiente candidato. El TTL lo resuelve backend desde la política institucional o el fallback global.
 
 La consulta de ofertas es de sólo lectura, limitada a 100 recientes. HU-024 agrega notificaciones internas persistentes; no se envían mensajes externos ni se simulan ofertas. La prueba manual de interacción en navegador queda separada de los tests de contrato y renderizado.
+
+HU-026: comprobar “Fecha específica” (calendario desde hoy) y “Soy flexible” (7/14/30 días). Ambos mantienen `from`/`to`; la fecha específica usa el calendario local del dispositivo y respeta DST, con `from=ahora` si se elige hoy.
+
+Verificaciones recientes al 22-09-2026 (no sustituyen una ejecución local): HU-025 API **390/390**, E2E **8/8**; HU-026 fechas **10/10**, UI **16/16**, suite Web completa **95/95**; builds correspondientes **PASS**. Evidencias Scrum HU-025/HU-026 actualizadas y mergeadas.
 
 ```powershell
 npm test -w @citajusta/web
@@ -194,7 +200,7 @@ Este E2E usa un namespace propio con UUID aleatorios, verifica carreras con Post
 
 Migración aditiva `20260921000000_internal_notifications`: dos enums, tabla `notificaciones`, índices de destinatario/fecha/lectura y clave única destinatario + evento. En entornos nuevos aplicar las migraciones existentes con `prisma migrate deploy`; no usar `db push` ni reset. No editar una migración ya aplicada. No agrega variables ni dependencias.
 
-API autenticada: `GET /api/v1/notifications/me` (cursor opcional, limit 50 por defecto, máximo 100), `GET /api/v1/notifications/me/unread-count`, `POST /api/v1/notifications/:notificationId/read` (sin body funcional). La identidad proviene del token, sin contexto institucional requerido. Lectura ajena/inexistente devuelve el mismo 404; replay conserva el primer readAt. El listado es histórico e incluye unreadCount; los mensajes de fecha indican UTC explícitamente.
+API autenticada: `GET /api/v1/notifications/me` (cursor opcional, limit 50 por defecto, máximo 100), `GET /api/v1/notifications/me/unread-count`, `POST /api/v1/notifications/:notificationId/read` (sin body funcional). La identidad proviene del token, sin contexto institucional requerido. Lectura ajena/inexistente devuelve el mismo 404; replay conserva el primer readAt. El listado es histórico e incluye unreadCount; las fechas de las notificaciones usan el timezone institucional y UTC sólo como fallback.
 
 Los ocho eventos se escriben dentro de la transacción de reserva, cancelación, ingreso/retiro de lista de espera, creación/aceptación/rechazo/expiración de oferta. La clave es `TIPO:ID_EVENTO`; cancelación utiliza cancellationId, los demás appointmentId, waitlistEntryId u offerId. Un fallo de persistencia revierte el dominio; el replay no modifica una notificación preexistente. El E2E usa un namespace propio y limpia notificaciones antes de usuarios; los fixtures históricos conservan su propio scope.
 
