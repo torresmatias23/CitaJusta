@@ -172,7 +172,7 @@ export async function prepareReassignmentDemo(prisma: PrismaClient, domain: Reas
     if (existingOffers.length) {
       if (existingOffers.length !== 1 || existingOffers[0]?.candidate.userId !== recipient.id) throw new DevelopmentError('Ofertas ajenas o múltiples en el escenario; no se modifica.');
       requireCompatible(existingOffers[0]!.reassignment, { institutionId: demo.institution.id, serviceId: service.id, sourceUserId: identity.sourceId }, 'proceso');
-      await requireOwnedCreation(prisma, 'REASSIGNMENT_STARTED', existingOffers[0]!.reassignment.id, identity.actorId);
+      await requireOwnedCreation(prisma, 'REASSIGNMENT_STARTED', existingOffers[0]!.reassignment.id, identity.actorId, true);
       return report(prisma, domain, principal, recipient, input.scenario, existingOffers[0]!.id, true);
     }
     if (slot.startsAt <= new Date()) throw new DevelopmentError('La agenda del escenario ya pasó. No se desplaza ni se revive automáticamente.');
@@ -195,14 +195,20 @@ export async function prepareReassignmentDemo(prisma: PrismaClient, domain: Reas
     }
     if (appointment.userId !== source.userId || !['AGENDADA', 'CANCELADA'].includes(appointment.status.code)) throw new DevelopmentError('La cita demo pertenece a otra persona o tiene un estado incompatible.');
     await domain.appointments.cancel(appointment.id, source);
-    const generated = await domain.reassignments.generate(slot.id, context);
-    if (!generated.data.offer) throw new DevelopmentError('HU-009 no encontró candidato compatible. Revisar el proceso; no se fuerza una oferta.');
-    return report(prisma, domain, principal, recipient, input.scenario, generated.data.offer.id, false);
+    // HU-025 already starts this release in the cancellation transaction. Keep
+    // manual generation only for historical releases without a process.
+    const automatic = await prisma.reassignment.findFirst({ where: { agendaSlotId: slot.id, appointmentId: appointment.id,
+      institutionId: demo.institution.id, sourceUserId: source.userId }, select: { offers: { select: { id: true }, take: 1 } } });
+    const offer = automatic ? automatic.offers[0] : (await domain.reassignments.generate(slot.id, context)).data.offer;
+    if (!offer) throw new DevelopmentError('HU-009 no encontró candidato compatible. Revisar el proceso; no se fuerza una oferta.');
+    return report(prisma, domain, principal, recipient, input.scenario, offer.id, false);
   }, { timeout: 120_000 });
 }
 
-async function requireOwnedCreation(prisma: PrismaClient, actionCode: string, resourceId: string, actorUserId: string) {
-  if (!await prisma.auditEvent.count({ where: { actionCode, resourceId, actorUserId, institutionId: demo.institution.id } })) throw new DevelopmentError('Recurso demo sin evidencia de creación por el tooling; no se reutiliza.');
+async function requireOwnedCreation(prisma: PrismaClient, actionCode: string, resourceId: string, actorUserId: string, allowSystem = false) {
+  if (!await prisma.auditEvent.count({ where: { actionCode, resourceId, institutionId: demo.institution.id,
+    OR: [{ actorUserId }, ...(allowSystem ? [{ actorType: 'SYSTEM' as const, actorUserId: null }] : [])],
+  } })) throw new DevelopmentError('Recurso demo sin evidencia de creación por el tooling; no se reutiliza.');
 }
 
 async function report(prisma: PrismaClient, domain: ReassignmentDemoDomain, principal: { userId: string; sessionId: string }, recipient: { id: string; email: string; updatedAt: Date }, scenario: DemoScenario, offerId: string, reused: boolean) {

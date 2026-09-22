@@ -1,3 +1,4 @@
+import { cancelWithBlockedSlot } from './manual-release.fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test, mock } from 'node:test';
@@ -56,7 +57,7 @@ test('HU-023 real PostgreSQL expiration, continuation, invariants, rollback and 
       const slot = await prisma.agendaSlot.create({ data: { id: randomUUID(), availabilityId: ids.availabilityMain,
         startsAt, endsAt: new Date(+startsAt + 1_800_000), status: 'AVAILABLE' } });
       const booked = await request('POST', '/appointments', source, { agendaSlotId: slot.id }); assert.equal(booked.status, 201);
-      assert.equal((await request('POST', `/appointments/${booked.body.data.id}/cancel`, source)).status, 200);
+      assert.equal((await cancelWithBlockedSlot(prisma, booked.body.data.id, () => request('POST', `/appointments/${booked.body.data.id}/cancel`, source))).status, 200);
       const result = await request('POST', `/reassignments/${slot.id}/offers`, admin, null, headers); assert.equal(result.status, 201);
       assert.ok(result.body.data.offer); return { ...result.body.data, slotId: slot.id, appointmentId: booked.body.data.id };
     }

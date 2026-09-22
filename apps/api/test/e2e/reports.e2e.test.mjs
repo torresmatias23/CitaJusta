@@ -1,3 +1,4 @@
+import { cancelWithBlockedSlot } from './manual-release.fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
@@ -276,7 +277,7 @@ test('HU-019 reports: real PostgreSQL aggregates, authorization, isolation and n
       }
       const booking = await request('POST', '/appointments', source.token, { agendaSlotId: ids.slotAvailable });
       assert.equal(booking.status, 201);
-      assert.equal((await request('POST', `/appointments/${booking.body.data.id}/cancel`, source.token)).status, 200);
+      assert.equal((await cancelWithBlockedSlot(prisma, booking.body.data.id, () => request('POST', `/appointments/${booking.body.data.id}/cancel`, source.token))).status, 200);
       const generation = await request('POST', `/reassignments/${ids.slotAvailable}/offers`, admin.token, undefined, headers);
       assert.equal(generation.status, 201); processes.push(generation.body.data.id);
       const pending = await prisma.appointmentOffer.findFirstOrThrow({ where: { reassignmentId: generation.body.data.id, status: 'PENDING' }, include: { candidate: true } });

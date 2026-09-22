@@ -27,6 +27,7 @@
     "test:e2e:availability-admin": "npm run build && node --test --test-concurrency=1 test/e2e/availability-administration.e2e.test.mjs",
     "test:e2e:appointments": "npm run build && node --test --test-concurrency=1 test/e2e/appointments.e2e.test.mjs",
     "test:e2e:waitlist": "npm run build && node --test --test-concurrency=1 test/e2e/waitlist.e2e.test.mjs",
+    "test:e2e:automatic-start": "npm run build && node --test --test-concurrency=1 test/e2e/automatic-reassignment-start.e2e.test.mjs",
     "test:e2e:reassignments": "npm run build && node --test --test-concurrency=1 test/e2e/reassignments.e2e.test.mjs",
     "test:e2e:reassignment-policy": "npm run build && node --test --test-concurrency=1 test/e2e/reassignment-policy.e2e.test.mjs"
   },

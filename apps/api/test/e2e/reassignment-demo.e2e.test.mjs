@@ -30,7 +30,8 @@ test('local demo uses real services, isolates recipients/scenarios and resumes w
     await t.test('first run generates PENDING through booking, cancellation, preferences and HU-009', async () => {
       reject = await prepareReassignmentDemo(prisma, domain, options);
       assert.equal(reject.reused, false); assert.equal(reject.offer.status, 'PENDING');
-      for (const expected of ['catalog.createService', 'professionals.create', 'availability.create', 'appointments.reserve', 'appointments.cancel', 'waitlist.enter', 'preferences.replace', 'reassignments.generate']) assert.ok(calls.includes(expected), expected);
+      for (const expected of ['catalog.createService', 'professionals.create', 'availability.create', 'appointments.reserve', 'appointments.cancel', 'waitlist.enter', 'preferences.replace']) assert.ok(calls.includes(expected), expected);
+      assert.ok(!calls.includes('reassignments.generate'), 'HU-025 already generated the first offer in cancellation');
       const stored = await prisma.appointmentOffer.findUniqueOrThrow({ where: { id: reject.offer.id }, include: { candidate: true, reassignment: { include: { agendaSlot: true, appointment: { include: { status: true, historyEntries: true } } } } } });
       assert.equal(stored.candidate.userId, recipientId);
       assert.equal(stored.reassignment.agendaSlot.status, 'RELEASED');

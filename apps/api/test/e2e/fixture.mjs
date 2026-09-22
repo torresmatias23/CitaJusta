@@ -336,6 +336,9 @@ export async function cleanupCheckpointFixtures(prisma) {
   await prisma.$transaction([
     prisma.notification.deleteMany({ where: { OR: [{ institutionId: { in: institutionIds } }, { recipientUserId: { in: fixtureUserIds } }] } }),
     prisma.auditEvent.deleteMany({ where: fixtureAuditScope() }),
+    prisma.appointmentOffer.deleteMany({ where: { reassignment: { appointmentId: { in: appointmentIds }, institutionId: { in: institutionIds } } } }),
+    prisma.reassignmentCandidate.deleteMany({ where: { reassignment: { appointmentId: { in: appointmentIds }, institutionId: { in: institutionIds } } } }),
+    prisma.reassignment.deleteMany({ where: { appointmentId: { in: appointmentIds }, institutionId: { in: institutionIds } } }),
     prisma.cancellation.deleteMany({ where: { appointmentId: { in: appointmentIds } } }),
     prisma.appointmentHistory.deleteMany({
       where: { appointmentId: { in: appointmentIds } },

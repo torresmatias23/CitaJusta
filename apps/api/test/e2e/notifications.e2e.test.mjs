@@ -1,3 +1,4 @@
+import { cancelWithBlockedSlot } from './manual-release.fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test, mock } from 'node:test';
@@ -126,7 +127,7 @@ test('HU-024 real domain events, atomicity, dedupe, recipient isolation and read
       const recipients = [await register(), await register()]; for (const user of recipients) await enter(user);
       booking = await book();
       assert.equal((await rows('APPOINTMENT_BOOKED', booking.appointmentId)).length, 1);
-      for (let i = 0; i < 2; i++) assert.equal((await write(`/appointments/${booking.appointmentId}/cancel`)).status, 200);
+      for (let i = 0; i < 2; i++) assert.equal((await cancelWithBlockedSlot(prisma, booking.appointmentId, () => write(`/appointments/${booking.appointmentId}/cancel`))).status, 200);
       const generated = await write(`/reassignments/${booking.slotId}/offers`, admin); assert.equal(generated.status, 201);
       const replay = await write(`/reassignments/${booking.slotId}/offers`, admin); assert.equal(replay.status, 409);
       const pending = await prisma.appointmentOffer.findFirstOrThrow({ where: { reassignmentId: generated.body.data.id, status: 'PENDING' }, include: { candidate: true } });
@@ -141,7 +142,7 @@ test('HU-024 real domain events, atomicity, dedupe, recipient isolation and read
       }
     });
     await t.test('two real cancellations of one reassigned appointment have distinct cancellation event keys', async () => {
-      assert.equal((await write(`/appointments/${booking.appointmentId}/cancel`, acceptor)).status, 200);
+      assert.equal((await cancelWithBlockedSlot(prisma, booking.appointmentId, () => write(`/appointments/${booking.appointmentId}/cancel`, acceptor))).status, 200);
       const cancellations = await prisma.cancellation.findMany({ where: { appointmentId: booking.appointmentId } });
       assert.equal(cancellations.length, 2);
       const emitted = await rows('APPOINTMENT_CANCELLED', booking.appointmentId); assert.equal(emitted.length, 2);
@@ -151,7 +152,7 @@ test('HU-024 real domain events, atomicity, dedupe, recipient isolation and read
       for (let i = 0; i < 2; i++) assert.equal((await write(`/waitlist/${rejector.entryId}/withdraw`, rejector)).status, 200);
       assert.equal((await rows('WAITLIST_WITHDRAWN', rejector.entryId)).length, 1);
       const user = await register(); await enter(user); const extra = await book();
-      assert.equal((await write(`/appointments/${extra.appointmentId}/cancel`)).status, 200);
+      assert.equal((await cancelWithBlockedSlot(prisma, extra.appointmentId, () => write(`/appointments/${extra.appointmentId}/cancel`))).status, 200);
       const generated = await write(`/reassignments/${extra.slotId}/offers`, admin); assert.equal(generated.status, 201);
       const offerId = generated.body.data.offer.id;
       await prisma.appointmentOffer.update({ where: { id: offerId }, data: { createdAt: new Date(Date.now() - 120000), expiresAt: new Date(Date.now() - 60000) } });

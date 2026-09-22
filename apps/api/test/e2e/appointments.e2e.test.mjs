@@ -261,7 +261,7 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
             createdByUserId: listingUser.id, statusId: initialStatus.id, origin: 'WEB',
             institutionId: source.availability.branch.institutionId,
             branchId: source.availability.branchId, serviceId: source.availability.serviceId,
-            professionalId: source.availability.professionalId,
+            professionalId: source.availability.professionalId, attentionPointId: source.availability.attentionPointId,
             startsAt: source.startsAt, endsAt: source.endsAt,
             operationalNote: 'E2E_CHECKPOINT private appointment note',
             ...overrides,
@@ -530,7 +530,7 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
       assert.equal(after.appointment.agendaSlotId, before.slot.id);
       assert.equal(after.appointment.deletedAt, null);
       assert.equal(after.slot.status, 'RELEASED');
-      assert.equal(after.slot.lockVersion, before.slot.lockVersion + 1);
+      assert.equal(after.slot.lockVersion, before.slot.lockVersion + 2);
       assert.equal(after.history.length, before.history.length + 1);
       const history = after.history.find((row) => row.newStatusId === cancelledStatus.id);
       assert.equal(history.previousStatusId, initialStatus.id);
@@ -564,14 +564,14 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
       assert.equal(after.appointment.userId, listingUser.id);
       assert.equal(after.appointment.agendaSlotId, before.slot.id);
       assert.equal(after.slot.status, 'RELEASED');
-      assert.equal(after.slot.lockVersion, before.slot.lockVersion + 1);
+      assert.equal(after.slot.lockVersion, before.slot.lockVersion + 2);
       assert.equal(after.cancellations.length, 1);
       assert.equal(after.history.length, before.history.length + 1);
       assert.equal(after.history.filter((row) => row.newStatusId === cancelledStatus.id).length, 1);
       assert.deepEqual(await cancel(future.id), responses[0]);
       assert.deepEqual(await cancel(future.id), responses[0]);
       assert.deepEqual(await cancellationSnapshot(future.id), after);
-      t.diagnostic(`Concurrent cancellation HTTP statuses: ${statuses.join(', ')}; one cancellation/history/version increment`);
+      t.diagnostic(`Concurrent cancellation HTTP statuses: ${statuses.join(', ')}; one cancellation/history and one automatic start`);
     });
 
     await t.test('HU-006 released slots stay outside public availability and HU-004 cannot create another appointment', async () => {
@@ -584,7 +584,8 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
         assert.equal((await book(row.agendaSlotId, listingUser.token)).status, 409);
         assert.equal((await book(row.agendaSlotId, first.token)).status, 409);
         assert.equal(await prisma.appointment.count({ where: { agendaSlotId: row.agendaSlotId } }), 1);
-        assert.equal(await prisma.reassignment.count({ where: { appointmentId: row.id } }), 0);
+        assert.equal(await prisma.reassignment.count({ where: { appointmentId: row.id, status: 'EXHAUSTED' } }), 1);
+        assert.equal(await prisma.appointmentOffer.count({ where: { agendaSlotId: row.agendaSlotId } }), 0);
         assert.deepEqual(await cancellationSnapshot(row.id), before);
       }
     });
