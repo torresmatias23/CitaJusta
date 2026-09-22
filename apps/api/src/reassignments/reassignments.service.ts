@@ -11,14 +11,11 @@ import { Prisma } from '../generated/prisma/client.js';
 import type { AuthenticatedPrincipal } from '../auth/types/authenticated-principal.js';
 import type { AuthorizationContext } from '../authorization/types/authorization-context.js';
 import { availableAvailabilityWhere } from '../availability/availability.policy.js';
-import { candidateSelect, rankCandidates, exclusionReason, localTime, preferenceSnapshot } from './reassignments.policy.js';
+import { localTime } from './reassignments.policy.js';
+import { startReassignment, type GenerationResult } from './reassignment-start.js';
+export type { GenerationResult } from './reassignment-start.js';
 
 export const GENERATE_OFFERS_PERMISSION = 'reassignments.generate';
-const RULE = 'PRIORITY_FIFO_V1';
-export interface GenerationResult {
-  data: { id: string; status: 'OFFERING' | 'EXHAUSTED'; offer: { id: string; status: 'PENDING'; agendaSlotId: string; createdAt: string; expiresAt: string } | null };
-}
-
 export interface AcceptanceResult {
   data: {
     offer: { id: string; status: 'ACCEPTED'; respondedAt: string };
@@ -68,107 +65,9 @@ export class ReassignmentsService {
           ],
         } });
         if (!grants) throw new ForbiddenException('Forbidden');
-        const slot = await tx.agendaSlot.findFirst({
-          where: { id: agendaSlotId, availability: { branch: { institutionId: context.institutionId }, ...(context.branchId ? { branchId: context.branchId } : {}) } },
-          include: {
-            availability: { include: { branch: { include: { institution: { select: { timeZone: true,
-              currentReassignmentPolicy: { select: { id: true, rankingStrategy: true, offerTtlMinutes: true } },
-            } } } } } },
-            appointment: { include: { status: true, cancellations: { where: { releasesSlot: true }, orderBy: [{ cancelledAt: 'desc' }, { id: 'desc' }], take: 1 } } },
-          },
-        });
-        if (!slot) throw new NotFoundException('Released slot not found');
-        if (slot.status !== 'RELEASED' || slot.startsAt <= now || slot.endsAt <= slot.startsAt ||
-            (slot.blockedUntilAt && slot.blockedUntilAt > now)) throw new ConflictException('Slot is not available for reassignment');
-        const availability = slot.availability;
-        const institutionId = context.institutionId;
-        const validContext = await tx.availability.count({ where: { id: availability.id,
-          ...availableAvailabilityWhere({ institutionId, branchId: availability.branchId, serviceId: availability.serviceId }, availability.professionalId),
-        } });
-        if (!validContext) throw new NotFoundException('Invalid institutional relationships');
-        const appointment = slot.appointment;
-        const cancellation = appointment?.cancellations[0];
-        if (!appointment || !cancellation || appointment.deletedAt || appointment.status.code !== 'CANCELADA' ||
-            !appointment.status.isFinal || appointment.institutionId !== institutionId ||
-            appointment.branchId !== availability.branchId || appointment.serviceId !== availability.serviceId ||
-            appointment.professionalId !== availability.professionalId || appointment.attentionPointId !== availability.attentionPointId ||
-            appointment.startsAt.getTime() !== slot.startsAt.getTime() || appointment.endsAt.getTime() !== slot.endsAt.getTime()) {
-          throw new ConflictException('Cancelled appointment and release required');
-        }
-        const previous = await tx.reassignment.count({ where: { OR: [
-          { originCancellationId: cancellation.id },
-          { agendaSlotId, status: { in: ['PENDING', 'EVALUATING', 'OFFERING'] } },
-        ] } });
-        const pending = await tx.appointmentOffer.count({ where: { agendaSlotId, status: 'PENDING' } });
-        if (previous || pending) throw new ConflictException('Release has already been evaluated or offered');
-        const timeZone = availability.branch.institution.timeZone;
-        try { localTime(slot.startsAt, timeZone); } catch { throw new ServiceUnavailableException('Institution time zone unavailable'); }
-        const claimed = await tx.agendaSlot.updateMany({
-          where: { id: agendaSlotId, status: 'RELEASED', lockVersion: slot.lockVersion, startsAt: { gt: now } },
-          data: { lockVersion: { increment: 1 } },
-        });
-        if (claimed.count !== 1) throw new ConflictException('Slot changed; retry request');
-        const entries = await tx.waitlistEntry.findMany({
-          where: { institutionId, serviceId: availability.serviceId, deletedAt: null, status: { isFinal: false } },
-          select: candidateSelect,
-          orderBy: [{ priority: { level: 'asc' } }, { enteredAt: 'asc' }, { id: 'asc' }],
-        });
-        const slotContext = { institutionId, serviceId: availability.serviceId, branchId: availability.branchId,
-          sourceUserId: appointment.userId, startsAt: slot.startsAt, endsAt: slot.endsAt, timeZone };
-        const policy = availability.branch.institution.currentReassignmentPolicy;
-        const strategy = policy?.rankingStrategy ?? 'PRIORITY_THEN_WAITING';
-        const evaluations = rankCandidates(entries, strategy).map((entry) => ({ entry, reason: exclusionReason(entry, slotContext, now), id: randomUUID() }));
-        const eligible = evaluations.filter((evaluation) => evaluation.reason === null);
-        const ttl = policy?.offerTtlMinutes ?? this.config.getOrThrow<number>('WAITLIST_OFFER_TTL_MINUTES');
-        const reassignmentId = randomUUID();
-        await tx.reassignment.create({ data: {
-          id: reassignmentId, institutionId, policyId: policy?.id ?? null, originCancellationId: cancellation.id, appointmentId: appointment.id,
-          agendaSlotId, serviceId: availability.serviceId, sourceUserId: appointment.userId,
-          initialSlotVersion: slot.lockVersion, ruleCode: strategy === 'PRIORITY_THEN_WAITING' ? RULE : 'FIFO_PRIORITY_V1',
-          scoringVersion: strategy === 'PRIORITY_THEN_WAITING' ? 'priority-level-asc-fifo-v1' : 'fifo-priority-level-asc-v1',
-          criteriaSnapshot: { timeZone, startsAt: slot.startsAt.toISOString(), endsAt: slot.endsAt.toISOString(), branchId: availability.branchId,
-            professionalId: availability.professionalId, offerTtlMinutes: ttl, actorUserId: context.userId,
-            emptyPreferences: 'EXCLUDE_UNLESS_EXPLICIT_TIME_OR_BRANCH_CONSENT', explicitDaysOverrideWeekendFlag: true },
-          status: eligible.length ? 'OFFERING' : 'EXHAUSTED', detectedAt: now, startedAt: now,
-          finishedAt: eligible.length ? null : now, closureReasonCode: eligible.length ? null : 'NO_ELIGIBLE_CANDIDATES',
-        } });
-        let rank = 0;
-        if (evaluations.length) await tx.reassignmentCandidate.createMany({ data: evaluations.map(({ entry, reason, id }) => ({
-          id, reassignmentId, waitlistEntryId: entry.id, userId: entry.userId, priorityId: entry.priorityId,
-          evaluationStatus: reason ? 'EXCLUDED' : 'ELIGIBLE', priorityLevelSnapshot: entry.priority.level,
-          entryUpdatedAtSnapshot: entry.updatedAt, rankingPosition: reason ? null : ++rank,
-          // Schema requires a score for eligible candidates. It is just inverse configured level;
-          // Ranking uses the selected ordering; this legacy score representation is unchanged.
-          totalScore: reason ? null : new Prisma.Decimal(-entry.priority.level),
-          scoreFactors: [{ code: 'PRIORITY_LEVEL', value: entry.priority.level }, { code: 'ENTERED_AT', value: entry.enteredAt.toISOString() }],
-          evaluationContext: preferenceSnapshot(entry), exclusionReasonCode: reason, evaluatedAt: now,
-        })) });
-        const auditContext = { institutionId, branchId: availability.branchId, actorUserId: context.userId,
-          actorType: 'USER' as const, outcome: 'SUCCESS' as const };
-        await AuditService.record(tx, { ...auditContext, actionCode: 'REASSIGNMENT_STARTED', resourceType: 'REASSIGNMENT',
-          resourceId: reassignmentId, newState: eligible.length ? 'OFFERING' : 'EXHAUSTED' });
-        const winner = eligible[0];
-        if (!winner) {
-          await AuditService.record(tx, { ...auditContext, actionCode: 'REASSIGNMENT_EXHAUSTED', resourceType: 'REASSIGNMENT',
-            resourceId: reassignmentId, newState: 'EXHAUSTED', reasonCode: 'NO_ELIGIBLE_CANDIDATES' });
-          return { data: { id: reassignmentId, status: 'EXHAUSTED', offer: null } };
-        }
-        // Use the same instant for both timestamps, after the evaluation work.
-        const createdAt = new Date();
-        const expiresAt = new Date(createdAt.getTime() + ttl * 60_000);
-        if (!Number.isFinite(expiresAt.getTime())) throw new ServiceUnavailableException('Offer TTL out of supported range');
-        const current = await tx.agendaSlot.count({ where: { id: agendaSlotId, status: 'RELEASED', lockVersion: slot.lockVersion + 1, startsAt: { gt: createdAt } } });
-        if (!current) throw new ConflictException('Slot is no longer eligible');
-        const offer = await tx.appointmentOffer.create({ data: {
-          id: randomUUID(), reassignmentId, candidateId: winner.id, agendaSlotId, attemptNumber: 1,
-          status: 'PENDING', expectedSlotVersion: slot.lockVersion + 1, createdAt, expiresAt,
-        }, select: { id: true } });
-        await AuditService.record(tx, { ...auditContext, actionCode: 'OFFER_CREATED', resourceType: 'OFFER', resourceId: offer.id, newState: 'PENDING' });
-        await NotificationsService.create(tx, { recipientUserId: winner.entry.userId, type: 'OFFER_CREATED',
-          institutionId, branchId: availability.branchId, resourceType: 'OFFER', resourceId: offer.id,
-          dedupeKey: `OFFER_CREATED:${offer.id}`, data: { startsAt: slot.startsAt.toISOString(), expiresAt: expiresAt.toISOString() } });
-        return { data: { id: reassignmentId, status: 'OFFERING', offer: { id: offer.id, status: 'PENDING', agendaSlotId,
-          createdAt: createdAt.toISOString(), expiresAt: expiresAt.toISOString() } } };
+        return startReassignment(tx, this.config, agendaSlotId, {
+          kind: 'MANUAL', userId: context.userId, institutionId: context.institutionId, branchId: context.branchId ?? null,
+        }, now);
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
       if (error instanceof HttpException) throw error;

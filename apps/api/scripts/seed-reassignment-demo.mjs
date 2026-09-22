@@ -16,7 +16,7 @@ import { ReassignmentPolicyService } from '../dist/reassignment-policy/reassignm
 export function reassignmentDemoDomain(prisma, config) {
   return {
     catalog: new CatalogAdministrationService(prisma), professionals: new ProfessionalAdministrationService(prisma),
-    availability: new AvailabilityAdministrationService(prisma), appointments: new AppointmentsService(prisma),
+    availability: new AvailabilityAdministrationService(prisma), appointments: new AppointmentsService(prisma, config),
     waitlist: new WaitlistService(prisma), preferences: new WaitlistPreferencesService(prisma),
     reassignments: new ReassignmentsService(prisma, config), offers: new RecipientOffersService(prisma),
     policy: new ReassignmentPolicyService(prisma, config),

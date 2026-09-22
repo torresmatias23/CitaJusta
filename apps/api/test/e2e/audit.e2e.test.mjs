@@ -1,3 +1,4 @@
+import { cancelWithBlockedSlot } from './manual-release.fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test, mock } from 'node:test';
@@ -181,7 +182,7 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
           timeRanges: [{ start: '00:00', end: '23:59' }], preferredBranchIds: [], allowsOtherBranches: false, acceptsAnyProfessional: true }, user.token)).status, 200);
       }
       const booking = await bookExtra(2);
-      for (let i = 0; i < 2; i++) assert.equal((await write('POST', `/appointments/${booking.appointmentId}/cancel`, null, source.token)).status, 200);
+      for (let i = 0; i < 2; i++) assert.equal((await cancelWithBlockedSlot(prisma, booking.appointmentId, () => write('POST', `/appointments/${booking.appointmentId}/cancel`, null, source.token))).status, 200);
       assert.equal((await auditRows('APPOINTMENT_CANCELLED', booking.appointmentId)).length, 1);
       const generated = await write('POST', `/reassignments/${booking.slotId}/offers`); assert.equal(generated.status, 201);
       const pending = await prisma.appointmentOffer.findFirstOrThrow({ where: { reassignmentId: generated.body.data.id, status: 'PENDING' }, include: { candidate: true } });
@@ -193,13 +194,13 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
       for (const [action, id] of [['OFFER_CREATED', pending.id], ['OFFER_CREATED', next.id], ['OFFER_ACCEPTED', next.id], ['OFFER_REJECTED', pending.id],
         ['REASSIGNMENT_STARTED', generated.body.data.id], ['REASSIGNMENT_COMPLETED', generated.body.data.id]]) assert.equal((await auditRows(action, id)).length, 1, action);
       const another = await bookExtra(3);
-      assert.equal((await write('POST', `/appointments/${another.appointmentId}/cancel`, null, source.token)).status, 200);
+      assert.equal((await cancelWithBlockedSlot(prisma, another.appointmentId, () => write('POST', `/appointments/${another.appointmentId}/cancel`, null, source.token))).status, 200);
       const last = await write('POST', `/reassignments/${another.slotId}/offers`); assert.equal(last.status, 201);
       assert.equal((await write('POST', `/reassignments/offers/${last.body.data.offer.id}/reject`, null, rejector.token)).status, 200);
       assert.equal((await auditRows('REASSIGNMENT_EXHAUSTED', last.body.data.id)).length, 1);
       assert.equal((await write('POST', `/waitlist/${rejector.entryId}/withdraw`, null, rejector.token)).status, 200);
       const empty = await bookExtra(4);
-      await write('POST', `/appointments/${empty.appointmentId}/cancel`, null, source.token);
+      await cancelWithBlockedSlot(prisma, empty.appointmentId, () => write('POST', `/appointments/${empty.appointmentId}/cancel`, null, source.token));
       const exhausted = await write('POST', `/reassignments/${empty.slotId}/offers`); assert.equal(exhausted.status, 201);
       assert.equal(exhausted.body.data.offer, null); assert.equal((await auditRows('REASSIGNMENT_EXHAUSTED', exhausted.body.data.id)).length, 1);
     });
@@ -210,7 +211,7 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
       await write('PUT', `/waitlist/${entry.body.data.id}/preferences`, { preferredDays: [1,2,3,4,5,6,7],
         timeRanges: [{ start: '00:00', end: '23:59' }], preferredBranchIds: [], allowsOtherBranches: false, acceptsAnyProfessional: true }, user.token);
       const booking = await bookExtra(5);
-      await write('POST', `/appointments/${booking.appointmentId}/cancel`, null, source.token);
+      await cancelWithBlockedSlot(prisma, booking.appointmentId, () => write('POST', `/appointments/${booking.appointmentId}/cancel`, null, source.token));
       const generated = await write('POST', `/reassignments/${booking.slotId}/offers`); assert.equal(generated.status, 201);
       const offerId = generated.body.data.offer.id;
       await prisma.appointmentOffer.update({ where: { id: offerId }, data: {

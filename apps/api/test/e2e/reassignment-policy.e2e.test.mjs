@@ -1,3 +1,4 @@
+import { cancelWithBlockedSlot } from './manual-release.fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
@@ -88,7 +89,7 @@ test('HU-018 versioned institutional policy and frozen PostgreSQL reassignment p
     async function generate(slotId) {
       await prisma.agendaSlot.update({ where: { id: slotId }, data: { status: 'AVAILABLE', blockedUntilAt: null } });
       const booked = await request('POST', '/appointments', source.token, { agendaSlotId: slotId }); assert.equal(booked.status, 201);
-      assert.equal((await request('POST', `/appointments/${booked.body.data.id}/cancel`, source.token)).status, 200);
+      assert.equal((await cancelWithBlockedSlot(prisma, booked.body.data.id, () => request('POST', `/appointments/${booked.body.data.id}/cancel`, source.token))).status, 200);
       const generated = await request('POST', `/reassignments/${slotId}/offers`, admin.token, undefined, scope); assert.equal(generated.status, 201);
       processIds.push(generated.body.data.id); return generated.body.data;
     }

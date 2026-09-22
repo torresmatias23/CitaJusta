@@ -1,4 +1,7 @@
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { ConfigService } from '@nestjs/config';
+import { startReassignment } from '../reassignments/reassignment-start.js';
+import { isTransactionConflict } from '../database/transaction-conflict.js';
 import { AuditService } from '../audit/audit.service.js';
 import { randomUUID } from 'node:crypto';
 import {
@@ -60,7 +63,7 @@ function mapAppointmentSummary(appointment: AppointmentSummaryRecord) {
 
 @Injectable()
 export class AppointmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly config: ConfigService) {}
 
   async findMine(principal: AuthenticatedPrincipal) {
     const appointments = await this.prisma.appointment.findMany({
@@ -205,6 +208,8 @@ export class AppointmentsService {
         await NotificationsService.create(tx, { recipientUserId: principal.userId, type: 'APPOINTMENT_CANCELLED',
           institutionId: appointment.institutionId, branchId: appointment.branchId, resourceType: 'APPOINTMENT', resourceId: appointmentId,
           dedupeKey: `APPOINTMENT_CANCELLED:${cancellation.id}`, data: { startsAt: appointment.startsAt.toISOString() } });
+        await startReassignment(tx, this.config, slot.id, { kind: 'CANCELLATION', cancellationId: cancellation.id,
+          institutionId: appointment.institutionId, branchId: appointment.branchId });
         return {
           data: mapAppointmentSummary({ ...appointment, status: { code: cancelledStatus.code } }),
         };
@@ -213,11 +218,11 @@ export class AppointmentsService {
       if (error instanceof HttpException) throw error;
       const code = typeof error === 'object' && error !== null && 'code' in error
         ? error.code : undefined;
-      if (code === 'P2034' && retrySerializationConflict) {
+      if (isTransactionConflict(error) && retrySerializationConflict) {
         // A fresh transaction can observe a concurrent cancellation as an idempotent success.
         return this.cancelWithRetry(appointmentId, principal, false);
       }
-      if (code === 'P2002' || code === 'P2034' || code === 'P2003') {
+      if (code === 'P2002' || isTransactionConflict(error) || code === 'P2003') {
         throw new ConflictException('Cancellation conflict; retry cancellation');
       }
       throw new InternalServerErrorException('Unable to cancel appointment');

@@ -1,3 +1,4 @@
+import { cancelWithBlockedSlot } from './manual-release.fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
@@ -103,7 +104,7 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
     const booking = await request('POST', '/api/v1/appointments', source.token, { agendaSlotId: ids.slotAvailable });
     assert.equal(booking.status, 201);
     const appointmentId = booking.body.data.id;
-    assert.equal((await request('POST', `/api/v1/appointments/${appointmentId}/cancel`, source.token)).status, 200);
+    assert.equal((await cancelWithBlockedSlot(prisma, appointmentId, () => request('POST', `/api/v1/appointments/${appointmentId}/cancel`, source.token))).status, 200);
     const appointmentBefore = await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId }, include: { historyEntries: true, cancellations: true } });
     const slotBefore = await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable } });
 
@@ -246,7 +247,7 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
         { ...preferences, acceptsAnyProfessional: false })).status, 200);
       const reserved = await request('POST', '/api/v1/appointments', source.token, { agendaSlotId: ids.slotOtherContext });
       assert.equal(reserved.status, 201);
-      assert.equal((await request('POST', `/api/v1/appointments/${reserved.body.data.id}/cancel`, source.token)).status, 200);
+      assert.equal((await cancelWithBlockedSlot(prisma, reserved.body.data.id, () => request('POST', `/api/v1/appointments/${reserved.body.data.id}/cancel`, source.token))).status, 200);
       const response = await generate(ids.slotOtherContext);
       assert.equal(response.status, 201); assert.equal(response.body.data.status, 'EXHAUSTED'); assert.equal(response.body.data.offer, null);
       const process = await prisma.reassignment.findUniqueOrThrow({ where: { id: response.body.data.id }, include: { candidates: true } });
@@ -474,7 +475,7 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
       await prisma.agendaSlot.update({ where: { id: ids.slotBlocked }, data: { status: 'AVAILABLE', blockedUntilAt: null } });
       const booked = await request('POST', '/api/v1/appointments', source.token, { agendaSlotId: ids.slotBlocked });
       assert.equal(booked.status, 201);
-      assert.equal((await request('POST', `/api/v1/appointments/${booked.body.data.id}/cancel`, source.token)).status, 200);
+      assert.equal((await cancelWithBlockedSlot(prisma, booked.body.data.id, () => request('POST', `/api/v1/appointments/${booked.body.data.id}/cancel`, source.token))).status, 200);
       const generated = await generate(ids.slotBlocked); assert.equal(generated.status, 201);
       assert.ok(generated.body.data.offer);
       const rejected = await request('POST', `/api/v1/reassignments/offers/${generated.body.data.offer.id}/reject`, winnerUser.token);
