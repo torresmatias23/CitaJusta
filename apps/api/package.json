@@ -11,6 +11,7 @@
     "bootstrap:waitlist": "npm run build && node scripts/bootstrap-waitlist.mjs",
     "seed:dev": "npm run build && node scripts/seed-development.mjs",
     "seed:reassignment-demo": "npm run build && node scripts/seed-reassignment-demo.mjs",
+    "seed:booking-demo": "npm run build && node scripts/seed-booking-demo.mjs",
     "check:dev": "npm run build && node scripts/check-development.mjs",
     "start": "node dist/main.js",
     "test": "npm run build && node --test test/*.test.mjs",
