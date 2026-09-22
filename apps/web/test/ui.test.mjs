@@ -21,6 +21,8 @@ after(() => vite.close());
 
 const { AppRoutes } = await vite.ssrLoadModule('/src/routes/app-routes.tsx');
 const { OfferCard } = await vite.ssrLoadModule('/src/features/offers/offers-page.tsx');
+const { SearchDateFields } = await vite.ssrLoadModule('/src/features/home/search-form.tsx');
+const { initialSelection } = await vite.ssrLoadModule('/src/features/availability/search-selection.ts');
 const { AsyncState } = await vite.ssrLoadModule(
   '/src/components/ui/async-state.tsx',
 );
@@ -40,6 +42,33 @@ const renderRoute = (path) =>
       ),
     ),
   );
+
+test('búsqueda flexible muestra ambas opciones y sólo el selector 7/14/30', () => {
+  const html = renderToStaticMarkup(createElement(SearchDateFields, {
+    selection: initialSelection, update() {}, disabled: false, now: new Date(2030, 5, 1, 12),
+  }));
+  assert.match(html, /<legend>¿Cuándo quieres tu atención\?<\/legend>/);
+  assert.match(html, /Fecha específica/);
+  assert.match(html, /Soy flexible/);
+  assert.match(html, /checked="" value="flexible"/);
+  for (const days of [7, 14, 30]) assert.ok(html.includes(`Próximos ${days} días`));
+  assert.doesNotMatch(html, /type="date"/);
+});
+
+test('fecha específica muestra calendario requerido con mínimo local y errores accesibles', () => {
+  const render = (date, disabled = false) => renderToStaticMarkup(createElement(SearchDateFields, {
+    selection: { ...initialSelection, mode: 'specific', date }, update() {}, disabled, now: new Date(2030, 5, 1, 12),
+  }));
+  const html = render('2030-06-02');
+  assert.match(html, /for="specific-date"/);
+  assert.match(html, /type="date" required=""/);
+  assert.match(html, /min="2030-06-01"/);
+  assert.match(html, /aria-describedby="search-date-help"/);
+  assert.doesNotMatch(html, /<select|aria-invalid="true"/);
+  assert.match(render('2030-05-31'), /aria-invalid="true"/);
+  assert.match(render('2030-05-31'), /Selecciona una fecha válida desde hoy/);
+  assert.match(render('', true), /<fieldset[^>]*disabled=""/);
+});
 
 test('ofertas exige sesión y nunca muestra datos o acciones sin verificarla', () => {
   const html = renderRoute('/ofertas');

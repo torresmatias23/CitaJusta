@@ -32,6 +32,8 @@ Desarrollo: `http://127.0.0.1:5173`. El Home público no requiere sesión; los f
 - `/ofertas`: requiere sesión; ofertas propias, vigencia, aceptación/rechazo y estados históricos con contratos reales de reasignación (HU-022).
 - `/notificaciones`: centro protegido de notificaciones persistentes, paginado y con lectura individual.
 
+El buscador permite “Soy flexible” (próximos 7, 14 o 30 días) o “Fecha específica” desde hoy. La fecha específica se interpreta en el calendario local del dispositivo: desde ahora si es hoy, o desde el inicio del día si es futura, hasta el inicio local del día siguiente, respetando cambios de horario. Ambos modos navegan a `/resultados` con los mismos parámetros `institutionId`, `branchId`, `serviceId`, `from` y `to`; las fechas se envían en ISO.
+
 HU-021 (Lista de espera/preferencias) y HU-022 (ofertas) están implementadas. `GET /api/v1/reassignments/offers/me` consulta hasta 100 ofertas propias, `createdAt DESC, id DESC`, sin contexto institucional del cliente. Muestra servicio, sede, nombre público del profesional, horario y estados `PENDING`, `ACCEPTED`, `REJECTED`, `EXPIRED`, `INVALIDATED`, `CANCELLED`. No consulta el GET administrativo de supervisión.
 
 La vigencia usa `expiresAt` real, no un TTL Web: contador local cada segundo, sin polling. Una oferta `PENDING` cuyo plazo terminó muestra “Plazo vencido” y deshabilita respuestas, conservando el estado persistido. El reloj del dispositivo es orientativo; el backend decide si una respuesta es válida. Los horarios se muestran en la zona horaria del dispositivo, indicada en la página.
