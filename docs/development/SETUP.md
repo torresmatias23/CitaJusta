@@ -89,7 +89,23 @@ Seed/check aceptan únicamente `NODE_ENV=development` (o ausente), host loopback
 
 El seed es transaccional e idempotente: no actualiza registros compatibles ni sus timestamps. Si un ID demo tiene otra identidad, relación o configuración incompatible, falla sin sobrescribir. Colisiones de códigos/nivel también provocan rollback. Revisar la colisión; no sortearla con SQL manual.
 
-`seed:dev` no prepara booking. Para el escenario acotado de reserva/cancelación/reasignación existe el tooling opcional descrito abajo; una agenda demo general sigue fuera de ese seed.
+`seed:dev` no prepara booking. Los toolings opcionales siguientes tienen responsabilidades separadas.
+
+## Agenda local para reserva manual Web
+
+Después de `seed:dev` y `bootstrap:appointment-status` (preparación inicial), ejecutar:
+
+```powershell
+npm run seed:booking-demo -w @citajusta/api
+```
+
+Usa Institución Demo CitaJusta → Sede Centro Demo → Atención General Demo y crea **Profesional Demo Booking** mediante el servicio administrativo. Un intervalo futuro de dos horas produce cuatro cupos de 30 minutos mediante `AvailabilityAdministrationService`, nunca insertando agenda/cupos directamente. El comando imprime horarios institucionales y UTC; buscar desde Web con **Próximos 30 días**.
+
+Reutiliza cupos futuros AVAILABLE sin cita, reasignación ni bloqueo. Si no quedan, busca otra fecha dentro de los próximos 28 días, evitando agenda existente, bloqueos y feriados. No reactiva, borra ni modifica cupos anteriores. Conserva incluso un único cupo disponible, sin rellenar lo consumido. Sin fechas utilizables, falla de forma explícita.
+
+Sólo acepta el destino local de desarrollo validado por `seed:dev`, comprueba el nombre real de la base y serializa ejecuciones del tooling mediante advisory lock. Las dos identidades técnicas no tienen contraseña utilizable; sólo el operador recibe `professionals.create` y `availability.create` en la institución demo. Colisiones/configuraciones ajenas fallan sin sobrescribir. Las transacciones de dominio son independientes: una preparación interrumpida puede dejar recursos propios y la próxima ejecución los reutiliza.
+
+No crea usuarios públicos, reservas, cancelaciones, entradas Waitlist, ofertas, reasignaciones ni notificaciones. Los servicios administrativos conservan su auditoría normal. No altera catálogos existentes: si faltan, indica la preparación requerida.
 
 ## Escenario local de reasignación para HU-022
 
