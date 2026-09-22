@@ -1,7 +1,7 @@
 ﻿# Inventario documental
 
 **Proyecto:** CitaJusta
-**Fecha de actualización:** 9 de septiembre de 2026
+**Fecha de actualización:** 22 de septiembre de 2026
 **Estado:** VIGENTE / EN ACTUALIZACIÓN DOCUMENTAL
 
 Este inventario registra los documentos, artefactos técnicos y evidencias académicas actualmente presentes o preparados para el proyecto CitaJusta. La versión anterior correspondía al 3 de septiembre de 2026 y quedó desactualizada después de la implementación de la aplicación web, la integración con la API, la ampliación de pruebas y el uso real de GitHub Projects, Issues y Pull Requests.
@@ -11,16 +11,17 @@ Este inventario registra los documentos, artefactos técnicos y evidencias acad�
 | Nombre | Ruta | Propósito | Estado actual | Requiere actualización |
 | --- | --- | --- | --- | --- |
 | Memoria operativa | `AGENTS.md` | Reglas para agentes, arquitectura, seguridad y trabajo incremental | VIGENTE COMO APOYO | Sí; revisar referencias de estado inicial y scripts cuando corresponda |
-| Arquitectura | `docs/development/ARCHITECTURE.md` | Arquitectura, dominios y flujo crítico | PARCIAL / REUTILIZABLE | Sí; diferenciar con claridad estado implementado y objetivo |
-| Decisiones técnicas | `docs/development/DECISIONS.md` | Decisiones de stack y arquitectura | PARCIAL / REUTILIZABLE | Sí; incorporar decisiones posteriores y Docker cuando se implemente |
-| Entorno de desarrollo | `docs/development/SETUP.md` | Instalación y configuración local | PARCIAL / REUTILIZABLE | Sí; alinear con Node, PostgreSQL, workspaces y flujo actual |
+| README raíz | `README.md` | Estado, contratos y navegación del proyecto | ACTUALIZADO AL 22-09-2026 | Mantener junto con el avance; licencia y roles siguen pendientes |
+| Arquitectura | `docs/development/ARCHITECTURE.md` | Arquitectura, dominios y flujo crítico | ACTUALIZADO AL 22-09-2026 | Mantener; Desktop sigue planificado |
+| Decisiones técnicas | `docs/development/DECISIONS.md` | Decisiones de stack y arquitectura | ACTUALIZADO AL 22-09-2026 | HU-025/HU-026 incorporadas; actualizar Docker cuando se implemente |
+| Entorno de desarrollo | `docs/development/SETUP.md` | Instalación y configuración local | ACTUALIZADO AL 22-09-2026 | Mantener instrucciones del flujo automático y pruebas |
 | Plantilla API | `apps/api/.env.example` | Variables de entorno ficticias del backend | VIGENTE | Mantener al agregar nuevas variables |
 | Plantilla Web | `apps/web/.env.example` | Configuración del frontend y proxy local | VIGENTE | Mantener al agregar nuevas variables |
 | README Web | `apps/web/README.md` | Uso y estado de la aplicación web | VIGENTE | Mantener junto con nuevas funcionalidades |
 | Prisma schema | `apps/api/prisma/schema.prisma` | Modelo de datos relacional | IMPLEMENTADO | Mantener trazabilidad con ER y normalización |
 | Migraciones Prisma | `apps/api/prisma/migrations/` | Evolución versionada de la base de datos | IMPLEMENTADO | Mantener por cada cambio estructural |
-| Aplicación Web | `apps/web/` | Frontend React/Vite integrado con la API | IMPLEMENTADO Y VALIDADO | Continuar con nuevas historias |
-| API Backend | `apps/api/` | Backend NestJS, seguridad, catálogos, citas y persistencia | IMPLEMENTADO Y VALIDADO | Continuar con HU pendientes |
+| Aplicación Web | `apps/web/` | Frontend React/Vite integrado con la API | MVP CERRADO Y VALIDADO | Mantener el flujo Web; siguiente etapa Desktop |
+| API Backend | `apps/api/` | Backend NestJS y flujo Web/backend HU-007 a HU-026 | IMPLEMENTADO Y VALIDADO | Mantener; Desktop, Docker y hardening siguen pendientes |
 
 ## Documentos académicos incorporados
 
@@ -37,10 +38,10 @@ Los seis DOCX continúan siendo evidencia útil, pero no deben considerarse vers
 
 ## Documentos de control Capstone
 
-| Nombre | Ruta | Propósito | Estado al 09-09-2026 |
+| Nombre | Ruta | Propósito | Estado al 22-09-2026 |
 | --- | --- | --- | --- |
 | Guía Capstone | `docs/capstone/README.md` | Organización y criterios de cumplimiento | REQUIERE REVISIÓN |
-| Matriz de cumplimiento | `docs/capstone/CAPSTONE_COMPLIANCE_MATRIX.md` | Trazar requisitos, evidencia y brechas | REQUIERE ACTUALIZACIÓN |
+| Matriz de cumplimiento | `docs/capstone/CAPSTONE_COMPLIANCE_MATRIX.md` | Trazar requisitos, evidencia y brechas | ACTUALIZADO EN ESTA REVISIÓN |
 | Inventario documental | `docs/capstone/DOCUMENT_INVENTORY.md` | Registrar documentos y faltantes | ACTUALIZADO EN ESTA REVISIÓN |
 | Checklist de publicación | `docs/capstone/PUBLICATION_CHECKLIST.md` | Seguridad, publicación y preparación de entrega | ACTUALIZADO EN ESTA REVISIÓN |
 | Evidencia Scrum con GitHub | `docs/capstone/GITHUB_SCRUM_EVIDENCE.md` | Trazabilidad con Issues, Project, branches y PR | ACTUALIZADO EN ESTA REVISIÓN |
@@ -51,13 +52,14 @@ La documentación debe mantenerse alineada con la siguiente evidencia real:
 
 | Evidencia | Resultado |
 | --- | --- |
-| Backend tests | 114/114 PASS |
-| E2E appointments | 22/22 PASS |
-| Checkpoint E2E backend | 1/1 PASS |
-| Web tests | 39/39 PASS |
+| HU-025 API | 390/390 PASS |
+| HU-025 E2E | 8/8 PASS |
+| HU-026 fechas | 10/10 PASS |
+| HU-026 UI | 16/16 PASS |
+| Web tests | 95/95 PASS |
+| API build | PASS |
 | Web typecheck | PASS |
 | Web build | PASS |
-| Web/API/PostgreSQL E2E | 13/13 PASS |
 | Flujo manual | Registro → Login → Catálogos → Disponibilidad → Reserva → Confirmación → Mis citas → Cancelación → Logout |
 | Integración Web | PR #43 mergeado a `main` |
 
@@ -72,7 +74,7 @@ El estado actual ya no corresponde a una propuesta de uso futuro. El proyecto ut
 - Pull Requests para revisión e integración.
 - Resultados de pruebas como evidencia previa al merge.
 
-La integración web fue desarrollada en `feat/web-api-integration` e incorporada mediante el Pull Request #43.
+La integración web fue desarrollada en `feat/web-api-integration` e incorporada mediante el Pull Request #43. Las evidencias Scrum recientes HU-025/HU-026 ya están incorporadas, versionadas y mergeadas.
 
 ## Estructura académica existente
 
@@ -90,16 +92,16 @@ La integración web fue desarrollada en `feat/web-api-integration` e incorporada
 
 Los README de estructura no constituyen por sí solos evidencia de cumplimiento.
 
-## Documentos académicos preparados y aún por incorporar al repositorio
+## Documentos académicos preparados y seguimiento de incorporación
 
-A la fecha existen versiones de trabajo preparadas fuera de la estructura versionada y deben incorporarse en una pasada documental controlada:
+Las evidencias Scrum recientes ya están incorporadas/versionadas. La siguiente relación conserva el historial de artefactos preparados: revisar las versiones de entregables anteriores antes de dar por pendiente o completa su incorporación.
 
 | Documento | Estado | Destino propuesto |
 | --- | --- | --- |
 | Declaración de Nivel de Avance | PREPARADO / PENDIENTE DE INCORPORAR | Evidencia académica correspondiente |
 | Acta de Constitución del Proyecto | DISPONIBLE SEGÚN DOCUMENTACIÓN DEL EQUIPO / REVISAR VERSIÓN | `Fase 1/Evidencias Grupales/` |
 | Alcances del Proyecto | PREPARADO / PENDIENTE DE INCORPORAR | `Fase 1/Evidencias Grupales/` |
-| Product Backlog priorizado | PREPARADO / PENDIENTE DE INCORPORAR | `Fase 1/Evidencias Grupales/` |
+| Product Backlog priorizado | EVIDENCIAS RECIENTES VERSIONADAS; MANTENER ALINEACIÓN | `Fase 1/Evidencias Grupales/` |
 | Sprint Backlog Sprint 4 | EXISTENTE COMO EVIDENCIA HISTÓRICA / PENDIENTE DE INCORPORAR | Evidencias grupales de la fase correspondiente |
 | Sprint Backlog Sprint 5 | PREPARADO / PENDIENTE DE INCORPORAR | `Fase 2/Evidencias Grupales/` |
 | Burndown Sprint 4 | PREPARADO / PENDIENTE DE INCORPORAR | `Fase 2/Evidencias Grupales/` |
@@ -129,9 +131,6 @@ A la fecha existen versiones de trabajo preparadas fuera de la estructura versio
 | Aplicación de escritorio | PENDIENTE DE IMPLEMENTAR | Evidencia de sistema |
 | Dockerfile | PENDIENTE DE IMPLEMENTAR | Evidencia de sistema |
 | Docker Compose | PENDIENTE DE IMPLEMENTAR | Evidencia de sistema |
-| HU-007 Lista de espera | PENDIENTE | Código + evidencia Sprint |
-| HU-008 Preferencias | PENDIENTE | Código + evidencia Sprint |
-| HU-009 Ofertas / reasignación | PENDIENTE | Código + evidencia Sprint |
 | Evidencia funcional de innovación | PARCIAL | Evidencia de documentación y sistema |
 | Presentación final | PENDIENTE | `Fase 3/Evidencias Grupales/` |
 | Licencia | PENDIENTE DE DEFINIR | Raíz |
@@ -152,4 +151,4 @@ Las siguientes reglas deben respetarse al actualizar evidencia:
 
 ## Próxima actualización recomendada
 
-Después de incorporar los documentos académicos preparados y actualizar `CAPSTONE_COMPLIANCE_MATRIX.md`, volver a revisar este inventario para cambiar cada elemento de `PENDIENTE DE INCORPORAR` a su estado real y dejar trazabilidad de la versión efectivamente almacenada en el repositorio.
+Mantener la matriz y este inventario alineados con las evidencias recientes ya versionadas. Revisar los entregables académicos restantes y registrar sus versiones; el cierre del MVP Web no completa Desktop/Tauri, Docker, UML, ER formal, normalización, rendimiento ni licencia.

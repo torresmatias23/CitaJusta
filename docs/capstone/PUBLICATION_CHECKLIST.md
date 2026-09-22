@@ -1,7 +1,7 @@
 ﻿# Checklist de publicación en GitHub
 
 **Proyecto:** CitaJusta
-**Fecha de actualización:** 9 de septiembre de 2026
+**Fecha de actualización:** 22 de septiembre de 2026
 **Estado:** REPOSITORIO PUBLICADO / CHECKLIST DE MANTENCIÓN Y ENTREGA
 
 El repositorio de CitaJusta ya se encuentra disponible en GitHub y el acceso remoto fue validado mediante operaciones reales de `pull`, `push` y Pull Request. Este checklist deja de ser sólo una preparación para publicar y pasa a funcionar como control de seguridad, consistencia documental y preparación de la entrega académica final.
@@ -27,11 +27,14 @@ La revisión realizada hasta ahora no ha evidenciado claves privadas, tokens rea
 - [x] Documentos técnicos iniciales incorporados en `Fase 2/Evidencias Proyecto/Evidencias de documentación/`.
 - [x] Documentación técnica canónica presente en `docs/development/`.
 - [x] Documentación de control Capstone presente en `docs/capstone/`.
-- [x] Aplicación Web implementada e integrada con la API.
+- [x] MVP Web cerrado funcionalmente al 22-09-2026 e integrado con la API.
 - [x] Backend NestJS y PostgreSQL implementados y operativos.
-- [x] Flujo funcional de autenticación, catálogos, disponibilidad, reserva, listado y cancelación validado.
+- [x] Flujo Web/backend HU-007 a HU-026 implementado: lista de espera/preferencias y ofertas, además de autenticación, catálogos, disponibilidad, reserva, Mis citas y cancelación.
+- [x] HU-023 expiración automática, HU-024 notificaciones internas, HU-025 inicio automático de reasignación y HU-026 fecha específica/flexible completadas.
+- [x] README, ARCHITECTURE, DECISIONS y SETUP actualizados.
 - [x] Uso real de Issues, GitHub Projects, ramas y Pull Requests para trazabilidad.
-- [ ] Incorporar las versiones académicas actualizadas de Product Backlog, Sprint Backlog, Burndown, Release Plan, Daily Meeting, Alcances y demás evidencias preparadas.
+- [x] Evidencias Scrum recientes HU-025/HU-026 incorporadas/versionadas y mergeadas.
+- [ ] Revisar versiones y entregables académicos restantes de planificación y seguimiento.
 - [ ] Actualizar los documentos técnicos v0.1 que aún describen decisiones o estados superados.
 - [ ] Mantener consistente la identidad y los roles del equipo entre README y documentos académicos.
 - [ ] Revisar el repositorio desde una vista pública antes de la entrega al docente.
@@ -40,13 +43,13 @@ La revisión realizada hasta ahora no ha evidenciado claves privadas, tokens rea
 
 La aplicación cuenta actualmente con evidencia técnica verificable:
 
-- Backend tests: 114/114 PASS.
-- E2E de appointments: 22/22 PASS.
-- Checkpoint E2E backend: 1/1 PASS.
-- Web tests: 39/39 PASS.
+- HU-025 API: 390/390 PASS.
+- HU-025 E2E: 8/8 PASS.
+- HU-026 fechas: 10/10 PASS.
+- HU-026 UI: 16/16 PASS.
+- Web completa: 95/95 PASS.
 - Web typecheck: PASS.
-- Web build: PASS.
-- Web/API/PostgreSQL E2E: 13/13 PASS.
+- Builds correspondientes API/Web: PASS.
 - `git diff --check`: PASS en el cierre de la integración web.
 - Flujo manual completo validado:
   registro → login → catálogos → disponibilidad → reserva → confirmación → Mis citas → cancelación → logout.
@@ -70,13 +73,13 @@ GitHub CLI (`gh`) no es un requisito para la publicación. En el entorno actual 
 
 Los siguientes puntos continúan abiertos y deben permanecer visibles como parte del avance incremental:
 
-- Incorporar y versionar los artefactos académicos reales de planificación y seguimiento.
+- Revisar los artefactos académicos restantes; mantener las evidencias Scrum recientes ya incorporadas/versionadas.
 - Formalizar o actualizar Product Vision, Product Backlog, Definition of Done y Sprint Backlogs según la evidencia vigente.
 - Completar y aprobar el documento de diseño consolidado.
 - Completar manual técnico, modelo ER, UML, requisitos no funcionales medibles y evidencia de normalización.
 - Implementar y validar la aplicación de escritorio.
 - Implementar y validar Dockerfile y Docker Compose según la pauta Capstone vigente.
-- Desarrollar las historias de usuario pendientes asociadas a lista de espera, preferencias y reasignación.
+- Mantener la evidencia funcional de lista de espera, preferencias y reasignación ya implementadas.
 - Consolidar planes y evidencia de pruebas por sprint.
 - Incorporar pruebas de rendimiento y una evaluación de seguridad dedicada.
 - Mantener “5 APIs / al menos 2 propias” como `PENDIENTE_DOCENTE` hasta confirmar formalmente el criterio de evaluación.
