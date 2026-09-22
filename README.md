@@ -14,19 +14,21 @@ La disponibilidad de citas cambia cuando se producen reservas, cancelaciones y e
 
 ## Propuesta de valor
 
-Centralizar el catálogo y la disponibilidad, y preparar una reasignación segura de cupos mediante lista de espera, compatibilidad, priorización y ofertas temporales. El backend es la autoridad de las reglas críticas y debe impedir la doble asignación.
+Centralizar el catálogo y la disponibilidad, y realizar una reasignación segura de cupos mediante lista de espera, compatibilidad, priorización y ofertas temporales. El backend es la autoridad de las reglas críticas y debe impedir la doble asignación.
 
 ## Estado actual
 
+MVP Web cerrado funcionalmente al **22-09-2026**. HU-021 a HU-026 completadas; Desktop es la siguiente etapa. Docker, OpenAPI y hardening siguen pendientes.
+
 | Componente | Estado verificable |
 | --- | --- |
-| API backend | En desarrollo: salud, autenticación/sesiones, base RBAC, catálogos, disponibilidad, reserva transaccional (HU-004), consulta propia (HU-005) y cancelación (HU-006) |
-| Persistencia | PostgreSQL y Prisma; 37 modelos y migraciones versionadas |
-| Aplicación web | Fundación React/Vite en `apps/web`: Home responsive de demostración, todavía sin sesión ni conexión al backend |
+| API backend | Funcional: autenticación/RBAC, catálogos, agenda/citas, lista de espera, ofertas, reasignación automática y notificaciones persistentes |
+| Persistencia | PostgreSQL y Prisma; modelos y migraciones versionadas |
+| Aplicación web | MVP integrado con API: autenticación, catálogos, disponibilidad, reserva, Mis citas, cancelación, lista de espera/preferencias (HU-021), ofertas (HU-022), notificaciones y búsqueda por fecha específica/flexible |
 | Aplicación de escritorio | Pendiente; `apps/desktop` aún no existe |
 | Docker | Obligatorio para Capstone, pendiente de implementación |
-| Funciones críticas de citas, lista de espera y reasignación | Modelado de base presente; implementación funcional incompleta |
-| Documentación académica | Seis DOCX reales incorporados; revisión, trazabilidad y actualización pendientes |
+| Funciones críticas de citas, lista de espera y reasignación | Implementadas, con inicio automático al cancelar un cupo reutilizable (HU-025) y expiración/continuación automática (HU-023) |
+| Documentación académica | Seis DOCX reales incorporados; evidencias Scrum HU-025/HU-026 actualizadas y mergeadas; se conserva el historial académico |
 
 ## Tecnologías
 
@@ -41,12 +43,12 @@ Centralizar el catálogo y la disponibilidad, y preparar una reasignación segur
 ## Arquitectura resumida
 
 ```text
-Web React/Vite (base visual) -------\
+Web React/Vite (MVP funcional) -----\
                                       > API REST NestJS -> Prisma -> PostgreSQL
 Desktop Tauri/React (pendiente) ----/
 ```
 
-Web y escritorio consumirán el mismo backend. La autenticación, autorización, aislamiento institucional, disponibilidad y futuras transiciones de reservas, ofertas y reasignaciones deben resolverse en el backend.
+Web consume el backend; Desktop consumirá la misma API. La autenticación, autorización, aislamiento institucional, disponibilidad y transiciones de reservas, ofertas y reasignaciones se resuelven en el backend.
 
 La API funcional usa el prefijo `/api/v1`; el endpoint técnico `GET /health` permanece sin prefijo.
 
@@ -56,15 +58,15 @@ HU-005: `GET /api/v1/appointments/me` requiere Bearer token. No admite campos de
 
 HU-006: `POST /api/v1/appointments/:appointmentId/cancel` requiere Bearer token, UUID válido y no admite campos de query/body. Devuelve `200` con `{ data: appointment }` tanto al cancelar como al repetir una cancelación propia ya completada; `appointment` contiene exactamente los campos públicos de cada elemento de HU-005, con `status: "CANCELADA"`. Errores: `400` para input inválido, `401` sin autenticación válida, `404` indistinguible para cita inexistente/eliminada/ajena o relaciones incoherentes, `409` para estado no cancelable o conflicto concurrente no resuelto y `503` si el catálogo de cancelación falta o es incompatible. Sólo transiciona `AGENDADA` activa, no final y con `allowsCancellation: true` a `CANCELADA`. No se añade una ventana temporal ni se exige que los catálogos institucionales sigan activos para cancelar una cita propia coherente.
 
-La cancelación usa una transacción `Serializable`, cambios condicionales y `lockVersion`: `AgendaSlot` pasa de `RESERVED` a `RELEASED`, nunca a `AVAILABLE`. Conserva `Appointment.agendaSlotId UNIQUE`, propietario y cita; crea una `Cancellation` con actor y `releasesSlot: true` (liberación lógica, no disponibilidad pública), además del historial con estados anterior/nuevo y actor. Una cita ya cancelada devuelve su DTO sin nuevas escrituras. Ante `P2034` se reintenta una sola vez en una transacción nueva: si otra solicitud ya canceló, responde `200` sin duplicar efectos; si persiste el conflicto, responde `409`. HU-004 no reutiliza la cita cancelada; HU-005 sigue mostrándola a su dueño. No se crean reasignaciones ni ofertas: la futura reasignación podrá referenciar esta cancelación y transferir la cita existente.
+La cancelación usa una transacción `Serializable`, cambios condicionales y `lockVersion`: `AgendaSlot` pasa de `RESERVED` a `RELEASED`, nunca a `AVAILABLE`. Conserva `Appointment.agendaSlotId UNIQUE`, propietario y cita; crea una `Cancellation` con actor y `releasesSlot: true` (liberación lógica, no disponibilidad pública), además del historial con estados anterior/nuevo y actor. Una cita ya cancelada devuelve su DTO sin nuevas escrituras. Ante `P2034` se reintenta una sola vez en una transacción nueva: si otra solicitud ya canceló, responde `200` sin duplicar efectos; si persiste el conflicto, responde `409`. HU-004 no reutiliza la cita cancelada; HU-005 sigue mostrándola a su dueño. HU-025 inicia automáticamente la reasignación de un cupo reutilizable dentro de la misma transacción `Serializable`, con auditoría `SYSTEM` para inicio/primera oferta y `USER` para cancelación. Sin candidatos crea un proceso `EXHAUSTED`; si el cupo no es reutilizable, la cancelación se completa sin una reasignación inválida. Repetir no duplica procesos ni ofertas; la aceptación transfiere la cita existente.
 
 ## Estructura del monorepo
 
 ```text
 apps/
   api/          # backend implementado
-  web/          # fundación visual; integración API pendiente
-  desktop/      # pendiente
+  web/          # MVP funcional integrado con la API
+  desktop/      # planificado; todavía no existe
 packages/       # reservado para necesidades compartidas reales
 docs/
   development/  # documentación técnica
@@ -80,7 +82,7 @@ Los cinco documentos v0.1 identifican a Matías Andrés Torres, Bastian Sepúlve
 
 ## Metodología Scrum
 
-Scrum se utilizará como marco de trazabilidad académica. Aún deben incorporarse Product Vision formal, Product Backlog priorizado, Definition of Done, Sprint Backlog, retrospectivas y evidencia de pruebas por sprint. La estrategia propuesta está en [Evidencia Scrum con GitHub](docs/capstone/GITHUB_SCRUM_EVIDENCE.md).
+Scrum se utiliza como marco de trazabilidad académica. La planificación inicial contemplaba Product Vision formal, Product Backlog priorizado, Definition of Done, Sprint Backlog, retrospectivas y evidencia de pruebas por sprint. Las evidencias HU-025/HU-026 ya están actualizadas y mergeadas; se conserva el historial académico. La estrategia está en [Evidencia Scrum con GitHub](docs/capstone/GITHUB_SCRUM_EVIDENCE.md).
 
 ## Requisitos locales
 
@@ -105,7 +107,7 @@ El cliente Prisma generado no se versiona. Sigue [SETUP.md](docs/development/SET
 
 Catálogo demo: `npm run seed:dev -w @citajusta/api`. Diagnóstico de sólo lectura: `npm run check:dev -w @citajusta/api`. El seed preserva registros compatibles y provisiona STANDARD para la institución demo; no crea usuarios ni agenda. Registrar el usuario mediante la Web.
 
-Para la prueba manual HU-022 existe tooling opcional: configurar `REASSIGNMENT_DEMO_RECIPIENT_EMAIL` con una cuenta ACTIVE registrada y ejecutar `npm run seed:reassignment-demo -w @citajusta/api -- --scenario=reject` (después, `--scenario=accept`). Sólo PostgreSQL local de desarrollo; no emite credenciales ni usa tokens del destinatario. Crea servicios/agenda DEMO aislados y llega a PENDING mediante reserva, cancelación, Waitlist, preferencias y generación HU-009 reales. Una repetición devuelve la misma oferta; no revive estados ni borra historia. Instrucciones y política demo en [SETUP.md](docs/development/SETUP.md).
+Para la prueba manual HU-022 existe tooling opcional: configurar `REASSIGNMENT_DEMO_RECIPIENT_EMAIL` con una cuenta ACTIVE registrada y ejecutar `npm run seed:reassignment-demo -w @citajusta/api -- --scenario=reject` (después, `--scenario=accept`). Sólo PostgreSQL local de desarrollo; no emite credenciales ni usa tokens del destinatario. Crea servicios/agenda DEMO aislados y llega a PENDING mediante reserva, Waitlist y preferencias previas a la cancelación, que inicia automáticamente la reasignación HU-025. Una repetición devuelve la misma oferta; no revive estados ni borra historia. Instrucciones y política demo en [SETUP.md](docs/development/SETUP.md).
 
 Con las migraciones aplicadas y `DATABASE_URL` configurada, provisionar el estado inicial antes de reservar:
 
@@ -125,7 +127,7 @@ El bootstrap es idempotente por códigos `AGENDADA` y `CANCELADA` y conserva tod
 - Transacción `Serializable`, lectura de equivalencia e inserción dentro de ella y un reintento completo ante `P2034` o conflicto de serialización/deadlock del adapter-pg al commit. Conflictos persistentes devuelven `409`. No existe UNIQUE físico de equivalencia: todos los futuros escritores deben respetar esta política.
 - Errores: `400` input inválido/extra, `401` autenticación/usuario inválido, `404` servicio/sede no accesible o relaciones inválidas, `409` espera deshabilitada/duplicada/conflicto y `503` catálogo faltante/incompatible.
 - Errores inesperados de programación/persistencia, incluidas violaciones UNIQUE/FK no clasificadas, devuelven `500` sin detalles internos; no se reinterpretan como duplicados ni se reintentan. Sólo `P2034` o `DriverAdapterError` con `cause.kind: TransactionWriteConflict` y SQLSTATE `40001`/`40P01` habilitan el reintento transaccional.
-- Sin sede significa solicitud por servicio, no aceptación de cualquier sede. Se conservan `allowsOtherBranches: false`, `minimumNoticeMinutes: 0` y demás defaults; no se crean preferencias. La falta de disponibilidad adecuada es una precondición del flujo de búsqueda, no una prohibición basada en la existencia de cupos. HU-008 definirá preferencias y HU-009 elegibilidad; no se crean citas, candidatos, ofertas ni reasignaciones.
+- Sin sede significa solicitud por servicio, no aceptación de cualquier sede. Se conservan `allowsOtherBranches: false`, `minimumNoticeMinutes: 0` y demás defaults; no se crean preferencias. La falta de disponibilidad adecuada es una precondición del flujo de búsqueda, no una prohibición basada en la existencia de cupos. HU-008 define preferencias y HU-009 evalúa elegibilidad; el alta en lista de espera no crea citas, candidatos, ofertas ni reasignaciones.
 
 Provisionar explícitamente después de configurar instituciones y repetir al incorporar nuevas:
 
@@ -159,6 +161,8 @@ El bootstrap crea los estados `ACTIVE`/`WITHDRAWN`/`FULFILLED` y `STANDARD` para
 
 ### HU-009: generación institucional de ofertas
 
+La generación manual se conserva para casos históricos/administrativos. Desde HU-025, cancelar un cupo reutilizable inicia automáticamente el proceso; no requiere una solicitud manual posterior.
+
 - `POST /api/v1/reassignments/:agendaSlotId/offers`: Bearer token, `x-institution-id` obligatorio y `x-branch-id` opcional. Sin query ni body funcional. Usa los guards de autenticación, contexto y permisos; requiere `reassignments.generate` y revalida su asignación vigente dentro de la transacción. El contexto solicitado debe coincidir con la institución/sede del cupo. No es una acción de usuario final.
 - Un administrador debe provisionar explícitamente el permiso en el catálogo RBAC (`code=reassignments.generate`, `module=reassignments`, `action=generate`) y asignarlo sólo a roles operativos autorizados. Este cambio no incluye un flujo de administración de permisos. No se crea ni concede automáticamente; sin asignación devuelve `403`.
 - Sólo procesa cupos futuros `RELEASED`, sin bloqueo temporal vigente, con relaciones activas/coherentes según la política compartida de disponibilidad, una única cita `CANCELADA` y una cancelación que liberó el cupo. No modifica citas ni historial ni cambia el cupo a `AVAILABLE`.
@@ -166,10 +170,10 @@ El bootstrap crea los estados `ACTIVE`/`WITHDRAWN`/`FULFILLED` y `STANDARD` para
 - Compara día ISO y rango completo inicio/fin en `Institution.timeZone`. Requiere días explícitos; conjunto vacío o preferencias inexistentes excluyen. Los días explícitos prevalecen sobre el default legado `acceptsWeekend=false`. Rangos vacíos excluyen salvo `acceptsAnyTime=true`; con rangos explícitos exige contener toda la cita en uno de ellos. Intervalos que cruzan fecha o retroceden en hora local se excluyen conservadoramente. Respeta fecha límite y aviso mínimo persistidos.
 - `acceptsAnyProfessional=false` excluye con `SPECIFIC_PROFESSIONAL_UNDEFINED`. No infiere profesional ni amplía el modelo; selección de profesional específico queda pendiente para una mejora futura.
 - Regla versionada `PRIORITY_FIFO_V1`: nivel de prioridad ASC (menor nivel primero), `enteredAt ASC`, UUID ASC. Sin fórmula ponderada: `totalScore=-priority.level` satisface el CHECK existente de candidatos elegibles; los desempates determinan el ranking. Persiste `ELIGIBLE`/`EXCLUDED`, motivo, ranking, prioridad y `entryUpdatedAtSnapshot`, además de estado, antigüedad y preferencias en `evaluationContext`. El proceso conserva regla, zona, TTL, actor y contexto del cupo. Cambios posteriores no reescriben snapshots.
-- `WAITLIST_OFFER_TTL_MINUTES`: entero positivo global, default explícito `10`. `createdAt` y `expiresAt` parten del mismo instante de creación; expiración = creación + TTL × 60 000 ms. No existe configuración por institución ni worker de expiración. El vencimiento puede superar el inicio del cupo; la futura aceptación debe revalidar que la cita aún no haya comenzado.
+- `WAITLIST_OFFER_TTL_MINUTES`: entero positivo global, default explícito `10`. `createdAt` y `expiresAt` parten del mismo instante de creación; expiración = creación + TTL × 60 000 ms. HU-018 permite política institucional de ranking/TTL; el valor global queda como fallback. HU-023 implementa expiración real con runner/provider interno y continuación al siguiente candidato. El vencimiento puede superar el inicio del cupo; la aceptación revalida que la cita aún no haya comenzado.
 - Transacción `Serializable`, CAS sobre `RELEASED`/`lockVersion`, incremento único de versión y un reintento completo usando `transaction-conflict.ts` sin modificaciones. Conserva los UNIQUE/índices parciales existentes por cancelación, cupo, candidato y oferta activa. La oferta registra la versión posterior al CAS. Una evaluación previa de la misma cancelación, incluso agotada, devuelve `409`; no reevalúa snapshots ni genera la siguiente oferta.
 - Éxito `201 { data: { id, status: "OFFERING", offer: { id, status: "PENDING", agendaSlotId, createdAt, expiresAt } } }`. Sin elegibles: `201 { data: { id, status: "EXHAUSTED", offer: null } }`, con candidatos excluidos persistidos. Repeticiones/concurrencia perdedora: `409`. Otros errores: `400` contrato/contexto inválido, `401` autenticación, `403` permiso, `404` recurso/contexto no accesible, `503` configuración temporal inutilizable, `500` inesperado sin detalles internos.
-- No acepta/rechaza/expira ofertas, no notifica, no transfiere citas y no implementa frontend. La futura resolución debe comprobar vigencia, estado y snapshots de entrada/cupo y transferir la Appointment existente, nunca crear otra para el mismo cupo. La reevaluación, la continuación tras rechazo/expiración y el disparo automático quedan fuera de HU-009.
+- Alcance original HU-009: generación y ranking. La resolución implementada comprueba vigencia, estado y snapshots de entrada/cupo y transfiere la Appointment existente, nunca crea otra para el mismo cupo. HU-022 completa ofertas Web, HU-023 expiración/continuación, HU-024 notificaciones internas persistentes y HU-025 el inicio automático.
 
 Validación enfocada: `npm run --workspace @citajusta/api test:e2e:reassignments` (PostgreSQL local, secuencial respecto de otros E2E). Unitarios: `node --test apps/api/test/reassignments.offers.test.mjs` después del build.
 
@@ -265,7 +269,9 @@ npm run --workspace @citajusta/api start
 
 ## Pruebas
 
-Integración web y comandos: [apps/web/README.md](apps/web/README.md). Arranque: `npm run --workspace @citajusta/web dev`, con `apps/web/.env` preparado. La Web integra autenticación, catálogo, disponibilidad, reserva, Mis citas, cancelación y lista de espera/preferencias/retiro con la API real; no simula datos de dominio.
+Integración web y comandos: [apps/web/README.md](apps/web/README.md). Arranque: `npm run --workspace @citajusta/web dev`, con `apps/web/.env` preparado. La Web integra autenticación, catálogos, disponibilidad, reserva, Mis citas, cancelación, lista de espera/preferencias/retiro, ofertas y notificaciones con la API real; no simula datos de dominio. HU-024 permite listado, contador de no leídas y marcado individual; las fechas de las notificaciones usan timezone institucional y UTC sólo como fallback. HU-026 añade calendario de fecha específica y búsqueda flexible de 7/14/30 días con el mismo contrato `from`/`to`: fecha local del dispositivo, hoy desde ahora y fin al inicio local del día siguiente, respetando DST.
+
+Verificaciones recientes al 22-09-2026: HU-025 API **390/390**, E2E **8/8**; HU-026 fechas **10/10**, UI **16/16**, Web completa **95/95**; builds correspondientes **PASS**.
 
 Suite unitaria, aislada de PostgreSQL:
 
