@@ -7,7 +7,7 @@ import { PermissionsGuard } from '../authorization/permissions.guard.js';
 import { RequirePermissions } from '../authorization/decorators/require-permissions.decorator.js';
 import type { AuthorizedRequest } from '../authorization/types/authorization-context.js';
 import { CatalogAdministrationService, CATALOG_PERMISSIONS } from './catalog-administration.service.js';
-import { catalogContext, createServiceSchema, updateServiceSchema, parseCatalogInput } from './catalog-administration.schemas.js';
+import { catalogContext, createServiceSchema, updateServiceSchema, parseCatalogInput, parseCatalogRead } from './catalog-administration.schemas.js';
 
 @Controller('services')
 @UseGuards(AccessTokenGuard)
@@ -16,6 +16,22 @@ export class ServicesController {
     private readonly servicesService: ServicesService,
     private readonly administration: CatalogAdministrationService,
   ) {}
+
+  @Get('administration')
+  @UseGuards(AuthorizationContextGuard, PermissionsGuard)
+  @RequirePermissions(CATALOG_PERMISSIONS.readServices)
+  administrationList(@Body() body: unknown, @Query() query: unknown, @Req() request: AuthorizedRequest) {
+    parseCatalogRead(body, query);
+    return this.administration.listServices(catalogContext(request));
+  }
+
+  @Get('categories')
+  @UseGuards(AuthorizationContextGuard, PermissionsGuard)
+  @RequirePermissions(CATALOG_PERMISSIONS.readServices)
+  categories(@Body() body: unknown, @Query() query: unknown, @Req() request: AuthorizedRequest) {
+    parseCatalogRead(body, query);
+    return this.administration.listCategories(catalogContext(request));
+  }
 
   @Post()
   @UseGuards(AuthorizationContextGuard, PermissionsGuard)

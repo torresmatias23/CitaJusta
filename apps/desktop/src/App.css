@@ -56,6 +56,24 @@ h2 { margin: 1rem 0 .75rem; font-size: 1.25rem; line-height: 1.4; }
 .skip-link { position: absolute; top: .5rem; left: .5rem; transform: translateY(-200%); background: #fff; color: #115f5c; padding: .5rem 1rem; z-index: 1; }
 .skip-link:focus { transform: translateY(0); }
 
+.catalog-context, .catalog-section { padding: 1.25rem; margin-bottom: 1.25rem; border: 1px solid #dce5eb; border-radius: .875rem; background: white; }
+.catalog-heading, .catalog-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; }
+.catalog-heading { justify-content: space-between; }
+.catalog-page button:not(.primary-button) { border: 1px solid #8295a4; border-radius: .4rem; padding: .5rem .75rem; background: white; color: #183249; cursor: pointer; }
+.catalog-page button:disabled { cursor: not-allowed; }
+.catalog-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 1rem; padding: 0; list-style: none; }
+.catalog-card { padding: 1rem; border: 1px solid #dce5eb; border-radius: .5rem; overflow-wrap: anywhere; }
+.catalog-card h3 { margin: 0 0 .5rem; }
+.catalog-status { display: inline-block; background: #edf2f6; border-radius: 1rem; padding: .15rem .6rem; font-size: .8rem; }
+.catalog-status.is-active { background: #e4f3f1; color: #17645e; }
+.catalog-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.catalog-field { display: grid; gap: .35rem; }
+.catalog-field input, .catalog-field select, .catalog-field textarea { width: 100%; min-width: 0; padding: .65rem; border: 1px solid #8295a4; border-radius: .4rem; font: inherit; background: white; color: inherit; }
+.catalog-field :focus-visible, .catalog-check input:focus-visible { outline: 3px solid #067c80; outline-offset: 2px; }
+.catalog-form { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dce5eb; }
+.catalog-form fieldset { min-width: 0; border: 1px solid #dce5eb; border-radius: .5rem; margin-bottom: 1rem; }
+.catalog-check { display: flex; align-items: center; gap: .5rem; padding: .5rem 0; }
+
 @media (max-width: 600px) {
   .app-header { padding: 1rem; }
   .workspace { grid-template-columns: 1fr; }

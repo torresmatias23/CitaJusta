@@ -7,7 +7,7 @@ import { PermissionsGuard } from '../authorization/permissions.guard.js';
 import { RequirePermissions } from '../authorization/decorators/require-permissions.decorator.js';
 import type { AuthorizedRequest } from '../authorization/types/authorization-context.js';
 import { CatalogAdministrationService, CATALOG_PERMISSIONS } from './catalog-administration.service.js';
-import { catalogContext, createBranchSchema, updateBranchSchema, parseCatalogInput } from './catalog-administration.schemas.js';
+import { catalogContext, createBranchSchema, updateBranchSchema, parseCatalogInput, parseCatalogRead } from './catalog-administration.schemas.js';
 
 @Controller('branches')
 @UseGuards(AccessTokenGuard)
@@ -16,6 +16,14 @@ export class BranchesController {
     private readonly servicesService: ServicesService,
     private readonly administration: CatalogAdministrationService,
   ) {}
+
+  @Get('administration')
+  @UseGuards(AuthorizationContextGuard, PermissionsGuard)
+  @RequirePermissions(CATALOG_PERMISSIONS.readBranches)
+  administrationList(@Body() body: unknown, @Query() query: unknown, @Req() request: AuthorizedRequest) {
+    parseCatalogRead(body, query);
+    return this.administration.listBranches(catalogContext(request));
+  }
 
   @Post()
   @UseGuards(AuthorizationContextGuard, PermissionsGuard)

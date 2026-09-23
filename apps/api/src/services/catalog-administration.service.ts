@@ -8,6 +8,8 @@ import { Prisma } from '../generated/prisma/client.js';
 import type { CreateBranchInput, UpdateBranchInput, CreateServiceInput, UpdateServiceInput } from './catalog-administration.schemas.js';
 
 export const CATALOG_PERMISSIONS = {
+  readBranches: 'branches.read',
+  readServices: 'services.read',
   createBranch: 'branches.create',
   updateBranch: 'branches.update',
   createService: 'services.create',
@@ -31,6 +33,34 @@ const serviceSelect = {
 @Injectable()
 export class CatalogAdministrationService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async listBranches(context: AuthorizationContext) {
+    const institutionId = await this.authorize(this.prisma, context, CATALOG_PERMISSIONS.readBranches, context.branchId);
+    const where = { institutionId, deletedAt: null, ...(context.branchId ? { id: context.branchId } : {}) };
+    const branches = await this.prisma.branch.findMany({ where, select: branchSelect, orderBy: [{ name: 'asc' }, { id: 'asc' }] });
+    if (context.branchId && branches.length === 0) throw new NotFoundException('Branch not found');
+    return { data: branches.map((branch) => this.branchDto(branch)) };
+  }
+
+  async listServices(context: AuthorizationContext) {
+    const institutionId = await this.authorize(this.prisma, context, CATALOG_PERMISSIONS.readServices);
+    const services = await this.prisma.service.findMany({
+      where: { institutionId, deletedAt: null }, orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      select: { ...serviceSelect, branchAssignments: {
+        ...serviceSelect.branchAssignments,
+        where: { active: true, branch: { institutionId, deletedAt: null } },
+      } },
+    });
+    return { data: services.map((service) => this.serviceDto(service)) };
+  }
+
+  async listCategories(context: AuthorizationContext) {
+    const institutionId = await this.authorize(this.prisma, context, CATALOG_PERMISSIONS.readServices);
+    return { data: await this.prisma.serviceCategory.findMany({
+      where: { institutionId, active: true }, select: { id: true, name: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    }) };
+  }
 
   createBranch(input: CreateBranchInput, context: AuthorizationContext) {
     return this.write(async (tx) => {
@@ -115,7 +145,7 @@ export class CatalogAdministrationService {
       throw new ForbiddenException('Institution-wide authorization required');
     }
     const now = new Date();
-    // Revalidate the same RBAC grants inside the write transaction, not role names.
+    // Writes revalidate inside their transaction; reads reuse the same grant rules.
     const grant = await tx.userRole.count({
       where: {
         userId: context.userId, active: true,

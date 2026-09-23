@@ -51,9 +51,67 @@ el cierre local, aunque la revocación remota no pueda confirmarse.
 
 La shell sólo se muestra tras login y `GET users/me` exitosos. Muestra nombre,
 correo, contexto y roles reales. No tener institución/sede se representa como tal:
-el cliente no inventa permisos. Las ocho secciones siguen siendo preparación;
-sedes/servicios, profesionales, agenda, asistencia, reasignaciones, reportes y
-auditoría se implementarán en HU posteriores. No hay registro Desktop.
+el cliente no inventa permisos. HU-029 habilita Sedes y servicios; profesionales,
+agenda, asistencia, reasignaciones, reportes y auditoría siguen en preparación.
+No hay registro Desktop.
+
+### HU-029: catálogo administrativo
+
+Sedes y servicios permite seleccionar el UUID de institución y, opcionalmente,
+de sede facilitados por el administrador. `session.selectContext` consulta
+`users/me` con headers institucionales y actualiza el perfil/permisos sólo con la
+respuesta validada. El catálogo usa exclusivamente `session.api` y el transporte
+existente de `@citajusta/client-core`; no descarga el catálogo global.
+
+| Lectura bajo `/api/v1` | Permiso | Alcance |
+| --- | --- | --- |
+| `GET /branches/administration` | `branches.read` | Institución seleccionada; contexto BRANCH sólo su sede |
+| `GET /services/administration` | `services.read` | GLOBAL/INSTITUTION con institución seleccionada, sin contexto BRANCH |
+| `GET /services/categories` | `services.read` | Mismo alcance institucional; categorías activas |
+
+Las rutas estáticas preceden a `:serviceId`; los GET públicos existentes no
+cambian. Las lecturas administrativas incluyen sedes/servicios inactivos y excluyen
+eliminados; reutilizan autorización y DTO del catálogo. Categorías sólo devuelve
+`id`/`name`: el modelo no tiene `code` ni `deletedAt`. Crear/editar/activar/inactivar
+usa los POST/PATCH HU-012 existentes, sin `institutionId` en body. La API sigue
+validando tenant, permisos, relaciones, auditoría y concurrencia.
+
+Provisionamiento explícito por el administrador: crear/reutilizar Permission
+`branches.read` (`module=branches`, `action=read`) y `services.read`
+(`module=services`, `action=read`), vincular mediante RolePermission al rol
+autorizado y asignar UserRole vigente al usuario y ámbito correctos. Para escritura
+se requieren además `branches.create/update` y/o `services.create/update`.
+No se conceden permisos por nombre de rol ni al registro público; no hay migración
+ni cambio en `seed:dev`, que no provisiona operadores. Los E2E añaden estos permisos
+sólo a sus roles fixture y conservan permisos preexistentes al limpiar.
+
+Para validar HU-029 localmente con una cuenta **ACTIVE existente**, hay un tooling
+optativo que asigna exactamente los seis permisos de catálogo anteriores en la
+institución demo existente (`seed:dev` debe estar preparado):
+
+```powershell
+$env:NODE_ENV = "development"
+$env:DESKTOP_CATALOG_ADMIN_EMAIL = "matias.desktop.test@example.test"
+npm run seed:desktop-catalog-admin -w @citajusta/api
+```
+
+Sólo admite PostgreSQL loopback `citajusta_dev` o `citajusta_dev_<sufijo>` y exige
+`NODE_ENV=development` explícito. Verifica también el nombre real de la base y la
+identidad de la institución demo. No crea usuarios, credenciales ni sesiones, ni
+modifica datos de la cuenta. Reutiliza permisos compatibles y el rol institucional
+`DEMO_DESKTOP_CATALOG_ADMIN`, con UUID determinísticos y transacción `Serializable`.
+La repetición no modifica registros ni timestamps compatibles. Este rol dedicado
+se vincula a una sola cuenta: si ya tiene asignaciones a otra cuenta, institución,
+sede, vigencia o permisos ajenos, aborta sin sobrescribir. Otros roles de la cuenta
+no se modifican. En Desktop aplica la institución indicada por el comando sin sede;
+si ya tenías sesión, vuelve a aplicar el contexto para actualizar los permisos.
+
+Sin permiso de lectura se muestra acceso no disponible. En BRANCH sólo se permite
+editar la sede propia con `branches.update`; crear sedes y administrar servicios
+requiere ámbito institucional. Asociar sedes requiere también lectura de sedes;
+sin ella se conservan las asociaciones actuales. Las escrituras no se reenvían tras
+refresh, bloquean doble envío y recargan el catálogo al guardar. Cambiar de contexto
+o cerrar sesión desmonta el módulo y descarta respuestas tardías.
 
 ## Validación manual
 
@@ -69,4 +127,21 @@ npm run typecheck -w @citajusta/client-core
 npm test -w @citajusta/client-core
 npm test -w @citajusta/desktop
 cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+```
+
+Validación HU-029 con cuenta controlada y permisos provisionados explícitamente:
+abrir Sedes y servicios, aplicar contexto, crear/editar e inactivar/reactivar una
+sede y un servicio; comprobar categoría y asociaciones reales. Repetir con permiso
+de sólo lectura, sin permisos y con contexto BRANCH. Las categorías existentes se
+consultan desde la API; esta HU no añade administración de categorías.
+
+Pruebas enfocadas desde la raíz (E2E requiere PostgreSQL local preparado):
+
+```powershell
+npm run build -w @citajusta/api
+node --test apps/api/test/catalog-administration-read.test.mjs apps/api/test/catalog-administration.test.mjs apps/api/test/services.catalog.test.mjs apps/api/test/institutions.catalog.test.mjs
+npm run test:e2e:catalog -w @citajusta/api
+npm test -w @citajusta/desktop
+npm run build -w @citajusta/desktop
+npm test -w @citajusta/client-core
 ```

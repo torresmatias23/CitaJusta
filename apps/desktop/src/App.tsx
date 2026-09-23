@@ -2,6 +2,7 @@ import { useState } from "react";
 import "./App.css";
 import { useAuth } from "./auth/auth-provider";
 import { LoginScreen } from "./auth/login-screen";
+import { CatalogPage } from "./catalog/catalog-page";
 
 const modules = ["Inicio", "Sedes y servicios", "Profesionales", "Agenda",
   "Asistencia", "Reasignaciones", "Reportes", "Auditoría"] as const;
@@ -44,21 +45,20 @@ function InstitutionalShell() {
               <button type="button" aria-pressed={selected === module} onClick={() => setSelected(module)}>{module}</button>
             </li>
           ))}</ul>
-          <p className="nav-note">Navegación preliminar · sin operaciones habilitadas</p>
+          <p className="nav-note">Sedes y servicios disponibles según tus permisos.</p>
         </nav>
         <main id="content" tabIndex={-1}>
-          <p className="eyebrow">Fundación institucional</p>
+          <p className="eyebrow">Gestión institucional</p>
           <h1>{selected}</h1>
-          <section className="welcome-card" aria-labelledby="welcome-title">
+          {selected === 'Sedes y servicios' ? <CatalogPage /> : <section className="welcome-card" aria-labelledby="welcome-title">
             <span className="stage">En preparación</span>
             <h2 id="welcome-title">Un espacio para la gestión de tu institución</h2>
             <p>Los módulos institucionales se incorporarán progresivamente.
-              Esta versión establece la base de la aplicación de escritorio;
-              la sesión está conectada, pero los módulos aún no permiten realizar operaciones.
-              El contexto mostrado no implica autorización para futuras acciones.</p>
+              Sedes y servicios permite administrar el catálogo con los permisos de tu contexto.
+              Las demás secciones siguen en preparación.</p>
             <p className="architecture-note">CitaJusta Desktop consume la misma API que Web.
               Las reglas de negocio y el control de acceso permanecerán en el backend.</p>
-          </section>
+          </section>}
         </main>
       </div>
     </div>
