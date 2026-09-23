@@ -3,6 +3,9 @@
   "productName": "CitaJusta",
   "version": "0.1.0",
   "identifier": "com.citajusta.desktop",
+  "plugins": {
+    "http": { "scopeRedirects": true }
+  },
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",

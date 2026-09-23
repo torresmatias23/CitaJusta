@@ -1,8 +1,5 @@
-export interface RefreshTokenStorage {
-  read(): string | undefined;
-  write(token: string): void;
-  clear(): void;
-}
+import type { RefreshTokenStorage } from '@citajusta/client-core';
+export type { RefreshTokenStorage } from '@citajusta/client-core';
 
 const storageKey = 'citajusta.session.v1';
 

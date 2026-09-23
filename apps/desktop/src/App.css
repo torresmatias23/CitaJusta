@@ -9,6 +9,16 @@
 }
 
 * { box-sizing: border-box; }
+.login-page { min-height: 100vh; display: grid; place-items: center; }
+.login-card { width: 100%; max-width: 440px; }
+.login-card h1 { margin-top: 1.5rem; }
+.login-card form { display: grid; gap: .75rem; }
+.login-card input { min-width: 0; width: 100%; padding: .65rem; font: inherit; border: 1px solid #8295a4; border-radius: .4rem; }
+.login-card input:focus-visible { outline: 3px solid #067c80; outline-offset: 2px; }
+.primary-button { padding: .7rem 1rem; border: 0; border-radius: .4rem; background: #08777a; color: white; cursor: pointer; }
+button:disabled { opacity: .65; cursor: wait; }
+.session-details { display: grid; gap: .15rem; font-size: .8rem; overflow-wrap: anywhere; }
+.session-details button { justify-self: start; margin-top: .5rem; }
 body { margin: 0; min-width: 320px; }
 button { font: inherit; }
 button:focus-visible, a:focus-visible { outline: 3px solid #067c80; outline-offset: 3px; }
