@@ -15,6 +15,7 @@ export type RequestOptions = {
   signal?: AbortSignal;
   query?: Readonly<Record<string, string>>;
   retryAfterRefresh?: boolean;
+  institutionContext?: { institutionId: string; branchId?: string };
 };
 
 export type ApiClient = {
@@ -32,6 +33,13 @@ export function createHttpClient({ baseUrl, fetcher = fetch, getAccessToken }: {
       // Rutas relativas controladas: nunca enviar un Bearer a otro origen o prefijo.
       if (!/^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(path)) throw new Error('Ruta de API inválida.');
       const headers = new Headers({ Accept: 'application/json' });
+      if (options.institutionContext) {
+        const { institutionId, branchId } = options.institutionContext;
+        const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuid.test(institutionId) || (branchId !== undefined && !uuid.test(branchId))) throw new Error('Contexto institucional inválido.');
+        headers.set('x-institution-id', institutionId);
+        if (branchId) headers.set('x-branch-id', branchId);
+      }
       const token = getAccessToken?.();
       if (token) headers.set('Authorization', `Bearer ${token}`);
       if (options.body !== undefined) headers.set('Content-Type', 'application/json');

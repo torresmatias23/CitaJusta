@@ -43,6 +43,10 @@ export type UpdateBranchInput = z.infer<typeof updateBranchSchema>;
 export type CreateServiceInput = z.infer<typeof createServiceSchema>;
 export type UpdateServiceInput = z.infer<typeof updateServiceSchema>;
 
+export function parseCatalogRead(body: unknown, query: unknown): void {
+  parseCatalogInput(z.object({}).strict(), body ?? {}, query);
+}
+
 export function parseCatalogInput<T>(schema: z.ZodType<T>, body: unknown, query: unknown): T {
   const result = schema.safeParse(body);
   if (!result.success || !z.object({}).strict().safeParse(query).success) {

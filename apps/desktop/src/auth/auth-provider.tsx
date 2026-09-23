@@ -6,7 +6,7 @@ import { createMemorySessionStorage } from './memory-session-storage';
 import { createDesktopHttpClient } from '../lib/desktop-http';
 import { readDesktopApiBaseUrl } from '../lib/env';
 
-type AuthValue = AuthSnapshot & Pick<AuthSession, 'api' | 'login' | 'logout' | 'retrySession'>;
+type AuthValue = AuthSnapshot & Pick<AuthSession, 'api' | 'login' | 'logout' | 'retrySession' | 'selectContext'>;
 const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function SessionProvider({ session, children }: { session: AuthSession; children: ReactNode }) {
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   useEffect(() => { void session.restore(); }, [session]);
-  return <AuthContext.Provider value={{ ...snapshot, api: session.api, login: session.login, logout: session.logout, retrySession: session.retrySession }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ ...snapshot, api: session.api, login: session.login, logout: session.logout, retrySession: session.retrySession, selectContext: session.selectContext }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthValue {

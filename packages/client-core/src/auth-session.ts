@@ -75,6 +75,8 @@ export function createAuthSession({ publicApi, authenticatedApi, storage }: {
   let accessToken: string | undefined;
   let refreshToken: string | undefined;
   let generation = 0;
+  let contextGeneration = 0;
+  let institutionContext: RequestOptions['institutionContext'];
   let initialized = false;
   let snapshot: AuthSnapshot = { status: 'loading', user: null, error: null };
   let restoreFlight: Promise<void> | undefined;
@@ -89,6 +91,8 @@ export function createAuthSession({ publicApi, authenticatedApi, storage }: {
 
   function clear(error: string | null = null) {
     generation++;
+    contextGeneration++;
+    institutionContext = undefined;
     accessToken = undefined;
     refreshToken = undefined;
     storage.clear();
@@ -176,7 +180,7 @@ export function createAuthSession({ publicApi, authenticatedApi, storage }: {
   };
 
   async function loadProfile(expected: number) {
-    const user = parseUser(await api.request('users/me'));
+    const user = parseUser(await api.request('users/me', institutionContext ? { institutionContext } : {}));
     assertCurrent(expected);
     update({ status: 'authenticated', user, error: null });
   }
@@ -213,6 +217,17 @@ export function createAuthSession({ publicApi, authenticatedApi, storage }: {
     getSnapshot: () => snapshot,
     restore,
     retrySession: () => restore(true),
+    async selectContext(context: NonNullable<RequestOptions['institutionContext']>) {
+      const expected = generation;
+      const revision = ++contextGeneration;
+      const user = parseUser(await api.request('users/me', { institutionContext: context }));
+      assertCurrent(expected);
+      if (revision !== contextGeneration) return;
+      if (user.id !== snapshot.user?.id || user.context.institutionId !== context.institutionId
+        || user.context.branchId !== context.branchId) throw new Error('Contexto institucional inválido.');
+      institutionContext = { ...context };
+      update({ status: 'authenticated', user, error: null });
+    },
     async login(input: LoginInput) {
       initialized = true;
       clear();

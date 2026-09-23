@@ -50,7 +50,7 @@ test('HU-012 catalog administration with real HTTP and PostgreSQL', { timeout: 1
     const ordinary = await register();
     const branchOfficer = await register();
     const range = await createCheckpointFixtures(prisma, admin.id);
-    for (const code of ['branches.create', 'branches.update', 'services.create', 'services.update']) {
+    for (const code of ['branches.create', 'branches.update', 'services.create', 'services.update', 'branches.read', 'services.read']) {
       let permission = await prisma.permission.findUnique({ where: { code } });
       if (!permission) {
         const [module, action] = code.split('.');
@@ -70,6 +70,89 @@ test('HU-012 catalog administration with real HTTP and PostgreSQL', { timeout: 1
     const serviceBody = { code: `${marker}_SV`, name: 'Atención general', durationMinutes: 30, categoryId: ids.categoryActive };
     let newBranch;
     let newService;
+
+    await t.test('HU-029 reads require independent permissions and never use body/query tenant', async () => {
+      for (const path of ['/branches/administration', '/services/administration', '/services/categories']) {
+        assert.equal((await request('GET', path, undefined, undefined, institutionHeaders)).status, 401);
+        assert.equal((await write('GET', path, undefined, ordinary.token)).status, 403);
+        assert.equal((await write('GET', path, undefined, admin.token, {})).status, 403);
+        assert.equal((await write('GET', `${path}?institutionId=${ids.institutionB}`)).status, 400);
+        assert.equal((await write('GET', path, undefined, admin.token, { 'x-institution-id': ids.institutionB })).status, 403);
+      }
+      for (const [code, path] of [['branches.read', '/branches/administration'], ['services.read', '/services/administration']]) {
+        const permission = await prisma.permission.findUniqueOrThrow({ where: { code } });
+        await prisma.rolePermission.delete({ where: { roleId_permissionId: { roleId: ids.roleInstitution, permissionId: permission.id } } });
+        try { assert.equal((await write('GET', path)).status, 403); }
+        finally { await prisma.rolePermission.create({ data: { roleId: ids.roleInstitution, permissionId: permission.id } }); }
+      }
+    });
+
+    await t.test('HU-029 administrative lists include inactive and exclude deleted/foreign resources', async () => {
+      const branches = await write('GET', '/branches/administration');
+      assert.equal(branches.status, 200);
+      assert.ok(branches.body.data.some(b => b.id === ids.branchA1 && b.status === 'ACTIVE'));
+      assert.ok(branches.body.data.some(b => b.id === ids.branchInactive && b.status === 'INACTIVE'));
+      assert.ok(!branches.body.data.some(b => b.id === ids.branchB1));
+      const services = await write('GET', '/services/administration');
+      assert.equal(services.status, 200);
+      assert.ok(services.body.data.some(s => s.id === ids.serviceA && s.active));
+      assert.ok(services.body.data.some(s => s.id === ids.serviceInactive && !s.active));
+      assert.ok(!services.body.data.some(s => s.id === ids.serviceB));
+      assert.ok(services.body.data.find(s => s.id === ids.serviceA).branchIds.includes(ids.branchA1));
+      for (const row of [...branches.body.data, ...services.body.data]) {
+        for (const key of ['institutionId', 'deletedAt', 'createdAt', 'branchAssignments']) assert.equal(row[key], undefined);
+      }
+      await prisma.branch.update({ where: { id: ids.branchInactive }, data: { deletedAt: new Date() } });
+      await prisma.service.update({ where: { id: ids.serviceInactive }, data: { deletedAt: new Date() } });
+      try {
+        assert.ok(!(await write('GET', '/branches/administration')).body.data.some(b => b.id === ids.branchInactive));
+        assert.ok(!(await write('GET', '/services/administration')).body.data.some(s => s.id === ids.serviceInactive));
+      } finally {
+        await prisma.branch.update({ where: { id: ids.branchInactive }, data: { deletedAt: null } });
+        await prisma.service.update({ where: { id: ids.serviceInactive }, data: { deletedAt: null } });
+      }
+      const foreignCategory = randomUUID();
+      await prisma.serviceCategory.create({ data: { id: foreignCategory, institutionId: ids.institutionB, name: marker } });
+      try {
+        const categories = await write('GET', '/services/categories');
+        assert.equal(categories.status, 200);
+        assert.deepEqual(categories.body.data.map(c => c.id), [ids.categoryActive]);
+        assert.deepEqual(Object.keys(categories.body.data[0]).sort(), ['id', 'name']);
+      } finally { await prisma.serviceCategory.delete({ where: { id: foreignCategory } }); }
+    });
+
+    await t.test('HU-029 branch scope reads only its branch; service/category reads are institution-wide', async () => {
+      const own = await write('GET', '/branches/administration', undefined, branchOfficer.token, branchHeaders);
+      assert.equal(own.status, 200);
+      assert.deepEqual(own.body.data.map(b => b.id), [ids.branchA1]);
+      assert.equal((await write('GET', '/branches/administration', undefined, branchOfficer.token, { ...institutionHeaders, 'x-branch-id': ids.branchA2 })).status, 403);
+      for (const path of ['/services/administration', '/services/categories']) {
+        assert.equal((await write('GET', path, undefined, branchOfficer.token, branchHeaders)).status, 403);
+        assert.equal((await write('GET', path, undefined, branchOfficer.token)).status, 403);
+      }
+      const responses = [];
+      for (const institutionId of [ids.institutionB, ids.missing]) {
+        responses.push(await write('GET', '/branches/administration', undefined, branchOfficer.token, { 'x-institution-id': institutionId, 'x-branch-id': ids.branchA1 }));
+      }
+      assert.equal(responses[0].status, 400);
+      assert.equal(responses[1].status, 400);
+      assert.deepEqual(responses[0].body, responses[1].body);
+    });
+
+    await t.test('HU-029 GLOBAL still requires selected institution and rejects inactive/deleted institutions', async () => {
+      const permission = await prisma.permission.findUniqueOrThrow({ where: { code: 'branches.read' } });
+      await prisma.rolePermission.create({ data: { roleId: ids.roleGlobal, permissionId: permission.id } });
+      try {
+        assert.equal((await write('GET', '/branches/administration', undefined, admin.token, {})).status, 400);
+        const other = await write('GET', '/branches/administration', undefined, admin.token, { 'x-institution-id': ids.institutionB });
+        assert.equal(other.status, 200);
+        assert.deepEqual(other.body.data.map(b => b.id), [ids.branchB1]);
+        assert.equal((await write('GET', '/branches/administration', undefined, admin.token, { 'x-institution-id': ids.institutionInactive })).status, 404);
+        await prisma.institution.update({ where: { id: ids.institutionB }, data: { deletedAt: new Date() } });
+        try { assert.equal((await write('GET', '/branches/administration', undefined, admin.token, { 'x-institution-id': ids.institutionB })).status, 404); }
+        finally { await prisma.institution.update({ where: { id: ids.institutionB }, data: { deletedAt: null } }); }
+      } finally { await prisma.rolePermission.delete({ where: { roleId_permissionId: { roleId: ids.roleGlobal, permissionId: permission.id } } }); }
+    });
 
     await t.test('authentication, explicit permission and institution context are mandatory', async () => {
       for (const [path, body] of [['/branches', branchBody], ['/services', serviceBody]]) {
