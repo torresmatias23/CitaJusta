@@ -37,14 +37,14 @@ test('HU-013 professional administration with real HTTP and PostgreSQL', { timeo
       assert.equal(registered.status, 201);
       const login = await request('POST', '/auth/login', undefined, { email: body.email, password: body.password });
       assert.equal(login.status, 200);
-      return { id: registered.body.id, token: login.body.accessToken };
+      return { id: registered.body.id, token: login.body.accessToken, email: body.email };
     }
     const admin = await register();
     const target = await register();
     const other = await register();
     const branchOfficer = await register();
     const range = await createCheckpointFixtures(prisma, admin.id);
-    for (const action of ['create', 'update']) {
+    for (const action of ['create', 'update', 'read']) {
       const code = `professionals.${action}`;
       let permission = await prisma.permission.findUnique({ where: { code } });
       if (!permission) {
@@ -58,6 +58,63 @@ test('HU-013 professional administration with real HTTP and PostgreSQL', { timeo
     const write = (method, path, body, token = admin.token, scope = headers) => request(method, path, token, body, scope);
     const input = { userId: target.id, internalCode: `${FIXTURE_PREFIX}_HU013`, titleOrFunction: 'Atención general', branchIds: [ids.branchA1], serviceIds: [ids.serviceA] };
     let professionalId;
+
+    const eligiblePath = email => `/professionals/eligible-users?${new URLSearchParams({ email })}`;
+    await t.test('HU-030 new reads require auth, independent permission and institutional context', async () => {
+      for (const path of ['/professionals/administration', eligiblePath(target.email)]) {
+        assert.equal((await request('GET', path, undefined, undefined, headers)).status, 401);
+        assert.equal((await write('GET', path, undefined, target.token)).status, 403);
+        assert.equal((await write('GET', path, undefined, admin.token, {})).status, 403);
+        assert.equal((await write('GET', path, undefined, admin.token, { 'x-institution-id': ids.institutionB })).status, 403);
+        assert.equal((await write('GET', path, undefined, branchOfficer.token, { ...headers, 'x-branch-id': ids.branchA1 })).status, 403);
+      }
+      for (const [code, path] of [['professionals.read', '/professionals/administration'], ['professionals.create', eligiblePath(target.email)]]) {
+        const permission = await prisma.permission.findUniqueOrThrow({ where: { code } });
+        await prisma.rolePermission.delete({ where: { roleId_permissionId: { roleId: ids.roleInstitution, permissionId: permission.id } } });
+        try { assert.equal((await write('GET', path)).status, 403); }
+        finally { await prisma.rolePermission.create({ data: { roleId: ids.roleInstitution, permissionId: permission.id } }); }
+      }
+    });
+    await t.test('HU-030 list includes all statuses, excludes deleted/foreign and preserves public catalog', async () => {
+      await prisma.professional.update({ where: { id: ids.professionalA3 }, data: { status: 'SUSPENDED' } });
+      try {
+        const response = await write('GET', '/professionals/administration');
+        assert.equal(response.status, 200);
+        assert.deepEqual([...new Set(response.body.data.map(p => p.status))].sort(), ['ACTIVE', 'INACTIVE', 'SUSPENDED']);
+        assert.ok(!response.body.data.some(p => p.id === ids.professionalB));
+        const row = response.body.data.find(p => p.id === ids.professionalA);
+        assert.deepEqual(Object.keys(row).sort(), ['id', 'user', 'internalCode', 'titleOrFunction', 'description', 'status', 'createdAt', 'updatedAt', 'branchIds', 'serviceIds'].sort());
+        assert.deepEqual(Object.keys(row.user).sort(), ['id', 'email', 'firstNames', 'lastNames'].sort());
+        assert.deepEqual(row.branchIds, [...row.branchIds].sort());
+        const publicResponse = await request('GET', '/professionals', target.token);
+        assert.equal(publicResponse.status, 200);
+        assert.ok(!publicResponse.body.data.some(p => [ids.professionalA3, ids.professionalInactive].includes(p.id)));
+        await prisma.professional.update({ where: { id: ids.professionalA2 }, data: { deletedAt: new Date() } });
+        try { assert.ok(!(await write('GET', '/professionals/administration')).body.data.some(p => p.id === ids.professionalA2)); }
+        finally { await prisma.professional.update({ where: { id: ids.professionalA2 }, data: { deletedAt: null } }); }
+      } finally { await prisma.professional.update({ where: { id: ids.professionalA3 }, data: { status: 'ACTIVE' } }); }
+    });
+    await t.test('HU-030 eligible search is exact, normalized and uniformly excludes unavailable accounts', async () => {
+      const response = await write('GET', eligiblePath(` ${target.email.toUpperCase()} `));
+      assert.equal(response.status, 200);
+      assert.equal(response.body.data.id, target.id);
+      assert.deepEqual(Object.keys(response.body.data).sort(), ['id', 'email', 'firstNames', 'lastNames'].sort());
+      for (const path of ['/professionals/eligible-users', eligiblePath('partial'), `${eligiblePath(target.email)}&institutionId=${ids.institutionB}`,
+        `${eligiblePath(target.email)}&limit=5`, `/professionals/administration?userId=${target.id}`]) assert.equal((await write('GET', path)).status, 400);
+      const missing = await write('GET', eligiblePath(`absent-${randomUUID()}@example.test`));
+      assert.equal(missing.status, 404);
+      for (const data of [{ status: 'PENDING' }, { deletedAt: new Date() }]) {
+        await prisma.user.update({ where: { id: target.id }, data });
+        try { assert.deepEqual((await write('GET', eligiblePath(target.email))).body, missing.body); }
+        finally { await prisma.user.update({ where: { id: target.id }, data: { status: 'ACTIVE', deletedAt: null } }); }
+      }
+      assert.deepEqual((await write('GET', eligiblePath(admin.email))).body, missing.body);
+      await prisma.professional.update({ where: { id: ids.professionalA }, data: { deletedAt: new Date(), status: 'INACTIVE' } });
+      try { assert.deepEqual((await write('GET', eligiblePath(admin.email))).body, missing.body); }
+      finally { await prisma.professional.update({ where: { id: ids.professionalA }, data: { deletedAt: null, status: 'ACTIVE' } }); }
+      const foreign = await prisma.user.findUniqueOrThrow({ where: { id: ids.professionalBUser }, select: { email: true } });
+      assert.equal((await write('GET', eligiblePath(foreign.email))).status, 200, 'User is global; foreign professional does not preclude own institution');
+    });
 
     await t.test('auth, permissions, institution and branch-only scope are enforced', async () => {
       assert.equal((await request('POST', '/professionals', undefined, input, headers)).status, 401);

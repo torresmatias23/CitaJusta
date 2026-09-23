@@ -3,6 +3,7 @@ import "./App.css";
 import { useAuth } from "./auth/auth-provider";
 import { LoginScreen } from "./auth/login-screen";
 import { CatalogPage } from "./catalog/catalog-page";
+import { ProfessionalPage } from "./professionals/professional-page";
 
 const modules = ["Inicio", "Sedes y servicios", "Profesionales", "Agenda",
   "Asistencia", "Reasignaciones", "Reportes", "Auditoría"] as const;
@@ -45,16 +46,16 @@ function InstitutionalShell() {
               <button type="button" aria-pressed={selected === module} onClick={() => setSelected(module)}>{module}</button>
             </li>
           ))}</ul>
-          <p className="nav-note">Sedes y servicios disponibles según tus permisos.</p>
+          <p className="nav-note">Sedes, servicios y profesionales disponibles según tus permisos.</p>
         </nav>
         <main id="content" tabIndex={-1}>
           <p className="eyebrow">Gestión institucional</p>
           <h1>{selected}</h1>
-          {selected === 'Sedes y servicios' ? <CatalogPage /> : <section className="welcome-card" aria-labelledby="welcome-title">
+          {selected === 'Sedes y servicios' ? <CatalogPage /> : selected === 'Profesionales' ? <ProfessionalPage /> : <section className="welcome-card" aria-labelledby="welcome-title">
             <span className="stage">En preparación</span>
             <h2 id="welcome-title">Un espacio para la gestión de tu institución</h2>
             <p>Los módulos institucionales se incorporarán progresivamente.
-              Sedes y servicios permite administrar el catálogo con los permisos de tu contexto.
+              Sedes, servicios y profesionales permiten administrar el catálogo con los permisos de tu contexto.
               Las demás secciones siguen en preparación.</p>
             <p className="architecture-note">CitaJusta Desktop consume la misma API que Web.
               Las reglas de negocio y el control de acceso permanecerán en el backend.</p>

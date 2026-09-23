@@ -6,6 +6,7 @@ import { createServer } from 'vite';
 import { createAuthSession } from '@citajusta/client-core';
 import { createMemorySessionStorage } from '../src/auth/memory-session-storage.ts';
 import { branch, service, category, profile } from './fixtures/catalog.mjs';
+import { professional, account, profile as professionalProfile } from './fixtures/professionals.mjs';
 
 // Render de componentes reales; no sustituye la prueba interactiva de la ventana nativa.
 const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom' });
@@ -15,6 +16,38 @@ const { SessionProvider } = await vite.ssrLoadModule('/src/auth/auth-provider.ts
 const { CatalogView } = await vite.ssrLoadModule('/src/catalog/catalog-page.tsx');
 const { BranchForm, ServiceForm, branchPayload, servicePayload, changedFields } = await vite.ssrLoadModule('/src/catalog/catalog-forms.tsx');
 const { createCatalogModel } = await vite.ssrLoadModule('/src/catalog/catalog-model.ts');
+const { ProfessionalView, ProfessionalPage } = await vite.ssrLoadModule('/src/professionals/professional-page.tsx');
+const { ProfessionalForm, professionalPayload } = await vite.ssrLoadModule('/src/professionals/professional-forms.tsx');
+const { createProfessionalModel } = await vite.ssrLoadModule('/src/professionals/professional-model.ts');
+
+test('HU-030 professional view renders identity/status/associations and permission-controlled actions', () => {
+  const model = createProfessionalModel({}, professionalProfile);
+  const state = { ...model.getSnapshot(), status: 'ready', catalogStatus: 'ready', items: [professional], branches: [branch], services: [service] };
+  const render = (m = model, s = state) => renderToStaticMarkup(createElement(ProfessionalView, { model: m, state: s }));
+  for (const word of ['Ana Profesional', account.email, 'PRO-1', branch.name, service.name, 'Crear profesional', 'Editar profesional']) assert.ok(render().includes(word), word);
+  for (const [status, label] of [['ACTIVE', 'Activo'], ['INACTIVE', 'Inactivo'], ['SUSPENDED', 'Suspendido']]) assert.ok(render(model, { ...state, items: [{ ...professional, status }] }).includes(label));
+  const readOnly = createProfessionalModel({}, { ...professionalProfile, permissions: ['professionals.read'] });
+  assert.doesNotMatch(render(readOnly), /Crear profesional|Editar profesional/);
+  for (const [status, message] of [['denied', /Acceso no disponible/], ['loading', /Cargando profesionales/], ['error', /Error controlado/], ['ready', /No hay profesionales/]]) {
+    assert.match(render(model, { ...state, status, items: [], error: 'Error controlado' }), message);
+  }
+});
+test('HU-030 forms keep identity readonly, preserve unchanged inactive associations and build minimal PATCH', () => {
+  const props = { item: professional, eligible: null, branches: [branch], services: [service], busy: false, save: async () => true, close() {} };
+  const html = renderToStaticMarkup(createElement(ProfessionalForm, props));
+  assert.match(html, /Cuenta vinculada/); assert.ok(html.includes(account.email));
+  assert.doesNotMatch(html, /name="(?:userId|institutionId|password|email|roles)"/);
+  assert.match(html, /Hay asociaciones inactivas/);
+  for (const value of ['ACTIVE', 'INACTIVE', 'SUSPENDED']) assert.ok(html.includes(`value="${value}"`));
+  const data = new FormData(); data.set('status', 'INACTIVE'); data.set('internalCode', professional.internalCode); data.set('titleOrFunction', professional.titleOrFunction);
+  data.set('userId', 'foreign'); data.set('institutionId', 'foreign');
+  assert.deepEqual(professionalPayload(data, professional.branchIds, professional.serviceIds, professional), { status: 'INACTIVE' });
+  assert.deepEqual(professionalPayload(data, [], [], professional), { status: 'INACTIVE', branchIds: [], serviceIds: [] });
+  assert.throws(() => professionalPayload(data, [], []));
+  const create = professionalPayload(data, [branch.id], [service.id]); assert.equal(create.userId, undefined); assert.equal(create.institutionId, undefined);
+  const disabled = renderToStaticMarkup(createElement(ProfessionalForm, { ...props, item: undefined, eligible: null }));
+  assert.match(disabled, /Busca y selecciona una cuenta elegible/); assert.match(disabled, /disabled/);
+});
 
 test('catalog renders real fields, inactive badges and actions based on explicit permissions', () => {
   const model = createCatalogModel({}, profile);
@@ -66,6 +99,8 @@ test('login/shell/logout renderizan sólo el estado y perfil reales, sin tokens 
     : undefined };
   const session = createAuthSession({ publicApi, authenticatedApi: () => ({ request: async () => ({ data: profile }) }), storage: createMemorySessionStorage() });
   const render = () => renderToStaticMarkup(createElement(SessionProvider, { session }, createElement(App)));
+  const professionalRoute = () => renderToStaticMarkup(createElement(SessionProvider, { session }, createElement(ProfessionalPage)));
+  assert.match(professionalRoute(), /Se requiere una sesión verificada/);
   assert.match(render(), /Verificando sesión/);
   assert.doesNotMatch(render(), /Módulos institucionales/);
   await session.restore();

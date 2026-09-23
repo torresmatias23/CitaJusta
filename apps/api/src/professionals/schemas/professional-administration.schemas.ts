@@ -1,5 +1,6 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { z } from 'zod';
+import { emailSchema } from '../../auth/schemas/auth.schemas.js';
 import type { AuthorizedRequest } from '../../authorization/types/authorization-context.js';
 
 const nullableText = (max: number) => z.string().trim().min(1).max(max).nullable().optional();
@@ -19,6 +20,18 @@ export const updateProfessionalSchema = z.object(fields).partial().strict()
   .refine((value) => Object.keys(value).length > 0);
 export type CreateProfessionalInput = z.infer<typeof createProfessionalSchema>;
 export type UpdateProfessionalInput = z.infer<typeof updateProfessionalSchema>;
+
+export function parseProfessionalRead(body: unknown, query: unknown): void {
+  parseProfessionalInput(z.object({}).strict(), body ?? {}, query);
+}
+
+export function parseEligibleUserQuery(body: unknown, query: unknown): string {
+  const parsed = z.object({ email: emailSchema }).strict().safeParse(query);
+  if (!parsed.success || !z.object({}).strict().safeParse(body ?? {}).success) {
+    throw new BadRequestException('Invalid professional administration request');
+  }
+  return parsed.data.email;
+}
 
 export function parseProfessionalInput<T>(schema: z.ZodType<T>, body: unknown, query: unknown): T {
   const parsed = schema.safeParse(body);

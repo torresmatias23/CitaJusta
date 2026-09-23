@@ -51,8 +51,8 @@ el cierre local, aunque la revocación remota no pueda confirmarse.
 
 La shell sólo se muestra tras login y `GET users/me` exitosos. Muestra nombre,
 correo, contexto y roles reales. No tener institución/sede se representa como tal:
-el cliente no inventa permisos. HU-029 habilita Sedes y servicios; profesionales,
-agenda, asistencia, reasignaciones, reportes y auditoría siguen en preparación.
+el cliente no inventa permisos. HU-029 habilita Sedes y servicios y HU-030 habilita
+Profesionales; agenda, asistencia, reasignaciones, reportes y auditoría siguen en preparación.
 No hay registro Desktop.
 
 ### HU-029: catálogo administrativo
@@ -114,6 +114,82 @@ refresh, bloquean doble envío y recargan el catálogo al guardar. Cambiar de co
 o cerrar sesión desmonta el módulo y descarta respuestas tardías.
 
 ## Validación manual
+
+### HU-030: profesionales
+
+Profesionales consulta `GET /api/v1/professionals/administration` con
+`professionals.read`, contexto institucional sin sede y grants GLOBAL/INSTITUTION.
+Incluye ACTIVE/INACTIVE/SUSPENDED, excluye profesionales eliminados y otros tenants,
+y devuelve identidad mínima (nombre/email) y asociaciones activas ordenadas.
+Los GET públicos conservan su contrato de catálogo disponible.
+
+Crear requiere `professionals.create` y una búsqueda exacta mediante
+`GET /api/v1/professionals/eligible-users?email=<email>`; no hay listado de cuentas
+ni búsqueda parcial. Reutiliza validación/normalización Auth. La cuenta debe existir,
+estar ACTIVE/no eliminada y no tener un Professional en la institución, incluso
+inactivo/eliminado, por la unicidad vigente. Las causas de no elegibilidad usan el
+mismo 404. User sigue siendo global: un perfil en otra institución no impide el alta.
+
+El alta utiliza POST HU-013; edición y cambios de estado usan PATCH HU-013 con
+`professionals.update`. `userId` se obtiene de la cuenta encontrada y queda inmutable.
+Desktop no crea cuentas, modifica credenciales ni otorga roles/permisos. La API
+revalida elegibilidad, permisos y relaciones al escribir; una búsqueda exitosa no
+garantiza que el alta siga siendo válida si el estado cambia concurrentemente.
+
+Provisionar explícitamente Permission `professionals.read` (`module=professionals`,
+`action=read`), RolePermission y UserRole en el ámbito autorizado. La lectura no
+reutiliza permisos de escritura. Para formularios se necesitan además `branches.read`
+y `services.read`; si faltan, la UI informa acceso no disponible, sin fallback público.
+El tooling `seed:desktop-catalog-admin` de HU-029 conserva sus seis permisos exactos:
+no concede permisos de profesionales ni debe ampliarse silenciosamente.
+
+Para validación local de HU-030, el tooling dedicado asigna a una cuenta ACTIVE
+existente exactamente `professionals.read/create/update`, `branches.read` y
+`services.read`, mediante el rol `DEMO_DESKTOP_PROFESSIONAL_ADMIN` de scope
+INSTITUTION, sólo en la institución demo `d1000000-0000-4000-8000-000000000001`:
+
+```powershell
+$env:NODE_ENV = "development"
+$env:DESKTOP_PROFESSIONAL_ADMIN_EMAIL = "matias.desktop.test@example.test"
+npm run seed:desktop-professional-admin -w @citajusta/api
+```
+
+Requiere la institución de `seed:dev` existente y PostgreSQL local `citajusta_dev`
+o `citajusta_dev_<sufijo>`; verifica también el nombre real de la base. No crea
+usuarios ni cambia credenciales o datos de la cuenta. Reutiliza permisos compatibles
+y crea sólo registros RBAC faltantes dentro de una transacción Serializable.
+El rol dedicado admite una sola cuenta: permisos ajenos, colisiones de identidad
+o grants incompatibles hacen abortar sin sobrescribir. Otros roles/grants no se
+modifican; repetir el comando conserva registros compatibles. En Desktop vuelve
+a aplicar la institución demo **sin sede** para actualizar los permisos y abre
+Profesionales. El tooling HU-029 permanece independiente y sin cambios.
+
+Las asociaciones no editadas se omiten del PATCH, conservando incluso inactivas.
+Al modificar una selección se retiran las asociaciones inactivas/no disponibles y
+sólo se envían recursos activos; `[]` retira todas en edición. El alta exige al menos
+una sede y un servicio. Las filas históricas se conservan según HU-013. El módulo
+aborta/invalida respuestas tardías, bloquea doble envío y no reenvía escrituras tras
+refresh. No usa optimistic success ni almacena tokens.
+
+Prueba manual en Tauri:
+
+1. Iniciar API y Desktop con los comandos de Desarrollo; usar una cuenta controlada
+   con los permisos anteriores provisionados por el administrador.
+2. En Sedes y servicios, aplicar el contexto institucional **sin sede**; abrir Profesionales.
+3. Crear: buscar email exacto de otra cuenta ACTIVE existente, seleccionar sede/servicio
+   activos y guardar. Comprobar nombre/email, estado y asociaciones en el listado.
+4. Editar código/función, reemplazar asociaciones y cambiar ACTIVE → INACTIVE →
+   SUSPENDED → ACTIVE. La identidad vinculada no debe ser editable.
+5. Repetir con cuenta sólo lectura, sin permisos y contexto BRANCH; verificar denegación.
+   Buscar email inexistente/inactivo o ya profesional debe mostrar un error controlado.
+
+```powershell
+npm run build -w @citajusta/api
+node --test apps/api/test/professional-administration-read.test.mjs apps/api/test/professional-administration.test.mjs apps/api/test/professionals.catalog.test.mjs
+npm run test:e2e:professionals -w @citajusta/api
+npm test -w @citajusta/desktop
+npm run build -w @citajusta/desktop
+```
 
 Usar una cuenta controlada ACTIVE ya creada por los mecanismos existentes, con
 su contraseña conocida por el propietario. No usar usuarios técnicos demo sin
