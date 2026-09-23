@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
 
-const emailSchema = z
+export const emailSchema = z
   .string()
   .trim()
   .email()

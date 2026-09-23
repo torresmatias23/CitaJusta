@@ -11,6 +11,7 @@
     "bootstrap:waitlist": "npm run build && node scripts/bootstrap-waitlist.mjs",
     "seed:dev": "npm run build && node scripts/seed-development.mjs",
     "seed:desktop-catalog-admin": "npm run build && node scripts/seed-desktop-catalog-admin.mjs",
+    "seed:desktop-professional-admin": "npm run build && node scripts/seed-desktop-professional-admin.mjs",
     "seed:reassignment-demo": "npm run build && node scripts/seed-reassignment-demo.mjs",
     "seed:booking-demo": "npm run build && node scripts/seed-booking-demo.mjs",
     "check:dev": "npm run build && node scripts/check-development.mjs",

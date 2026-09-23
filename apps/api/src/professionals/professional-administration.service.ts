@@ -7,7 +7,8 @@ import { isTransactionConflict } from '../database/transaction-conflict.js';
 import { Prisma } from '../generated/prisma/client.js';
 import type { CreateProfessionalInput, UpdateProfessionalInput } from './schemas/professional-administration.schemas.js';
 
-export const PROFESSIONAL_PERMISSIONS = { create: 'professionals.create', update: 'professionals.update' } as const;
+export const PROFESSIONAL_PERMISSIONS = { read: 'professionals.read', create: 'professionals.create', update: 'professionals.update' } as const;
+const userSelect = { id: true, email: true, firstNames: true, lastNames: true } satisfies Prisma.UserSelect;
 const professionalSelect = (institutionId: string) => ({
   id: true, userId: true, internalCode: true, titleOrFunction: true, description: true,
   status: true, createdAt: true, updatedAt: true,
@@ -24,6 +25,30 @@ const professionalSelect = (institutionId: string) => ({
 @Injectable()
 export class ProfessionalAdministrationService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async list(context: AuthorizationContext) {
+    const institutionId = await this.authorize(this.prisma, context, PROFESSIONAL_PERMISSIONS.read);
+    const rows = await this.prisma.professional.findMany({
+      where: { institutionId, deletedAt: null },
+      select: { ...professionalSelect(institutionId), userId: false, user: { select: userSelect } },
+      orderBy: [{ user: { lastNames: 'asc' } }, { user: { firstNames: 'asc' } }, { id: 'asc' }],
+    });
+    return { data: rows.map(({ branchAssignments, serviceAssignments, createdAt, updatedAt, ...fields }) => ({
+      ...fields, createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString(),
+      branchIds: branchAssignments.map((item) => item.branchId), serviceIds: serviceAssignments.map((item) => item.serviceId),
+    })) };
+  }
+
+  async eligibleUser(email: string, context: AuthorizationContext) {
+    const institutionId = await this.authorize(this.prisma, context, PROFESSIONAL_PERMISSIONS.create);
+    const user = await this.prisma.user.findFirst({
+      where: { email, status: 'ACTIVE', deletedAt: null, professionalProfiles: { none: { institutionId } } },
+      select: userSelect,
+    });
+    // Uniqueness includes inactive and soft-deleted professional profiles.
+    if (!user) throw new NotFoundException('User not available');
+    return { data: user };
+  }
 
   create(input: CreateProfessionalInput, context: AuthorizationContext) {
     return this.write(async (tx) => {
