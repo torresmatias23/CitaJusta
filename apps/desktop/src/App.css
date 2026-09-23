@@ -1,0 +1,56 @@
+:root {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: #183249;
+  background: #f3f6f8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.6;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button { font: inherit; }
+button:focus-visible, a:focus-visible { outline: 3px solid #067c80; outline-offset: 3px; }
+.app-shell { min-height: 100vh; }
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.25rem 2rem;
+  background: #fff;
+  border-bottom: 1px solid #dce5eb;
+}
+.brand { margin: 0; color: #08777a; font-size: 1.5rem; font-weight: 700; }
+.subtitle { margin: 0; color: #526577; font-size: .875rem; }
+.status, .stage { display: inline-block; border-radius: 999px; padding: .3rem .8rem; font-size: .8rem; font-weight: 600; }
+.status { background: #e4f3f1; color: #17645e; }
+.workspace { display: grid; grid-template-columns: 220px minmax(0, 1fr); }
+.sidebar { padding: 1.5rem 1rem; }
+.eyebrow { font-size: .75rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #526577; }
+.sidebar ul { list-style: none; margin: 0; padding: 0; }
+.sidebar li + li { margin-top: .25rem; }
+.sidebar button { width: 100%; border: 1px solid transparent; border-radius: .5rem; padding: .6rem .75rem; text-align: left; background: transparent; color: #354e63; cursor: pointer; }
+.sidebar button:hover { background: #e6edf1; }
+.sidebar button[aria-pressed="true"] { background: #e0f1ef; color: #115f5c; border-color: #bbdcd8; font-weight: 600; }
+.nav-note { padding: .75rem; color: #526577; font-size: .75rem; }
+main { min-width: 0; padding: 2rem clamp(1rem, 4vw, 3rem); }
+h1 { margin: .25rem 0 1.5rem; font-size: clamp(1.6rem, 3vw, 2rem); line-height: 1.25; }
+.welcome-card { max-width: 760px; padding: clamp(1.25rem, 3vw, 2rem); border: 1px solid #dce5eb; border-radius: .875rem; background: #fff; }
+.stage { background: #edf2f6; color: #475d70; }
+h2 { margin: 1rem 0 .75rem; font-size: 1.25rem; line-height: 1.4; }
+.welcome-card p { color: #526577; }
+.architecture-note { border-top: 1px solid #e2e9ee; padding-top: 1rem; margin-bottom: 0; font-size: .875rem; }
+.skip-link { position: absolute; top: .5rem; left: .5rem; transform: translateY(-200%); background: #fff; color: #115f5c; padding: .5rem 1rem; z-index: 1; }
+.skip-link:focus { transform: translateY(0); }
+
+@media (max-width: 600px) {
+  .app-header { padding: 1rem; }
+  .workspace { grid-template-columns: 1fr; }
+  .sidebar { padding: .75rem 1rem; border-bottom: 1px solid #dce5eb; }
+  .sidebar ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .25rem; }
+  .sidebar li + li { margin-top: 0; }
+  main { padding: 1.5rem 1rem; }
+}
