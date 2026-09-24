@@ -1,5 +1,71 @@
 # CitaJusta Desktop
 
+## HU-031 — Agenda institucional (sólo lectura)
+
+Agenda consume `GET /api/v1/agenda` con `agenda.read` y contexto institucional
+verificado. Fecha obligatoria `YYYY-MM-DD`; sede, servicio, profesional y estado
+opcionales. El estado es un **código exacto libre**, no un catálogo cerrado.
+No crea/modifica citas, disponibilidad, bloqueos ni asistencia.
+
+El contexto de sesión se transmite mediante los headers existentes del cliente;
+no hay institución/usuario/actor en query ni body. Con sede contextual, el selector
+queda fijo. Sin sede contextual permite elegir una sede de la institución.
+
+Las ayudas usan catálogos públicos autenticados existentes:
+`institutions/:id`, `institutions/:id/branches`, `branches/:id/services` y
+`branches/:id/professionals`; no requieren permisos administrativos adicionales.
+Sólo proponen catálogos activos del contexto. Las opciones históricas se incorporan
+desde las citas consultadas y no se filtran resultados por actividad de catálogos.
+Para localizar un recurso inactivo, consultar primero la fecha sin filtros opcionales.
+
+La API define el día con su zona institucional; Desktop envía la fecha sin calcular
+rangos UTC. Presenta los ISO con `Intl.DateTimeFormat` y la zona obtenida de la
+institución. Si no está disponible, muestra **UTC explícito**, sin adivinar una zona.
+Los errores de ayudas no impiden consultar por fecha. Cambiar filtros limpia
+resultados anteriores y aborta/invalida respuestas obsoletas; cada consulta conserva
+el orden recibido del backend.
+
+Prueba manual (API/PostgreSQL ya preparados):
+
+1. Terminal 1, raíz: `npm run start -w @citajusta/api` (build API existente).
+2. Terminal 2, raíz: `npm run tauri -w @citajusta/desktop -- dev`.
+3. Iniciar sesión con cuenta controlada ACTIVE y `agenda.read` provisionado por
+   el administrador. En Sedes y servicios, aplicar el contexto autorizado.
+4. Abrir Agenda, elegir la fecha de citas reales y consultar. Comprobar nombres,
+   horas/zona, estado, sede y orden; probar cada filtro y una fecha sin citas.
+5. Con contexto de sede, comprobar selector fijo. Sin `agenda.read`, comprobar
+   denegación. Probar error de conexión, reintento y cambios rápidos de filtros.
+
+Esta HU no provisiona usuarios/permisos ni datos. Se requieren citas previamente
+creadas; sin ellas la respuesta vacía es válida. La verificación interactiva en
+Tauri complementa los tests de modelo/API y render estático de Desktop.
+
+### Tooling local de validación de Agenda
+
+Para una cuenta **ya existente, ACTIVE y no eliminada**, con la institución demo
+compatible previamente preparada y `DATABASE_URL` local configurada en la API:
+
+```powershell
+$env:NODE_ENV = 'development'
+$env:DESKTOP_AGENDA_READER_EMAIL = 'matias.desktop.test@example.test'
+npm run seed:desktop-agenda-reader -w @citajusta/api
+```
+
+Inserta sólo el RBAC faltante: rol dedicado `DEMO_DESKTOP_AGENDA_READER`, scope
+`INSTITUTION`, permiso exacto `agenda.read`, asignado únicamente a la institución
+`d1000000-0000-4000-8000-000000000001`, sin sede. No crea usuarios, credenciales ni
+citas; no modifica passwords, otros roles/grants ni los tooling HU-029/HU-030.
+Exige development explícito, PostgreSQL local `citajusta_dev` o sufijo permitido,
+verifica la base conectada y la identidad demo. Es idempotente, rechaza colisiones
+y configuraciones incompatibles, y revierte escrituras ante fallo. El rol queda
+vinculado a una única cuenta controlada; cambiar de destinatario requiere revisión,
+no reasignación automática. Usa Serializable y un solo reintento por conflicto
+transaccional reconocido.
+
+Después, vuelve a iniciar sesión en Desktop y aplica esa institución sin sede en
+Sedes y servicios para refrescar el contexto/permisos; abre Agenda y consulta una
+fecha con citas existentes. Los demás permisos de la cuenta permanecen intactos.
+
 Cliente institucional del monorepo npm, construido con Tauri 2, React,
 TypeScript, Vite y Rust. HU-028 incorpora login real mediante el núcleo compartido
 `@citajusta/client-core`: HTTP, sesión, rotación de refresh y protección frente a
@@ -52,7 +118,8 @@ el cierre local, aunque la revocación remota no pueda confirmarse.
 La shell sólo se muestra tras login y `GET users/me` exitosos. Muestra nombre,
 correo, contexto y roles reales. No tener institución/sede se representa como tal:
 el cliente no inventa permisos. HU-029 habilita Sedes y servicios y HU-030 habilita
-Profesionales; agenda, asistencia, reasignaciones, reportes y auditoría siguen en preparación.
+Profesionales; HU-031 habilita la consulta de Agenda. Asistencia, reasignaciones,
+reportes y auditoría siguen en preparación.
 No hay registro Desktop.
 
 ### HU-029: catálogo administrativo
