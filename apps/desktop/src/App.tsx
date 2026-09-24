@@ -4,6 +4,7 @@ import { useAuth } from "./auth/auth-provider";
 import { LoginScreen } from "./auth/login-screen";
 import { CatalogPage } from "./catalog/catalog-page";
 import { ProfessionalPage } from "./professionals/professional-page";
+import { AgendaPage } from "./agenda/agenda-page";
 
 const modules = ["Inicio", "Sedes y servicios", "Profesionales", "Agenda",
   "Asistencia", "Reasignaciones", "Reportes", "Auditoría"] as const;
@@ -46,16 +47,17 @@ function InstitutionalShell() {
               <button type="button" aria-pressed={selected === module} onClick={() => setSelected(module)}>{module}</button>
             </li>
           ))}</ul>
-          <p className="nav-note">Sedes, servicios y profesionales disponibles según tus permisos.</p>
+          <p className="nav-note">Catálogos y consulta de agenda disponibles según tus permisos.</p>
         </nav>
         <main id="content" tabIndex={-1}>
           <p className="eyebrow">Gestión institucional</p>
           <h1>{selected}</h1>
-          {selected === 'Sedes y servicios' ? <CatalogPage /> : selected === 'Profesionales' ? <ProfessionalPage /> : <section className="welcome-card" aria-labelledby="welcome-title">
+          {selected === 'Sedes y servicios' ? <CatalogPage /> : selected === 'Profesionales' ? <ProfessionalPage /> : selected === 'Agenda' ? <AgendaPage /> : <section className="welcome-card" aria-labelledby="welcome-title">
             <span className="stage">En preparación</span>
             <h2 id="welcome-title">Un espacio para la gestión de tu institución</h2>
             <p>Los módulos institucionales se incorporarán progresivamente.
               Sedes, servicios y profesionales permiten administrar el catálogo con los permisos de tu contexto.
+              Agenda permite consultar citas institucionales en modo de sólo lectura.
               Las demás secciones siguen en preparación.</p>
             <p className="architecture-note">CitaJusta Desktop consume la misma API que Web.
               Las reglas de negocio y el control de acceso permanecerán en el backend.</p>
