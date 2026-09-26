@@ -35,7 +35,7 @@ test('HU-014 real PostgreSQL availability, blocking and booking concurrency', { 
     }
     const admin = await register(); const ordinary = await register(); const officer = await register();
     await createCheckpointFixtures(prisma, admin.id);
-    for (const action of ['create', 'update', 'block']) {
+    for (const action of ['read', 'create', 'update', 'block']) {
       const code = `availability.${action}`;
       let permission = await prisma.permission.findUnique({ where: { code } });
       if (!permission) { permission = await prisma.permission.create({ data: { id: randomUUID(), code, module: 'availability', action } }); createdPermissions.push(permission.id); }
@@ -56,6 +56,30 @@ test('HU-014 real PostgreSQL availability, blocking and booking concurrency', { 
     const book = (slotId) => request('POST', '/appointments', ordinary.token, { agendaSlotId: slotId });
     const available = (body) => request('GET', `/branches/${body.branchId}/services/${body.serviceId}/availability?${new URLSearchParams({ from: body.startsAt, to: body.endsAt })}`, ordinary.token);
     let first;
+    const { timeZone } = await prisma.institution.findUniqueOrThrow({ where: { id: ids.institutionA }, select: { timeZone: true } });
+    const dateOf = value => new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value));
+    const adminRead = (path, date, token = admin.token, context = headers, suffix = '') => request('GET', `/availability/${path}?date=${date}${suffix}`, token, undefined, context);
+
+    await t.test('HU032 read requires permission; strict filters and tenant/branch isolation', async () => {
+      const day = dateOf(input.startsAt);
+      for (const path of ['administration', 'blocks/administration']) {
+        assert.equal((await adminRead(path, day, ordinary.token)).status, 403);
+        assert.equal((await adminRead(path, day, admin.token, headers, `&branchId=${ids.branchB1}`)).status, 404);
+        assert.equal((await adminRead(path, day, officer.token, scope, `&branchId=${ids.branchA2}`)).status, 404);
+        assert.equal((await adminRead(path, day, admin.token, headers, `&professionalId=${ids.professionalB}`)).status, 404);
+        assert.equal((await adminRead(path, day, admin.token, headers, '&userId=invalid')).status, 400);
+        assert.equal((await adminRead(path, day, admin.token, { 'x-institution-id': ids.institutionB })).status, 403);
+      }
+      assert.equal((await adminRead('administration', day, admin.token, headers, `&serviceId=${ids.serviceB}`)).status, 404);
+      assert.equal((await adminRead('blocks/administration', day, admin.token, headers, `&serviceId=${ids.serviceA}`)).status, 400);
+    });
+    await t.test('HU032 existing rows from another institution or branch never leak into contextual GET', async () => {
+      for (const [id, token, context] of [[ids.availabilityCrossTenant, admin.token, headers], [ids.availabilityOtherContext, officer.token, scope]]) {
+        const row = await prisma.availability.findUniqueOrThrow({ where: { id }, select: { date: true } });
+        const read = await adminRead('administration', row.date.toISOString().slice(0, 10), token, context);
+        assert.equal(read.status, 200); assert.ok(read.body.data.every(item => item.id !== id));
+      }
+    });
 
     await t.test('auth, permissions, invalid input and cross-tenant resource/context checks', async () => {
       assert.equal((await request('POST', '/availability', undefined, input, headers)).status, 401);
@@ -90,6 +114,10 @@ test('HU-014 real PostgreSQL availability, blocking and booking concurrency', { 
       assert.equal(Object.hasOwn(first.slots[0], 'lockVersion'), false);
       const stored = await prisma.availability.findUniqueOrThrow({ where: { id: first.id } });
       assert.equal(stored.origin, 'MANUAL'); assert.equal(stored.capacity, 1);
+      const read = await adminRead('administration', dateOf(input.startsAt), officer.token, scope);
+      assert.equal(read.status, 200); const item = read.body.data.find(row => row.id === first.id);
+      assert.equal(item.active, true); assert.equal(item.branch.id, input.branchId);
+      assert.deepEqual(Object.keys(item).sort(), ['id','date','startTime','endTime','timeZone','active','capacity','origin','branch','service','professional','attentionPoint','createdAt','updatedAt'].sort());
     });
     await t.test('equivalent/overlapping availability is rejected; adjacent interval is accepted', async () => {
       assert.equal((await create(input)).status, 409);
@@ -101,6 +129,10 @@ test('HU-014 real PostgreSQL availability, blocking and booking concurrency', { 
       assert.equal(response.status, 201);
       const stored = await prisma.scheduleBlock.findUniqueOrThrow({ where: { id: response.body.data.id } });
       assert.equal(stored.createdByUserId, admin.id); assert.equal(stored.institutionId, ids.institutionA);
+      const read = await adminRead('blocks/administration', dateOf(input.startsAt), officer.token, scope);
+      assert.equal(read.status, 200);
+      const item = read.body.data.find(row => row.id === stored.id); assert.equal(item.type, 'MANUAL');
+      assert.equal(Object.hasOwn(item, 'createdByUserId'), false); assert.equal(Object.hasOwn(item, 'institutionId'), false);
       const listing = await available(input);
       for (const slot of first.slots) {
         assert.equal(JSON.stringify(listing.body.data).includes(slot.id), false);
@@ -124,11 +156,24 @@ test('HU-014 real PostgreSQL availability, blocking and booking concurrency', { 
       const id = created.body.data.id;
       const patch = { startsAt: at(12, 17), endsAt: at(12, 18) };
       const edited = await write('PATCH', `/availability/${id}`, patch); assert.equal(edited.status, 200);
+      const readEdited = await adminRead('administration', edited.body.data.date);
+      assert.equal(readEdited.body.data.find(row => row.id === id).startTime, edited.body.data.startTime);
       for (const slot of created.body.data.slots) {
         assert.equal((await prisma.agendaSlot.findUniqueOrThrow({ where: { id: slot.id } })).status, 'EXPIRED');
         assert.equal((await book(slot.id)).status, 409);
       }
       assert.equal((await write('PATCH', `/availability/${id}`, { active: false })).status, 200);
+      await prisma.service.update({ where: { id: input.serviceId }, data: { active: false } });
+      await prisma.professional.update({ where: { id: input.professionalId }, data: { status: 'INACTIVE' } });
+      try {
+        const read = await adminRead('administration', edited.body.data.date);
+        assert.equal(read.status, 200); assert.equal(read.body.data.find(row => row.id === id).active, false);
+        const historicalBlocks = await adminRead('blocks/administration', dateOf(input.startsAt));
+        assert.equal(historicalBlocks.status, 200); assert.ok(historicalBlocks.body.data.some(row => row.professional?.id === input.professionalId));
+      } finally {
+        await prisma.service.update({ where: { id: input.serviceId }, data: { active: true } });
+        await prisma.professional.update({ where: { id: input.professionalId }, data: { status: 'ACTIVE' } });
+      }
       assert.equal((await write('PATCH', `/availability/${id}`, { ...patch, active: true })).status, 200);
       assert.equal((await write('PATCH', `/availability/${id}`, {})).status, 400);
       assert.equal((await write('PATCH', `/availability/${id}`, { professionalId: ids.professionalB })).status, 400);

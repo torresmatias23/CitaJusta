@@ -1,5 +1,74 @@
 # CitaJusta Desktop
 
+## HU-032 — Disponibilidad y bloqueos
+
+En **Agenda → Disponibilidad y bloqueos**, sin reemplazar la consulta de citas
+HU-031. Usa `session.api`, contexto institucional verificado y permisos independientes:
+`availability.read`, `availability.create`, `availability.update`, `availability.block`.
+No se infieren permisos por nombre de rol. Una sede contextual queda fija.
+
+- Lecturas: `GET /api/v1/availability/administration?date=YYYY-MM-DD` (sede,
+  servicio, profesional opcionales) y `GET /api/v1/availability/blocks/administration`
+  (fecha requerida, sede/profesional opcionales; no servicio).
+- Availability incluye activas/inactivas, orden hora/id; los bloqueos intersectan
+  el día institucional, orden inicio/id. No se ocultan históricos por catálogos
+  inactivos. Para localizarlos, consultar la fecha sin filtros opcionales.
+- Escrituras HU-014 reutilizadas: POST availability, PATCH availability/:id y
+  POST availability/blocks. El PATCH envía sólo el intervalo cambiado; desactivar
+  envía `{ active: false }`; reactivar exige intervalo explícito y `active: true`.
+  La identidad sede/servicio/profesional/punto permanece inmutable.
+- Sede/servicio y profesionales compatibles se obtienen de los catálogos reales,
+  incluyendo `branches/:id/services/:id/professionals`. No hay datos ficticios.
+- Fecha/hora se interpreta en `Institution.timeZone`, nunca en la zona del equipo.
+  La conversión Intl valida round-trip y rechaza horas inexistentes/ambiguas; envía
+  ISO UTC con precisión de minuto. Sin zona válida no permite escribir.
+- No hay selector de AttentionPoint: falta un catálogo HTTP reutilizable. Se omite
+  en nuevas escrituras y se muestra nombre de puntos existentes en lecturas.
+- Sin recurrencia, Holiday/AttentionPoint CRUD, edición/eliminación de bloqueos ni
+  borrado físico de disponibilidades. Sin cambios a citas, reasignaciones o HU-014.
+- Solicitudes obsoletas se abortan/invalidan; una escritura no se reintenta
+  automáticamente. `409` conserva el formulario y exige revisar/reconsultar.
+
+### Preparación local y validación manual HU-032
+
+Tooling optativo, **no ejecutado automáticamente**, sólo sobre PostgreSQL local de
+desarrollo y una cuenta ACTIVE existente. Institución demo ya preparada:
+
+```powershell
+$env:NODE_ENV = 'development'
+$env:DESKTOP_AVAILABILITY_ADMIN_EMAIL = 'matias.desktop.test@example.test'
+npm run seed:desktop-availability-admin -w @citajusta/api
+```
+
+Crea únicamente el RBAC faltante del rol `DEMO_DESKTOP_AVAILABILITY_ADMIN`,
+scope INSTITUTION, los cuatro permisos anteriores y grant para la institución
+`d1000000-0000-4000-8000-000000000001`. Verifica identidad DB/institución,
+rechaza colisiones, es idempotente y no toca usuarios/passwords/roles ajenos.
+Conserva los permisos HU-029/HU-030/HU-031 existentes; no los concede.
+
+1. Iniciar API: `npm run start -w @citajusta/api`; Desktop:
+   `npm run tauri -w @citajusta/desktop -- dev` (URL API local ya configurada).
+2. Iniciar sesión, aplicar institución autorizada en Sedes y servicios y abrir
+   Agenda → Disponibilidad y bloqueos. Deben existir profesional/asociaciones
+   activas; prepararlos mediante los flujos existentes si falta el catálogo.
+3. Consultar una fecha futura; crear intervalo divisible por duración del servicio,
+   comprobar listado y zona. Editar horario, desactivar y reactivar explícitamente.
+4. En otro intervalo futuro sin citas, crear bloqueo MANUAL y comprobar listado.
+   Verificar que no aparecen acciones editar/eliminar bloqueo y que un intervalo
+   protegido responde con conflicto sin cambios parciales.
+5. Probar sólo lectura, ausencia de permisos, sede contextual fija y cambios rápidos
+   de filtros. La consulta de citas HU-031 continúa disponible con `agenda.read`.
+
+Validación enfocada desde raíz (E2E requiere PostgreSQL y fixtures protegidos):
+
+```powershell
+npm run build -w @citajusta/api
+node --test apps/api/test/availability-administration-read.test.mjs apps/api/test/availability-administration.test.mjs apps/api/test/desktop-availability-admin.test.mjs
+npm run test:e2e:availability-admin -w @citajusta/api
+npm test -w @citajusta/desktop
+npm run build -w @citajusta/desktop
+```
+
 ## HU-031 — Agenda institucional (sólo lectura)
 
 Agenda consume `GET /api/v1/agenda` con `agenda.read` y contexto institucional
