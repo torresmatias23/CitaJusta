@@ -224,6 +224,21 @@ HU-030 incorpora Desktop Profesionales y dos GET administrativos estáticos, ant
 - Errores: `400` contrato/rango/contexto inválido, `401` sin autenticación, `403` sin permiso vigente, `404` recurso/relación fuera de alcance, `409` solape/duplicado/cupo protegido/conflicto persistente, `503` zona institucional inválida y `500` inesperado sin detalles internos. Sin migraciones ni dependencias nuevas.
 - E2E PostgreSQL: `npm run test:e2e:availability-admin -w @citajusta/api`. Ejecutar secuencialmente con las demás suites que comparten fixtures protegidos. Verifica configure→consulta→bloqueo→rechazo de reserva, permisos, capacidad, duplicados concurrentes, carrera SQL reserva/bloqueo y rollback real de disponibilidad/cupos/bloqueos.
 
+### HU-032: administración Desktop de disponibilidad
+
+HU-032 agrega lectura administrativa protegida con `availability.read`:
+`GET /api/v1/availability/administration` requiere `date=YYYY-MM-DD`, admite
+`branchId/serviceId/professionalId`; `GET /api/v1/availability/blocks/administration`
+admite fecha/sede/profesional, no servicio. Query estricta y sin body funcional.
+Tenant/sede provienen del contexto; filtros ajenos devuelven `404`.
+Availability usa la fecha civil almacenada por HU-014 e incluye inactivas; los
+bloqueos intersectan el día en Institution.timeZone. Orden estable hora/id e
+inicio/id, respectivamente. Catálogos inactivos no ocultan historia; selects/DTOs
+explícitos sin actor, lockVersion o modelos completos. AttentionPoint sólo id/nombre.
+Sin permiso `403`; no se otorga a roles automáticamente. Las escrituras HU-014
+no cambian. Integración Desktop y tooling local optativo en
+[README Desktop](apps/desktop/README.md#hu-032--disponibilidad-y-bloqueos).
+
 ### HU-015: consulta de agenda institucional
 
 - `GET /api/v1/agenda?date=YYYY-MM-DD`, con filtros opcionales `branchId`, `serviceId`, `professionalId` (UUID) y `status` (código exacto de AppointmentStatus). Rechaza fecha/UUID inválidos, query desconocida y body funcional. Sin filtro de estado incluye CANCELADA; un código sin coincidencias devuelve lista vacía.

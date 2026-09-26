@@ -4,7 +4,7 @@ import { useAuth } from "./auth/auth-provider";
 import { LoginScreen } from "./auth/login-screen";
 import { CatalogPage } from "./catalog/catalog-page";
 import { ProfessionalPage } from "./professionals/professional-page";
-import { AgendaPage } from "./agenda/agenda-page";
+import { AgendaSection } from "./agenda/agenda-section";
 
 const modules = ["Inicio", "Sedes y servicios", "Profesionales", "Agenda",
   "Asistencia", "Reasignaciones", "Reportes", "Auditoría"] as const;
@@ -52,7 +52,7 @@ function InstitutionalShell() {
         <main id="content" tabIndex={-1}>
           <p className="eyebrow">Gestión institucional</p>
           <h1>{selected}</h1>
-          {selected === 'Sedes y servicios' ? <CatalogPage /> : selected === 'Profesionales' ? <ProfessionalPage /> : selected === 'Agenda' ? <AgendaPage /> : <section className="welcome-card" aria-labelledby="welcome-title">
+          {selected === 'Sedes y servicios' ? <CatalogPage /> : selected === 'Profesionales' ? <ProfessionalPage /> : selected === 'Agenda' ? <AgendaSection /> : <section className="welcome-card" aria-labelledby="welcome-title">
             <span className="stage">En preparación</span>
             <h2 id="welcome-title">Un espacio para la gestión de tu institución</h2>
             <p>Los módulos institucionales se incorporarán progresivamente.

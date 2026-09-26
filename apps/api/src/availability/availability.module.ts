@@ -6,10 +6,11 @@ import { AgendaAvailabilityService } from './availability.service.js';
 import { AuthorizationModule } from '../authorization/authorization.module.js';
 import { AvailabilityAdministrationController } from './availability-administration.controller.js';
 import { AvailabilityAdministrationService } from './availability-administration.service.js';
+import { AvailabilityAdministrationReadService } from './availability-administration-read.service.js';
 
 @Module({
   imports: [DatabaseModule, AuthModule, AuthorizationModule],
   controllers: [AvailabilityController, AvailabilityAdministrationController],
-  providers: [AgendaAvailabilityService, AvailabilityAdministrationService],
+  providers: [AgendaAvailabilityService, AvailabilityAdministrationService, AvailabilityAdministrationReadService],
 })
 export class AvailabilityModule {}

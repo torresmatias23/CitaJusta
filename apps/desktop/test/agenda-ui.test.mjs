@@ -54,5 +54,7 @@ test('agenda Page exige sesión verificada y shell enlaza Agenda al módulo func
   assert.match(page(), /Consultar agenda/); assert.doesNotMatch(page(), /En preparación/);
   // Comprueba el cableado del shell, además del render real del módulo autenticado.
   const shell = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8');
-  assert.match(shell, /selected === 'Agenda' \? <AgendaPage \/>/);
+  assert.match(shell, /selected === 'Agenda' \? <AgendaSection \/>/);
+  const section = await readFile(new URL('../src/agenda/agenda-section.tsx', import.meta.url), 'utf8');
+  assert.match(section, /section === 'appointments' \? <AgendaPage \/>/);
 });
