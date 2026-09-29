@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { StatusBadge } from '../components/ui/status-badge';
 import type { UserProfile } from '@citajusta/client-core';
 import { useAuth } from '../auth/auth-provider';
 import { createAgendaModel } from './agenda-model';
@@ -50,7 +51,7 @@ export function AgendaView({ model, state }: { model: ReturnType<typeof createAg
     {state.status === 'ready' && <ul className="catalog-list">{state.items.map(item => <li className="catalog-card" key={item.id}>
       <h2>{item.service.name}</h2>
       <p>Inicio: <time dateTime={item.startsAt}>{formatAgendaTime(item.startsAt, state.timeZone)}</time><br />Fin: <time dateTime={item.endsAt}>{formatAgendaTime(item.endsAt, state.timeZone)}</time></p>
-      <p>Estado: <span className="catalog-status">{item.status.name} ({item.status.code})</span></p>
+      <p>Estado: <StatusBadge code={item.status.code}>{item.status.name} ({item.status.code})</StatusBadge></p>
       <p>Sede: {item.branch.name}</p>
       <p>Profesional: {item.professional.firstNames} {item.professional.lastNames}{item.professional.titleOrFunction ? ` · ${item.professional.titleOrFunction}` : ''}</p>
       <p>Usuario atendido: {item.user.firstNames} {item.user.lastNames}</p>

@@ -1,0 +1,17 @@
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  font-synthesis: none;
+  color: var(--ink);
+  background: var(--canvas);
+  --brand: #008184;
+  --brand-dark: #007477;
+  --ink: #172b50;
+  --muted: #65708a;
+  --line: #e2eaf0;
+  --surface: #fff;
+  --canvas: #f5f8fb;
+  --radius: 1rem;
+  --shadow: 0 3px 14px #172b5008;
+}

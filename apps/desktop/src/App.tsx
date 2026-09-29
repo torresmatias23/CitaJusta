@@ -7,8 +7,10 @@ import { ProfessionalPage } from "./professionals/professional-page";
 import { AgendaSection } from "./agenda/agenda-section";
 import { AttendancePage } from "./attendance/attendance-page";
 
-const modules = ["Inicio", "Sedes y servicios", "Profesionales", "Agenda",
-  "Asistencia", "Reasignaciones", "Reportes", "Auditoría"] as const;
+import { InstitutionalNavigation } from './components/institutional-navigation';
+import type { ModuleName } from './components/institutional-navigation';
+import { InstitutionalHome } from './components/institutional-home';
+import { Brand } from './components/brand';
 
 function App() {
   const auth = useAuth();
@@ -24,36 +26,30 @@ function App() {
 
 function InstitutionalShell() {
   const auth = useAuth();
-  const [selected, setSelected] = useState<typeof modules[number]>("Inicio");
+  const [selected, setSelected] = useState<ModuleName>("Inicio");
   return (
     <div className="app-shell">
       <a className="skip-link" href="#content">Ir al contenido</a>
       <header className="app-header">
-        <div><p className="brand">CitaJusta</p><p className="subtitle">Gestión institucional</p></div>
+        <div className="header-brand"><Brand /><p className="subtitle">Gestión institucional</p></div>
         <span className="status">Desktop institucional</span>
         <div className="session-details">
           <strong>{auth.user?.firstName} {auth.user?.lastName}</strong>
-          <span>{auth.user?.email}</span>
+          <details className="context-details"><summary>Contexto y cuenta</summary>
+          <div><span>{auth.user?.email}</span>
           <span>Institución: {auth.user?.context.institutionId ?? 'Sin contexto institucional'}</span>
           <span>Sede: {auth.user?.context.branchId ?? 'Sin sede asignada'}</span>
           <span>Roles: {auth.user?.roles.join(', ') || 'Sin roles asignados'}</span>
+          </div></details>
           <button type="button" onClick={() => { void auth.logout(); }}>Cerrar sesión</button>
         </div>
       </header>
       <div className="workspace">
-        <nav className="sidebar" aria-label="Módulos institucionales">
-          <p className="eyebrow">Espacio institucional</p>
-          <ul>{modules.map((module) => (
-            <li key={module}>
-              <button type="button" aria-pressed={selected === module} onClick={() => setSelected(module)}>{module}</button>
-            </li>
-          ))}</ul>
-          <p className="nav-note">Catálogos y consulta de agenda disponibles según tus permisos.</p>
-        </nav>
+        <InstitutionalNavigation selected={selected} onSelect={setSelected} />
         <main id="content" tabIndex={-1}>
           <p className="eyebrow">Gestión institucional</p>
           <h1>{selected}</h1>
-          {selected === 'Sedes y servicios' ? <CatalogPage /> : selected === 'Profesionales' ? <ProfessionalPage /> : selected === 'Agenda' ? <AgendaSection /> : selected === 'Asistencia' ? <AttendancePage /> : <section className="welcome-card" aria-labelledby="welcome-title">
+          {selected === 'Sedes y servicios' ? <CatalogPage /> : selected === 'Profesionales' ? <ProfessionalPage /> : selected === 'Agenda' ? <AgendaSection /> : selected === 'Asistencia' ? <AttendancePage /> : selected === 'Inicio' ? <InstitutionalHome firstName={auth.user?.firstName} hasContext={Boolean(auth.user?.context.institutionId)} onSelect={setSelected} /> : <section className="welcome-card" aria-labelledby="welcome-title">
             <span className="stage">En preparación</span>
             <h2 id="welcome-title">Un espacio para la gestión de tu institución</h2>
             <p>Los módulos institucionales se incorporarán progresivamente.

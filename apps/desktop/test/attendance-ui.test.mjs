@@ -53,7 +53,7 @@ test('HU033 UI disables double actions/filters while busy and separates success 
   const model = createAttendanceModel({}, profile), state = ready(model);
   const busy = render(model, { ...state, busyId: appointment.id });
   assert.match(busy, /Guardando resultado/); assert.match(busy, /<fieldset disabled/);
-  assert.match(busy, /<button type="button" disabled="">Registrar atendida/); assert.match(busy, /<button type="button" disabled="">Registrar inasistencia/);
+  assert.match(busy, /<button class="primary-button" type="button" disabled="">Registrar atendida/); assert.match(busy, /<button class="warning-button" type="button" disabled="">Registrar inasistencia/);
   assert.match(render(model, { ...state, failed: true, feedback: 'Vuelve a consultar' }), /role="alert">Vuelve a consultar/);
   assert.match(render(model, { ...state, feedback: 'Asistencia registrada.' }), /role="status">Asistencia registrada/); model.dispose();
 });

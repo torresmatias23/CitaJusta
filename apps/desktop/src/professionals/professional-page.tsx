@@ -1,4 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { InlineAlert } from '../components/ui/inline-alert';
+import { StatusBadge } from '../components/ui/status-badge';
 import type { UserProfile } from '@citajusta/client-core';
 import { useAuth } from '../auth/auth-provider';
 import { createProfessionalModel } from './professional-model';
@@ -28,9 +30,9 @@ export function ProfessionalView({ model, state }: { model: ReturnType<typeof cr
     <div className="catalog-heading">
       <p>Gestiona profesionales vinculados a cuentas existentes de la plataforma.</p>
       <button type="button" disabled={state.busy} onClick={() => { close(); void model.reload(); }}>Actualizar profesionales</button>
-      {model.permissions.create && <button type="button" disabled={state.busy || !ready || state.status !== 'ready'} onClick={() => { close(); setEditor('new'); }}>Crear profesional</button>}
+      {model.permissions.create && <button className="primary-button" type="button" disabled={state.busy || !ready || state.status !== 'ready'} onClick={() => { close(); setEditor('new'); }}>Crear profesional</button>}
     </div>
-    {state.feedback && <p role={state.failed ? 'alert' : 'status'}>{state.feedback}</p>}
+    {state.feedback && <InlineAlert failed={state.failed}>{state.feedback}</InlineAlert>}
     {state.status === 'loading' && <p role="status">Cargando profesionales…</p>}
     {state.status === 'error' && <p role="alert">{state.error}</p>}
     {state.catalogStatus === 'denied' && <p role="status">Los formularios requieren acceso de lectura a sedes y servicios. No se cargarán catálogos públicos como alternativa.</p>}
@@ -39,7 +41,7 @@ export function ProfessionalView({ model, state }: { model: ReturnType<typeof cr
     {state.status === 'ready' && !state.items.length && <p role="status">No hay profesionales registrados en esta institución.</p>}
     <ul className="catalog-list">{state.items.map(item => <li className="catalog-card" key={item.id}>
       <h2>{item.user.firstNames} {item.user.lastNames}</h2><p>{item.user.email}</p>
-      <span className={`catalog-status ${item.status === 'ACTIVE' ? 'is-active' : ''}`}>{ { ACTIVE: 'Activo', INACTIVE: 'Inactivo', SUSPENDED: 'Suspendido' }[item.status] }</span>
+      <StatusBadge code={item.status}>{ { ACTIVE: 'Activo', INACTIVE: 'Inactivo', SUSPENDED: 'Suspendido' }[item.status] }</StatusBadge>
       <p>Código: {item.internalCode ?? 'Sin código'} · Función: {item.titleOrFunction ?? 'Sin especificar'}</p>
       <p>Sedes: {item.branchIds.map(id => state.branches.find(b => b.id === id)?.name ?? 'Sede no disponible').join(', ') || 'Sin asociaciones'}</p>
       <p>Servicios: {item.serviceIds.map(id => state.services.find(s => s.id === id)?.name ?? 'Servicio no disponible').join(', ') || 'Sin asociaciones'}</p>
@@ -48,6 +50,7 @@ export function ProfessionalView({ model, state }: { model: ReturnType<typeof cr
     {editor === 'new' && ready && <form className="catalog-context" aria-label="Buscar cuenta elegible" onSubmit={event => {
       event.preventDefault(); if (!state.searching) void model.search(email);
     }}>
+      <h3>Buscar cuenta</h3>
       <label className="catalog-field">Email exacto de la cuenta existente<input name="eligible-email" type="email" required maxLength={254} value={email} disabled={state.busy}
         onChange={event => { setEmail(event.target.value); model.clearEligible(); }} /></label>
       <button type="submit" disabled={state.busy || state.searching}>{state.searching ? 'Buscando…' : 'Buscar cuenta'}</button>
