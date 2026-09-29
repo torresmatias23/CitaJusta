@@ -1,5 +1,73 @@
 # CitaJusta Desktop
 
+## HU-033 — Asistencia
+
+El módulo principal **Asistencia** consulta `GET /api/v1/agenda` y registra resultados
+con `POST /api/v1/appointments/:appointmentId/attendance`. Reutiliza el modelo,
+decoder, catálogos, filtros y formato horario HU-031, sin cambiar su pantalla.
+Todas las peticiones usan `session.api`; tenant/sede sólo viajan por el contexto
+existente, nunca como identidad en body/query. El backend HU-017 permanece intacto.
+
+- `agenda.read`: consultar. Sin este permiso no se carga agenda ni catálogos.
+- `agenda.read` + `appointments.attendance`: mostrar acciones sólo para `AGENDADA`.
+  No se deducen permisos por rol. La API revalida estado, autorización y relaciones.
+- Body exacto: `{ "status": "ATENDIDA" }` o `{ "status": "INASISTENCIA" }`.
+  No se envían actor, usuario, institución ni cita completa. No hay reintento
+  automático de escritura; busy bloquea doble envío y deshabilita filtros/acciones.
+- Éxito real: refresca Agenda y conserva filtros; si el nuevo estado no coincide
+  con el filtro de estado elegido, la cita deja de aparecer en esa consulta.
+  Si falla el refresco, se informa el registro confirmado y el error de consulta,
+  sin conservar filas antiguas como si aún fuesen elegibles.
+- `409`: mensaje controlado y botón Consultar citas disponible para revalidar.
+  Fallo de escritura no informa éxito ni refresca automáticamente. Respuestas
+  tardías se descartan al cambiar filtros, contexto o desmontar el módulo.
+- Fecha institucional obligatoria; sede contextual fija. Horas en Institution.timeZone;
+  si no se carga la zona, fallback **UTC explícito**, sin usar la zona del dispositivo.
+  El backend determina qué citas pertenecen al día; se conserva su orden.
+- No reabre estados finales, no transiciona CANCELADA, no cancela citas ni edita
+  historial. No añade cortes horarios o reglas temporales que HU-017 no defina.
+
+### Tooling y prueba manual HU-033
+
+Preparación optativa, **no automática**: institución demo compatible y cuenta ACTIVE
+existente, sin crear usuarios ni cambiar credenciales. API con DATABASE_URL local:
+
+```powershell
+$env:NODE_ENV = 'development'
+$env:DESKTOP_ATTENDANCE_OPERATOR_EMAIL = 'matias.desktop.test@example.test'
+npm run seed:desktop-attendance-operator -w @citajusta/api
+```
+
+Provisiona únicamente `agenda.read` y `appointments.attendance` en el rol dedicado
+`DEMO_DESKTOP_ATTENDANCE_OPERATOR`, scope INSTITUTION, para la institución demo
+`d1000000-0000-4000-8000-000000000001`. Idempotente; verifica destino PostgreSQL
+local, identidad DB/institución, cuenta y compatibilidad de RBAC. Conserva otros
+roles/grants/permisos, no reasigna destinatarios ni sobrescribe incompatibilidades.
+Serializable con un único reintento ante conflicto reconocido. No prepara citas.
+
+1. Con PostgreSQL disponible y API configurada, preparar permisos con el comando
+   anterior sólo si faltan. Los catálogos ATENDIDA/INASISTENCIA deben estar
+   provisionados mediante el bootstrap existente `bootstrap:appointment-status`.
+2. Iniciar desde raíz: `npm run start -w @citajusta/api` y, en otra terminal,
+   `npm run tauri -w @citajusta/desktop -- dev` (URL API Desktop ya configurada).
+3. Iniciar sesión y aplicar institución autorizada en Sedes y servicios. Abrir
+   **Asistencia**, elegir fecha con citas reales AGENDADA y consultar.
+4. Registrar ATENDIDA en una cita e INASISTENCIA en otra; comprobar estados tras
+   refrescar. No deben quedar acciones sobre estados finales o CANCELADA.
+5. Probar sólo lectura, cuenta sin permisos y contexto de sede: selector fijo y
+   sin citas ajenas. Comprobar errores de conexión y cambios rápidos de filtros.
+   Estas acciones modifican citas reales: usar exclusivamente citas de prueba.
+
+Validaciones desde raíz:
+
+```powershell
+npm run build -w @citajusta/api
+node --test apps/api/test/attendance.test.mjs apps/api/test/desktop-attendance-operator.test.mjs
+npm run test:e2e:attendance -w @citajusta/api
+npm test -w @citajusta/desktop
+npm run build -w @citajusta/desktop
+```
+
 ## HU-032 — Disponibilidad y bloqueos
 
 En **Agenda → Disponibilidad y bloqueos**, sin reemplazar la consulta de citas
