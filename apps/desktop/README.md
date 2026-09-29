@@ -1,5 +1,16 @@
 # CitaJusta Desktop
 
+## HU-034 — Sistema visual institucional
+
+Tokens en `src/styles/tokens.css`; shell y formularios comparten superficies,
+botones y estados. Tipografía de sistema: no se acoplan fuentes o iconos de Web.
+Inicio ofrece accesos a módulos reales, sin estadísticas simuladas. La navegación
+agrupa Catálogo, Operación y Análisis; módulos futuros indican En preparación.
+Contexto y cuenta despliega los identificadores reales y roles, sin consultas
+decorativas. Permisos, formularios y operaciones conservan su comportamiento.
+Los avisos de asistencia permanecen separados de los resultados durante la recarga.
+Validar en Tauri navegación por teclado, ventana reducida y feedback tras guardar.
+
 ## HU-033 — Asistencia
 
 El módulo principal **Asistencia** consulta `GET /api/v1/agenda` y registra resultados

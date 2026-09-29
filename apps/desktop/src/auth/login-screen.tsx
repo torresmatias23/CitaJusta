@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from './auth-provider';
+import { Brand } from '../components/brand';
 
 export function LoginScreen() {
   const auth = useAuth();
@@ -21,9 +22,15 @@ export function LoginScreen() {
   }
   return (
     <main className="login-page">
+      <aside className="login-intro" aria-label="CitaJusta Desktop">
+        <div className="login-orbits" aria-hidden="true"><span /><span /></div>
+        <Brand hero /><p className="eyebrow">Desktop institucional</p>
+        <h2>La gestión de tu institución, <span>en un mismo lugar.</span></h2>
+        <p>Un espacio de trabajo conectado a los permisos de tu cuenta.</p>
+        <ul className="login-capabilities"><li>Catálogo institucional</li><li>Agenda y disponibilidad</li><li>Asistencia y operación diaria</li></ul>
+      </aside>
       <section className="welcome-card login-card" aria-labelledby="login-title">
-        <p className="brand">CitaJusta</p>
-        <p className="subtitle">Gestión institucional · Desktop</p>
+        <p className="eyebrow">Acceso institucional</p>
         <h1 id="login-title">Iniciar sesión</h1>
         <p>Utiliza tu cuenta de CitaJusta. La sesión se conserva sólo mientras esta aplicación permanece abierta.</p>
         {auth.error && <p role="alert">{auth.error}</p>}

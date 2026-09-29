@@ -1,4 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { InlineAlert } from '../components/ui/inline-alert';
+import { StatusBadge } from '../components/ui/status-badge';
 import type { UserProfile } from '@citajusta/client-core';
 import { useAuth } from '../auth/auth-provider';
 import { formatAgendaTime } from '../agenda/agenda-api';
@@ -39,7 +41,7 @@ export function AttendanceView({ model, state }: { model: ReturnType<typeof crea
     <p>Horarios mostrados en {agenda.timeZone ?? 'UTC'}{agenda.zoneStatus !== 'ready' ? ' (zona institucional no disponible; el día consultado sigue definido por la API)' : ''}.</p>
     {agenda.catalogStatus === 'loading' && <p role="status">Cargando opciones de filtros…</p>}
     {(agenda.catalogStatus === 'error' || agenda.zoneStatus === 'error') && <div role="alert"><p>No pudimos cargar todas las ayudas o la zona. Puedes consultar por fecha.</p><button type="button" onClick={() => void model.reloadCatalogs()}>Reintentar catálogos</button></div>}
-    {state.feedback && <p role={state.failed ? 'alert' : 'status'}>{state.feedback}</p>}
+    {state.feedback && <InlineAlert failed={state.failed}>{state.feedback}</InlineAlert>}
     {busy && <p role="status">Guardando resultado…</p>}
     {agenda.status === 'idle' && <p role="status">Selecciona una fecha para consultar citas.</p>}
     {agenda.status === 'loading' && <p role="status">Cargando citas…</p>}
@@ -48,12 +50,12 @@ export function AttendanceView({ model, state }: { model: ReturnType<typeof crea
     {agenda.status === 'ready' && <ul className="catalog-list">{agenda.items.map(item => <li className="catalog-card" key={item.id}>
       <h2>{item.service.name}</h2>
       <p>Inicio: <time dateTime={item.startsAt}>{formatAgendaTime(item.startsAt, agenda.timeZone)}</time><br />Fin: <time dateTime={item.endsAt}>{formatAgendaTime(item.endsAt, agenda.timeZone)}</time></p>
-      <p>Estado: <span className="catalog-status">{item.status.name} ({item.status.code})</span></p>
+      <p>Estado: <StatusBadge code={item.status.code}>{item.status.name} ({item.status.code})</StatusBadge></p>
       <p>Sede: {item.branch.name}</p><p>Profesional: {item.professional.firstNames} {item.professional.lastNames}</p>
       <p>Usuario atendido: {item.user.firstNames} {item.user.lastNames}</p>
       {model.canRecord(item) && <div className="catalog-actions" role="group" aria-label={`Resultado de ${item.user.firstNames} ${item.user.lastNames}`}>
-        <button type="button" disabled={busy} onClick={() => void model.record(item.id, 'ATENDIDA')}>Registrar atendida</button>
-        <button type="button" disabled={busy} onClick={() => void model.record(item.id, 'INASISTENCIA')}>Registrar inasistencia</button>
+        <button className="primary-button" type="button" disabled={busy} onClick={() => void model.record(item.id, 'ATENDIDA')}>Registrar atendida</button>
+        <button className="warning-button" type="button" disabled={busy} onClick={() => void model.record(item.id, 'INASISTENCIA')}>Registrar inasistencia</button>
       </div>}
     </li>)}</ul>}
   </section>;

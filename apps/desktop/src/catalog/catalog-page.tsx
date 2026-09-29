@@ -1,4 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { InlineAlert } from '../components/ui/inline-alert';
+import { StatusBadge } from '../components/ui/status-badge';
 import type { UserProfile } from '@citajusta/client-core';
 import { useAuth } from '../auth/auth-provider';
 import { catalogError, uuidPattern } from './catalog-api';
@@ -28,8 +30,8 @@ export function CatalogPage() {
     }}>
       <p>Selecciona el contexto facilitado por tu administrador. La API verificará tus permisos.</p>
       <div className="catalog-fields">
-        <label className="catalog-field">Institución (UUID)<input name="institutionId" required defaultValue={user.context.institutionId} disabled={busy} /></label>
-        <label className="catalog-field">Sede (UUID, opcional)<input name="branchId" defaultValue={user.context.branchId} disabled={busy} /></label>
+        <div><label className="catalog-field">Institución<input name="institutionId" aria-describedby="institution-help" required defaultValue={user.context.institutionId} disabled={busy} /></label><small className="field-help" id="institution-help">Identificador UUID facilitado por tu administrador.</small></div>
+        <div><label className="catalog-field">Sede<input name="branchId" aria-describedby="branch-help" defaultValue={user.context.branchId} disabled={busy} /></label><small className="field-help" id="branch-help">Opcional. Introduce el UUID de la sede para limitar el contexto.</small></div>
       </div>
       <button type="submit" disabled={busy}>{busy ? 'Verificando…' : 'Aplicar contexto'}</button>
       {error && <p role="alert">{error}</p>}
@@ -51,17 +53,17 @@ function ResourceState<T>({ resource, retry }: { resource: Resource<T>; retry: (
   if (!resource.items.length) return <p role="status">No hay registros en este catálogo.</p>;
   return null;
 }
-function Status({ active }: { active: boolean }) { return <span className={`catalog-status ${active ? 'is-active' : ''}`}>{active ? 'Activo' : 'Inactivo'}</span>; }
+function Status({ active }: { active: boolean }) { return <StatusBadge code={active ? 'ACTIVE' : 'INACTIVE'}>{active ? 'Activo' : 'Inactivo'}</StatusBadge>; }
 export function CatalogView({ model, state }: { model: ReturnType<typeof createCatalogModel>; state: ReturnType<ReturnType<typeof createCatalogModel>['getSnapshot']> }) {
   const [branchEditor, setBranchEditor] = useState<Branch | 'new' | null>(null);
   const [serviceEditor, setServiceEditor] = useState<Service | 'new' | null>(null);
   const permissions = model.permissions;
   return <div>
-    {state.feedback && <p role={state.failed ? 'alert' : 'status'}>{state.feedback}</p>}
+    {state.feedback && <InlineAlert failed={state.failed}>{state.feedback}</InlineAlert>}
     <button type="button" disabled={state.busy} onClick={() => { setBranchEditor(null); setServiceEditor(null); void model.reload(); }}>Actualizar catálogo</button>
     <section className="catalog-section" aria-labelledby="branches-title">
       <div className="catalog-heading"><h2 id="branches-title">Sedes</h2>
-        {permissions.createBranch && <button type="button" disabled={state.busy || state.branches.status !== 'ready'} onClick={() => setBranchEditor('new')}>Crear sede</button>}
+        {permissions.createBranch && <button className="primary-button" type="button" disabled={state.busy || state.branches.status !== 'ready'} onClick={() => setBranchEditor('new')}>Crear sede</button>}
       </div>
       <ResourceState resource={state.branches} retry={() => { void model.reload(); }} />
       <ul className="catalog-list">{state.branches.items.map((b) => <li key={b.id} className="catalog-card">
@@ -80,7 +82,7 @@ export function CatalogView({ model, state }: { model: ReturnType<typeof createC
     </section>
     <section className="catalog-section" aria-labelledby="services-title">
       <div className="catalog-heading"><h2 id="services-title">Servicios</h2>
-        {permissions.createService && <button type="button" disabled={state.busy || state.services.status !== 'ready'} onClick={() => setServiceEditor('new')}>Crear servicio</button>}
+        {permissions.createService && <button className="primary-button" type="button" disabled={state.busy || state.services.status !== 'ready'} onClick={() => setServiceEditor('new')}>Crear servicio</button>}
       </div>
       <ResourceState resource={state.services} retry={() => { void model.reload(); }} />
       <ul className="catalog-list">{state.services.items.map((s) => <li key={s.id} className="catalog-card">

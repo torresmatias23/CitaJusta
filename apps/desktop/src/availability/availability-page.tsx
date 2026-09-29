@@ -1,4 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { InlineAlert } from '../components/ui/inline-alert';
+import { StatusBadge } from '../components/ui/status-badge';
 import type { UserProfile } from '@citajusta/client-core';
 import { useAuth } from '../auth/auth-provider';
 import { formatAgendaTime } from '../agenda/agenda-api';
@@ -38,10 +40,10 @@ export function AvailabilityView({ model, state }: { model: Model; state: Availa
     {state.catalogStatus === 'loading' && <p role="status">Cargando catálogos y zona institucional…</p>}
     {state.catalogStatus === 'error' && <p role="alert">No pudimos cargar los catálogos. <button onClick={() => void model.loadCatalogs()}>Reintentar catálogos</button></p>}
     <div className="catalog-actions">
-      {model.permissions.create && <button disabled={state.busy || state.catalogStatus !== 'ready'} onClick={() => setForm('create')}>Crear disponibilidad</button>}
+      {model.permissions.create && <button className="primary-button" disabled={state.busy || state.catalogStatus !== 'ready'} onClick={() => setForm('create')}>Crear disponibilidad</button>}
       {model.permissions.block && <button disabled={state.busy || state.catalogStatus !== 'ready'} onClick={() => setForm('block')}>Crear bloqueo</button>}
     </div>
-    {state.feedback && <p role={state.failed ? 'alert' : 'status'}>{state.feedback}</p>}
+    {state.feedback && <InlineAlert failed={state.failed}>{state.feedback}</InlineAlert>}
     {form && <AvailabilityEditor key={typeof form === 'string' ? form : form.id} model={model} state={state} mode={form} close={() => setForm(null)} />}
     {!model.permissions.read ? <p role="status">El listado requiere availability.read.</p> : <>
       <form className="catalog-context" aria-label="Filtros administrativos" onSubmit={e => { e.preventDefault(); void model.consult(); }}>
@@ -53,7 +55,7 @@ export function AvailabilityView({ model, state }: { model: Model; state: Availa
           </select></label>
           <label className="catalog-field">Servicio (sólo disponibilidad)<select name="serviceId" value={state.filters.serviceId ?? ''} onChange={e => { setForm(null); model.setFilters({ serviceId: e.target.value }); }}><option value="">Todos</option><Options items={state.catalogs.services} /></select></label>
           <label className="catalog-field">Profesional<select name="professionalId" value={state.filters.professionalId ?? ''} onChange={e => { setForm(null); model.setFilters({ professionalId: e.target.value }); }}><option value="">Todos</option><Options items={state.catalogs.professionals} /></select></label>
-        </div><button disabled={state.status === 'loading'}>Consultar</button></fieldset>
+        </div><button className="primary-button" disabled={state.status === 'loading'}>Consultar</button></fieldset>
       </form>
       {state.status === 'idle' && <p role="status">Selecciona una fecha para consultar.</p>}
       {state.status === 'loading' && <p role="status">Cargando disponibilidades y bloqueos…</p>}
@@ -63,7 +65,7 @@ export function AvailabilityView({ model, state }: { model: Model; state: Availa
         <ul className="catalog-list">{state.items.map(item => <li className="catalog-card" key={item.id}>
           <h3>{item.service.name}</h3><p>{item.date} · {item.startTime}–{item.endTime} · {item.timeZone}</p>
           <p>{item.branch.name} · {item.professional.firstNames} {item.professional.lastNames}</p>
-          <p>{item.active ? 'Activa' : 'Inactiva'} · Origen: {item.origin}</p>
+          <p><StatusBadge code={item.active ? 'ACTIVE' : 'INACTIVE'}>{item.active ? 'Activa' : 'Inactiva'}</StatusBadge> · Origen: {item.origin}</p>
           {item.attentionPoint && <p>Punto de atención: {item.attentionPoint.name}</p>}
           {model.permissions.update && <div className="catalog-actions"><button disabled={state.busy || !state.timeZone} onClick={() => setForm(item)}>Editar horario / reactivar</button>
             {item.active && <button disabled={state.busy} onClick={() => { setForm(null); void model.deactivate(item); }}>Desactivar</button>}</div>}

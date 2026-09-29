@@ -18,7 +18,7 @@ export function AssociationPicker({ title, options, selected, change }: {
 }) {
   const selectable = new Set(options.filter(o => o.active).map(o => o.id));
   const unavailable = selected.some(id => !selectable.has(id));
-  return <fieldset><legend>{title}</legend>
+  return <fieldset className="association-panel"><legend>{title}</legend>
     {unavailable && <p>Hay asociaciones inactivas o no disponibles. Se conservan si no cambias esta selección; al cambiarla se retirarán.</p>}
     {!options.some(o => o.active) && <p>No hay opciones activas disponibles.</p>}
     {options.map(option => <label className="catalog-check" key={option.id}>
@@ -27,7 +27,7 @@ export function AssociationPicker({ title, options, selected, change }: {
         change(event.target.checked ? [...next, option.id] : next);
       }} />{option.name}{!option.active ? ' (Inactivo)' : ''}
     </label>)}
-    {!!selected.length && <button type="button" onClick={() => change([])}>Quitar todas las asociaciones de {title.toLowerCase()}</button>}
+    {!!selected.length && <button className="ghost-button association-clear" type="button" onClick={() => change([])}>Quitar todas las asociaciones de {title.toLowerCase()}</button>}
   </fieldset>;
 }
 export function ProfessionalForm({ item, eligible, branches, services, busy, save, close }: {
@@ -38,7 +38,7 @@ export function ProfessionalForm({ item, eligible, branches, services, busy, sav
   const [serviceIds, setServiceIds] = useState(item?.serviceIds ?? []);
   const [error, setError] = useState('');
   const identity = item?.user ?? eligible;
-  return <form className="catalog-form" aria-label={item ? 'Editar profesional' : 'Crear profesional'} onSubmit={async event => {
+  return <form className="catalog-form catalog-section professional-form" aria-label={item ? 'Editar profesional' : 'Crear profesional'} onSubmit={async event => {
     event.preventDefault(); if (busy || !identity) return;
     try {
       const input = professionalPayload(new FormData(event.currentTarget), branchIds, serviceIds, item);
@@ -59,7 +59,7 @@ export function ProfessionalForm({ item, eligible, branches, services, busy, sav
       </div>
       <AssociationPicker title="Sedes" options={branches.map(b => ({ id: b.id, name: b.name, active: b.status === 'ACTIVE' }))} selected={branchIds} change={setBranchIds} />
       <AssociationPicker title="Servicios" options={services} selected={serviceIds} change={setServiceIds} />
-      <button type="submit" className="primary-button" disabled={busy || !identity}>{busy ? 'Guardando…' : 'Guardar profesional'}</button>
+      <div className="catalog-actions"><button type="submit" className="primary-button" disabled={busy || !identity}>{busy ? 'Guardando…' : 'Guardar profesional'}</button></div>
     </fieldset>
     {error && <p role="alert">{error}</p>}
     <button type="button" disabled={busy} onClick={close}>Cancelar edición</button>

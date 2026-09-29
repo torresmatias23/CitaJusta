@@ -105,12 +105,16 @@ test('login/shell/logout renderizan sólo el estado y perfil reales, sin tokens 
   assert.doesNotMatch(render(), /Módulos institucionales/);
   await session.restore();
   const login = render();
+  assert.match(login, /<img[^>]*src="[^"]*logo-citajusta\.png"[^>]*alt="CitaJusta"/);
+  assert.equal((login.match(/alt="CitaJusta"/g) ?? []).length, 1);
   assert.match(login, /type="email"/);
   assert.match(login, /type="password"/);
   assert.match(login, /Iniciar sesión/);
   assert.doesNotMatch(login, /Módulos institucionales/);
   await session.login({ email: profile.email, password: 'test-only-password' });
   const shell = render();
+  assert.match(shell, /<img[^>]*src="[^"]*logo-citajusta\.png"[^>]*alt="CitaJusta"/);
+  assert.equal((shell.match(/alt="CitaJusta"/g) ?? []).length, 1);
   assert.match(shell, /Ana Prueba/);
   assert.match(shell, /controlled@example.invalid/);
   assert.match(shell, /Sin contexto institucional/);
