@@ -5,6 +5,7 @@ import { LoginScreen } from "./auth/login-screen";
 import { CatalogPage } from "./catalog/catalog-page";
 import { ProfessionalPage } from "./professionals/professional-page";
 import { AgendaSection } from "./agenda/agenda-section";
+import { AttendancePage } from "./attendance/attendance-page";
 
 const modules = ["Inicio", "Sedes y servicios", "Profesionales", "Agenda",
   "Asistencia", "Reasignaciones", "Reportes", "Auditoría"] as const;
@@ -52,12 +53,13 @@ function InstitutionalShell() {
         <main id="content" tabIndex={-1}>
           <p className="eyebrow">Gestión institucional</p>
           <h1>{selected}</h1>
-          {selected === 'Sedes y servicios' ? <CatalogPage /> : selected === 'Profesionales' ? <ProfessionalPage /> : selected === 'Agenda' ? <AgendaSection /> : <section className="welcome-card" aria-labelledby="welcome-title">
+          {selected === 'Sedes y servicios' ? <CatalogPage /> : selected === 'Profesionales' ? <ProfessionalPage /> : selected === 'Agenda' ? <AgendaSection /> : selected === 'Asistencia' ? <AttendancePage /> : <section className="welcome-card" aria-labelledby="welcome-title">
             <span className="stage">En preparación</span>
             <h2 id="welcome-title">Un espacio para la gestión de tu institución</h2>
             <p>Los módulos institucionales se incorporarán progresivamente.
               Sedes, servicios y profesionales permiten administrar el catálogo con los permisos de tu contexto.
               Agenda permite consultar citas institucionales en modo de sólo lectura.
+              Asistencia permite registrar resultados con autorización institucional.
               Las demás secciones siguen en preparación.</p>
             <p className="architecture-note">CitaJusta Desktop consume la misma API que Web.
               Las reglas de negocio y el control de acceso permanecerán en el backend.</p>
