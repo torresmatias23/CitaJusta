@@ -21,12 +21,12 @@ test('HU034 marca Desktop reutiliza exactamente el PNG oficial de Web', async ()
   assert.deepEqual(desktop, web);
 });
 
-test('HU034 navegación agrupa módulos, selección única y tres módulos futuros explícitos', () => {
+test('HU034 navegación agrupa módulos, selección única y módulos futuros explícitos', () => {
   const html = render(InstitutionalNavigation, { selected: 'Agenda', onSelect() {} });
   for (const label of ['Catálogo', 'Operación', 'Análisis', 'Sedes y servicios', 'Profesionales', 'Asistencia']) assert.ok(html.includes(label));
   assert.equal((html.match(/aria-pressed="true"/g) ?? []).length, 1);
   assert.match(html, /aria-pressed="true"><span>Agenda/);
-  assert.equal((html.match(/En preparación/g) ?? []).length, 3);
+  assert.equal((html.match(/En preparación/g) ?? []).length, 2);
 });
 
 test('HU034 Inicio usa perfil/contexto reales y sus cuatro accesos seleccionan módulos existentes', () => {

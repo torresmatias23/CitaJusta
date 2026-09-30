@@ -13,6 +13,7 @@
     "seed:desktop-catalog-admin": "npm run build && node scripts/seed-desktop-catalog-admin.mjs",
     "seed:desktop-professional-admin": "npm run build && node scripts/seed-desktop-professional-admin.mjs",
     "seed:desktop-agenda-reader": "npm run build && node scripts/seed-desktop-agenda-reader.mjs",
+    "seed:desktop-reassignment-supervisor": "npm run build && node scripts/seed-desktop-reassignment-supervisor.mjs",
     "seed:desktop-availability-admin": "npm run build && node scripts/seed-desktop-availability-admin.mjs",
     "seed:desktop-attendance-operator": "npm run build && node scripts/seed-desktop-attendance-operator.mjs",
     "seed:reassignment-demo": "npm run build && node scripts/seed-reassignment-demo.mjs",

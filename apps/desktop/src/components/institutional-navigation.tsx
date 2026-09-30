@@ -5,7 +5,7 @@ export const navigation = [
   { label: 'Análisis', items: ['Reportes', 'Auditoría'] },
 ] as const;
 export type ModuleName = typeof navigation[number]['items'][number];
-const upcoming: readonly ModuleName[] = ['Reasignaciones', 'Reportes', 'Auditoría'];
+const upcoming: readonly ModuleName[] = ['Reportes', 'Auditoría'];
 
 export function InstitutionalNavigation({ selected, onSelect }: { selected: ModuleName; onSelect: (module: ModuleName) => void }) {
   return <nav className="sidebar" aria-label="Módulos institucionales">

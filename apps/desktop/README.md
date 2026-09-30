@@ -1,5 +1,27 @@
 # CitaJusta Desktop
 
+## HU-036 — Supervisión de reasignaciones
+
+Operación → Reasignaciones consulta exclusivamente `GET /api/v1/reassignments/:id`.
+Requiere UUID conocido, contexto institucional y `reassignments.read`; la sede
+contextual se conserva. No existe listado ni filtros de procesos. Consultar proceso
+permite refrescar la observación. Cambiar UUID/contexto o salir descarta respuestas
+obsoletas. Errores 404 no distinguen inexistencia de falta de acceso.
+
+Presenta sólo campos permitidos: resumen, política (o legado), evaluación,
+candidatos, ofertas y trazabilidad. Fechas ISO UTC explícitas; sin consulta de
+nombres de actores. Mantiene el orden del backend, score como cadena y utiliza
+`activeOfferId`/`pendingOfferId` sin temporizador ni inferencia de vigencia.
+No genera, acepta, rechaza o expira ofertas ni modifica citas/cupos/políticas.
+
+Validación manual: una cuenta ACTIVE existente debe tener `reassignments.read`
+provisionado por el administrador en su contexto autorizado, y disponer de un UUID
+real de proceso. No hay seed Desktop dedicado a este permiso; esta HU no otorga
+roles automáticamente ni ejecuta tooling sobre la base. Aplicar contexto en Sedes
+y servicios, abrir Reasignaciones y consultar el UUID. Verificar denegación sin
+permiso, 404 genérico y PENDING persistida sin oferta activa. No usar fixtures como
+datos locales.
+
 ## HU-034 — Sistema visual institucional
 
 Tokens en `src/styles/tokens.css`; shell y formularios comparten superficies,
