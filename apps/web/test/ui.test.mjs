@@ -20,7 +20,7 @@ else process.env.API_PROXY_TARGET = previousProxy;
 after(() => vite.close());
 
 const { AppRoutes } = await vite.ssrLoadModule('/src/routes/app-routes.tsx');
-const { OfferCard } = await vite.ssrLoadModule('/src/features/offers/offers-page.tsx');
+const { OfferCard, OffersList } = await vite.ssrLoadModule('/src/features/offers/offers-page.tsx');
 const { SearchDateFields } = await vite.ssrLoadModule('/src/features/home/search-form.tsx');
 const { initialSelection } = await vite.ssrLoadModule('/src/features/availability/search-selection.ts');
 const { AsyncState } = await vite.ssrLoadModule(
@@ -85,6 +85,13 @@ test('oferta vigente renderiza datos reales y acciones; vencida mantiene estado 
   const active = render(Date.parse('2030-05-27T13:01:00Z'));
   for (const text of ['Orientación', 'Centro', 'Ana Pérez']) assert.ok(active.includes(text));
   assert.match(active, /Aceptar hora/); assert.match(active, /No puedo asistir/);
+  assert.match(active.replace(/<[^>]*>/g, ''), /¡Tenemos una hora para ti!/);
+  assert.match(active, /Hora liberada/);
+  assert.match(active, /Expira en/);
+  assert.match(active, /src="\/images\/home-hero.png" alt="" aria-hidden="true"/);
+  assert.match(active, /Tiempo restante/); assert.match(active, /6 min 0 s/);
+  assert.match(active, /datetime="2030-05-28T15:00:00Z"/i);
+  assert.match(active, /datetime="2030-05-28T15:30:00Z"/i);
   assert.doesNotMatch(active, /disabled/);
   assert.match(active, /datetime="2030-05-27T13:07:00Z"/i);
   assert.equal((render(Date.parse(offer.expiresAt)).match(/disabled/g) ?? []).length, 2);
@@ -101,6 +108,46 @@ test('estados finales de ofertas tienen etiquetas y no permiten aceptar/rechazar
     assert.match(html, new RegExp(label)); assert.doesNotMatch(html, /Aceptar hora|No puedo asistir/);
     if (status === 'ACCEPTED') assert.match(html, /href="\/mis-citas"/);
   }
+});
+
+test('ofertas separa vigentes, plazo local terminado e historial sin mutar estados', () => {
+  const base = { status: 'PENDING', startsAt: '2030-05-28T15:00:00Z', endsAt: '2030-05-28T15:30:00Z',
+    expiresAt: '2030-05-27T13:07:00Z', respondedAt: null, service: { name: 'Orientación' },
+    branch: { name: 'Centro' }, professional: { firstNames: 'Ana', lastNames: 'Pérez' } };
+  const offers = [{ ...base, id: 'closed', status: 'REJECTED' }, { ...base, id: 'current' }, { ...base, id: 'elapsed', expiresAt: '2030-05-27T13:00:00Z' }];
+  const html = renderToStaticMarkup(createElement(MemoryRouter, null, createElement(OffersList, {
+    offers, now: Date.parse('2030-05-27T13:01:00Z'), busy: false, onRespond() {},
+  })));
+  const positions = ['current', 'elapsed', 'closed'].map(id => html.indexOf(`id="offer-${id}"`));
+  assert.ok(positions.every(position => position >= 0));
+  assert.ok(positions[0] < positions[1]);
+  assert.ok(positions[1] < positions[2]);
+  for (const text of ['Ofertas disponibles', 'Historial de ofertas', 'Ofertas con plazo terminado', 'estado registrado sigue pendiente']) assert.ok(html.includes(text));
+  assert.equal(offers[2].status, 'PENDING');
+});
+
+test('ofertas vacío no inventa búsqueda activa y distingue historial vacío', () => {
+  const html = renderToStaticMarkup(createElement(OffersList, { offers: [], now: 0, busy: false, onRespond() {} }));
+  assert.match(html, /No tienes ofertas disponibles en este momento/);
+  assert.match(html, /Aún no tienes ofertas cerradas/);
+  assert.doesNotMatch(html, /Aceptar hora|No puedo asistir/);
+});
+
+test('oferta conserva callbacks de aceptar/rechazar con el objeto original', () => {
+  const offer = { id: 'controlled', status: 'PENDING', startsAt: '2030-05-28T15:00:00Z', endsAt: '2030-05-28T15:30:00Z',
+    expiresAt: '2030-05-27T13:07:00Z', respondedAt: null, service: { name: 'Orientación' },
+    branch: { name: 'Centro' }, professional: { firstNames: 'Ana', lastNames: 'Pérez' } };
+  const calls = [];
+  const tree = OfferCard({ offer, now: 0, busy: false, onRespond: (...args) => calls.push(args) });
+  function visit(node) {
+    if (Array.isArray(node)) return node.forEach(visit);
+    if (!node || typeof node !== 'object' || !node.props) return;
+    if (node.props.onClick) node.props.onClick();
+    visit(node.props.children);
+  }
+  visit(tree);
+  assert.deepEqual(calls, [[offer, 'accept'], [offer, 'reject']]);
+  assert.equal(calls[0][0], offer);
 });
 
 test('lista de espera exige verificar sesión antes de mostrar datos o formularios', () => {
