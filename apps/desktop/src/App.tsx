@@ -6,6 +6,7 @@ import { CatalogPage } from "./catalog/catalog-page";
 import { ProfessionalPage } from "./professionals/professional-page";
 import { AgendaSection } from "./agenda/agenda-section";
 import { AttendancePage } from "./attendance/attendance-page";
+import { ReassignmentPage } from './reassignments/reassignment-page';
 
 import { InstitutionalNavigation } from './components/institutional-navigation';
 import type { ModuleName } from './components/institutional-navigation';
@@ -49,7 +50,7 @@ function InstitutionalShell() {
         <main id="content" tabIndex={-1}>
           <p className="eyebrow">Gestión institucional</p>
           <h1>{selected}</h1>
-          {selected === 'Sedes y servicios' ? <CatalogPage /> : selected === 'Profesionales' ? <ProfessionalPage /> : selected === 'Agenda' ? <AgendaSection /> : selected === 'Asistencia' ? <AttendancePage /> : selected === 'Inicio' ? <InstitutionalHome firstName={auth.user?.firstName} hasContext={Boolean(auth.user?.context.institutionId)} onSelect={setSelected} /> : <section className="welcome-card" aria-labelledby="welcome-title">
+          {selected === 'Sedes y servicios' ? <CatalogPage /> : selected === 'Profesionales' ? <ProfessionalPage /> : selected === 'Agenda' ? <AgendaSection /> : selected === 'Asistencia' ? <AttendancePage /> : selected === 'Reasignaciones' ? <ReassignmentPage /> : selected === 'Inicio' ? <InstitutionalHome firstName={auth.user?.firstName} hasContext={Boolean(auth.user?.context.institutionId)} onSelect={setSelected} /> : <section className="welcome-card" aria-labelledby="welcome-title">
             <span className="stage">En preparación</span>
             <h2 id="welcome-title">Un espacio para la gestión de tu institución</h2>
             <p>Los módulos institucionales se incorporarán progresivamente.

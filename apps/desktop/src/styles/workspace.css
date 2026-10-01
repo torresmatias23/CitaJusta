@@ -1,4 +1,9 @@
 .catalog-page { display: grid; gap: 1rem; }
+.supervision-fields dt { font-size: .8rem; color: var(--muted); }
+.supervision-fields dd { margin: .3rem 0 0; overflow-wrap: anywhere; }
+.supervision-result details { margin-top: 1rem; }
+.supervision-result summary { cursor: pointer; color: var(--brand-dark); font-weight: 600; padding: .5rem 0; }
+.supervision-active-offer { border: 2px solid var(--brand); }
 .catalog-page > p { margin: 0; }
 .catalog-context, .catalog-section { border: 1px solid var(--line); border-radius: var(--radius); background: white; padding: 1.4rem; box-shadow: var(--shadow); }
 .catalog-section { margin-top: 1.25rem; }
