@@ -42,3 +42,6 @@ legend { font-weight: 700; padding: 0 0 1rem; }
 .inline-alert { border: 1px solid currentColor; border-left-width: 4px; border-radius: .5rem; padding: 1rem; font-weight: 600; }
 p[role='status']:not(.inline-alert), p[role='alert']:not(.inline-alert), div[role='alert'] { border-radius: .5rem; padding: 1rem; background: #edf3f8; }
 p[role='alert']:not(.inline-alert), div[role='alert'] { background: #fff0f1; color: #a52c3a; }
+.report-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 1rem; margin: 0; }
+.report-metrics dt { font-weight: 600; }
+.report-metrics dd { margin: .65rem 0; font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-primary, #087f82); }

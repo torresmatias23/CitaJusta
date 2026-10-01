@@ -54,5 +54,5 @@ test('HU036 sesión verificada y navegación real sin placeholder Reasignaciones
   assert.match(page(), /Consultar proceso/); assert.doesNotMatch(page(), /test-access|test-refresh/);
   const nav = renderToStaticMarkup(createElement(InstitutionalNavigation, { selected: 'Reasignaciones', onSelect() {} }));
   assert.match(nav, /aria-pressed="true"><span>Reasignaciones<\/span><\/button>/);
-  assert.equal((nav.match(/En preparación/g) ?? []).length, 2);
+  assert.equal((nav.match(/En preparación/g) ?? []).length, 1);
 });
