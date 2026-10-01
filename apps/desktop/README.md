@@ -458,3 +458,32 @@ npm test -w @citajusta/desktop
 npm run build -w @citajusta/desktop
 npm test -w @citajusta/client-core
 ```
+
+## Reportes institucionales (HU-037)
+
+Análisis → Reportes consulta `GET /api/v1/reports/indicators` con `reports.read`
+y el contexto autenticado. Desde/Hasta son fechas civiles inclusivas (1–366 días);
+la API aplica la zona horaria institucional. Sede, servicio y profesional son
+filtros opcionales asistidos por los catálogos públicos autenticados existentes.
+Si éstos fallan, la consulta por período sigue disponible. Un contexto con sede
+la mantiene fija, sin ampliar su alcance.
+
+Se muestran los diez valores de Citas, Recuperación de cupos y Ofertas tal como
+los entrega la API, incluido `recoveryRatePct`. «Citas del período» incluye todos
+los estados, no sólo AGENDADA. Los ceros se conservan; no hay series, tendencias
+ni cálculos de métricas en Desktop.
+
+Tooling opcional, desde la raíz, sólo para PostgreSQL local de desarrollo y una
+cuenta ACTIVE existente (preparar primero la institución mediante `seed:dev`):
+
+```powershell
+$env:NODE_ENV = 'development'
+$env:DESKTOP_REPORTS_READER_EMAIL = 'cuenta-controlada@example.test'
+npm run seed:desktop-reports-reader -w @citajusta/api
+```
+
+Provisiona exclusivamente `reports.read` (`module=reports`, `action=read`) mediante
+`DEMO_DESKTOP_REPORTS_READER`, scope INSTITUTION, sede nula, en la institución demo.
+Es idempotente, conserva roles ajenos y rechaza colisiones incompatibles. No crea
+usuarios, credenciales ni actividad de reportes. Tras ejecutarlo, iniciar sesión
+y aplicar el contexto demo en Sedes y servicios. No se ejecuta automáticamente.
