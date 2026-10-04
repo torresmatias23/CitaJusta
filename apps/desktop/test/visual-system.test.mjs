@@ -26,7 +26,8 @@ test('HU034 navegación agrupa módulos, selección única y módulos futuros ex
   for (const label of ['Catálogo', 'Operación', 'Análisis', 'Sedes y servicios', 'Profesionales', 'Asistencia']) assert.ok(html.includes(label));
   assert.equal((html.match(/aria-pressed="true"/g) ?? []).length, 1);
   assert.match(html, /aria-pressed="true"><span>Agenda/);
-  assert.equal((html.match(/En preparación/g) ?? []).length, 1);
+  assert.equal((html.match(/En preparación/g) ?? []).length, 0);
+  assert.match(html, /<span>Auditoría<\/span><\/button>/);
 });
 
 test('HU034 Inicio usa perfil/contexto reales y sus cuatro accesos seleccionan módulos existentes', () => {

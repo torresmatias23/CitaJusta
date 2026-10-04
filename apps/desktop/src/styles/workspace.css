@@ -44,4 +44,10 @@ p[role='status']:not(.inline-alert), p[role='alert']:not(.inline-alert), div[rol
 p[role='alert']:not(.inline-alert), div[role='alert'] { background: #fff0f1; color: #a52c3a; }
 .report-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 1rem; margin: 0; }
 .report-metrics dt { font-weight: 600; }
+.audit-events { list-style: none; padding: 0; display: grid; gap: 1rem; }
+.audit-id, .audit-event code, .audit-event time { overflow-wrap: anywhere; }
+.audit-id { display: block; margin-top: .3rem; font-size: .8rem; }
+.audit-event h3 { margin: 0; flex: 1; }
+.audit-event details { margin-top: .75rem; }
+.audit-event summary { cursor: pointer; color: var(--brand-dark); padding: .5rem 0; }
 .report-metrics dd { margin: .65rem 0; font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-primary, #087f82); }

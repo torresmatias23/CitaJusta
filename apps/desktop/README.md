@@ -27,7 +27,7 @@ datos locales.
 Tokens en `src/styles/tokens.css`; shell y formularios comparten superficies,
 botones y estados. Tipografía de sistema: no se acoplan fuentes o iconos de Web.
 Inicio ofrece accesos a módulos reales, sin estadísticas simuladas. La navegación
-agrupa Catálogo, Operación y Análisis; módulos futuros indican En preparación.
+agrupa Catálogo, Operación y Análisis, con Reportes y Auditoría disponibles según permisos.
 Contexto y cuenta despliega los identificadores reales y roles, sin consultas
 decorativas. Permisos, formularios y operaciones conservan su comportamiento.
 Los avisos de asistencia permanecen separados de los resultados durante la recarga.
@@ -458,6 +458,48 @@ npm test -w @citajusta/desktop
 npm run build -w @citajusta/desktop
 npm test -w @citajusta/client-core
 ```
+
+## Auditoría institucional (HU-038)
+
+Análisis → Auditoría consulta `GET /api/v1/audit/events` con `audit.read` y el
+contexto institucional autenticado. La pantalla es de sólo lectura. La sede del
+contexto permanece fija; sin ella puede seleccionarse una sede del catálogo
+autenticado existente. El fallo de ese catálogo auxiliar no bloquea la consulta.
+
+Filtros opcionales: `from`, `to` (fechas civiles YYYY-MM-DD), `branchId`,
+`actorUserId` (UUID), `action` y `resourceType` (códigos cerrados de HU-020).
+Se permite una, ambas o ninguna fecha; si hay ambas, Desde debe ser anterior o
+igual a Hasta. Auditoría no impone el límite de 366 días de Reportes. El backend
+interpreta los días mediante la zona horaria institucional.
+
+Cada consulta pide 50 eventos (default backend: 50; máximo backend: 100), ordenados
+por `occurredAt DESC, id DESC`. «Cargar más» usa el cursor opaco `page.nextCursor`
+con los mismos filtros y anexa sin duplicados; no hay offset ni totales inventados.
+Cambiar filtros limpia resultados/cursor e invalida respuestas anteriores. Un fallo
+al cargar otra página conserva los eventos obtenidos y permite reintentar.
+
+`occurredAt` se presenta como instante ISO UTC. Se muestran actor USER/SYSTEM,
+acción, recurso, resultado y transición/motivo cuando existen, conservando los
+códigos reales. No se añaden nombres/emails de actores o recursos ni payloads,
+secretos o mensajes internos. La vista exige contexto institucional como los
+otros módulos Desktop; no expone consulta global sin institución.
+
+Tooling opcional desde la raíz, con institución demo preparada por `seed:dev`
+y una cuenta ACTIVE existente:
+
+```powershell
+$env:NODE_ENV = 'development'
+$env:DESKTOP_AUDIT_READER_EMAIL = 'cuenta-controlada@example.test'
+npm run seed:desktop-audit-reader -w @citajusta/api
+```
+
+Sólo admite PostgreSQL local `citajusta_dev` (o sufijo de desarrollo permitido).
+Provisiona exclusivamente `audit.read` (`module=audit`, `action=read`) mediante
+`DEMO_DESKTOP_AUDIT_READER`, scope INSTITUTION, sede nula, en la institución demo.
+Es idempotente y transaccional; conserva roles ajenos y timestamps existentes,
+rechaza configuraciones incompatibles y sólo reintenta conflictos reconocidos.
+No crea/modifica usuarios, credenciales ni eventos. Tras ejecutarlo, iniciar
+sesión y aplicar el contexto demo en Sedes y servicios. No se ejecuta automáticamente.
 
 ## Reportes institucionales (HU-037)
 
