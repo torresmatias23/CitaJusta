@@ -5,7 +5,6 @@ export const navigation = [
   { label: 'Análisis', items: ['Reportes', 'Auditoría'] },
 ] as const;
 export type ModuleName = typeof navigation[number]['items'][number];
-const upcoming: readonly ModuleName[] = ['Auditoría'];
 
 export function InstitutionalNavigation({ selected, onSelect }: { selected: ModuleName; onSelect: (module: ModuleName) => void }) {
   return <nav className="sidebar" aria-label="Módulos institucionales">
@@ -13,7 +12,7 @@ export function InstitutionalNavigation({ selected, onSelect }: { selected: Modu
       <p className="eyebrow">{group.label}</p>
       <ul>{group.items.map(module => <li key={module}>
         <button type="button" aria-pressed={selected === module} onClick={() => onSelect(module)}>
-          <span>{module}</span>{upcoming.includes(module) && <small>En preparación</small>}
+          <span>{module}</span>
         </button>
       </li>)}</ul>
     </div>)}

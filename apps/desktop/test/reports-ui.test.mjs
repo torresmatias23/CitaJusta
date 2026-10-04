@@ -12,10 +12,11 @@ const { InstitutionalNavigation } = await vite.ssrLoadModule('/src/components/in
 const data = { period: { from: '2026-09-01', to: '2026-09-30' }, appointments: { scheduled: 11, cancelled: 7, noShows: 3 },
   slots: { released: 5, recovered: 2, recoveryRatePct: 37.19 }, offers: { sent: 23, accepted: 2, rejected: 9, expired: 12 } };
 const render = d => renderToStaticMarkup(createElement(ReportsSummary, { data: d }));
-test('HU037 real navigation activates Reportes, leaving only Auditoría in preparation', () => {
+test('HU037 real navigation activates Reportes; Auditoría is also available', () => {
   const html = renderToStaticMarkup(createElement(InstitutionalNavigation, { selected: 'Reportes', onSelect() {} }));
   assert.match(html, /aria-pressed="true"><span>Reportes<\/span><\/button>/);
-  assert.equal((html.match(/En preparación/g) ?? []).length, 1);
+  assert.equal((html.match(/En preparación/g) ?? []).length, 0);
+  assert.match(html, /<span>Auditoría<\/span><\/button>/);
 });
 test('HU037 ten cards render backend numbers/rate without invented series or trends', () => {
   const html = render(data);

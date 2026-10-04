@@ -15,6 +15,7 @@
     "seed:desktop-agenda-reader": "npm run build && node scripts/seed-desktop-agenda-reader.mjs",
     "seed:desktop-reassignment-supervisor": "npm run build && node scripts/seed-desktop-reassignment-supervisor.mjs",
     "seed:desktop-reports-reader": "npm run build && node scripts/seed-desktop-reports-reader.mjs",
+    "seed:desktop-audit-reader": "npm run build && node scripts/seed-desktop-audit-reader.mjs",
     "seed:desktop-availability-admin": "npm run build && node scripts/seed-desktop-availability-admin.mjs",
     "seed:desktop-attendance-operator": "npm run build && node scripts/seed-desktop-attendance-operator.mjs",
     "seed:reassignment-demo": "npm run build && node scripts/seed-reassignment-demo.mjs",
