@@ -2,7 +2,7 @@
 
 ## Estado actual
 
-Al 22-09-2026, el MVP Web está cerrado funcionalmente, incluidas HU-021/HU-022 Web y HU-023 a HU-026. La siguiente etapa es Desktop con Tauri + React + TypeScript; `apps/desktop` todavía no existe. Docker, OpenAPI y hardening siguen pendientes.
+Al 04-10-2026, el MVP Web permanece funcional y `apps/desktop` está implementado con Tauri 2 + React/Vite/TypeScript hasta HU-038. Sprint 7 está cerrado. Sprint 8 corresponde a integraciones externas HU-039 a HU-043; Docker/Compose, OpenAPI y hardening siguen pendientes para Sprint 9.
 
 | Componente | Versión verificada |
 | --- | --- |
@@ -32,7 +32,12 @@ cargo --version
 
 La última ruta corresponde a la instalación actualmente verificada. `Get-Command psql -ErrorAction SilentlyContinue` no devuelve un comando mientras `psql` permanezca fuera de `PATH`.
 
-El monorepo contiene API NestJS y Web React/Vite, con npm workspaces. Prisma permanece en 7.10.0.
+El monorepo contiene API NestJS, Web React/Vite y Desktop Tauri 2 + React/Vite, con npm workspaces. Prisma permanece fijado en 7.10.0.
+
+
+## Desktop
+
+La aplicación institucional reside en `apps/desktop`. Requiere Rust/Cargo y WebView2 además de Node/npm. Los módulos habilitados dependen del perfil, permisos y contexto autenticado; no se conectan directamente a PostgreSQL. Para validaciones manuales existen scripts de seed de desarrollo específicos (`seed:desktop-*`) que sólo deben utilizarse contra bases locales permitidas y con cuentas ACTIVE existentes cuando corresponda.
 
 ## Primera preparación
 
@@ -160,7 +165,7 @@ La consulta de ofertas es de sólo lectura, limitada a 100 recientes. HU-024 agr
 
 HU-026: comprobar “Fecha específica” (calendario desde hoy) y “Soy flexible” (7/14/30 días). Ambos mantienen `from`/`to`; la fecha específica usa el calendario local del dispositivo y respeta DST, con `from=ahora` si se elige hoy.
 
-Verificaciones recientes al 22-09-2026 (no sustituyen una ejecución local): HU-025 API **390/390**, E2E **8/8**; HU-026 fechas **10/10**, UI **16/16**, suite Web completa **95/95**; builds correspondientes **PASS**. Evidencias Scrum HU-025/HU-026 actualizadas y mergeadas.
+Verificaciones conservadas del cierre Web (22-09-2026, no sustituyen una ejecución local): HU-025 API **390/390**, E2E **8/8**; HU-026 fechas **10/10**, UI **16/16**, suite Web completa **95/95**. Cierre HU-038 (04-10-2026): Auditoría Desktop **34/34 PASS**, API tooling + Auditoría **24/24 PASS**, suite Desktop **163/163 PASS**, API build, Desktop build, `cargo check` y `git diff --check` **PASS**.
 
 ```powershell
 npm test -w @citajusta/web

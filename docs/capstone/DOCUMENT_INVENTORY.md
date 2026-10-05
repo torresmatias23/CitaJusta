@@ -1,7 +1,7 @@
-﻿# Inventario documental
+# Inventario documental
 
 **Proyecto:** CitaJusta
-**Fecha de actualización:** 22 de septiembre de 2026
+**Fecha de actualización:** 04 de octubre de 2026
 **Estado:** VIGENTE / EN ACTUALIZACIÓN DOCUMENTAL
 
 Este inventario registra los documentos, artefactos técnicos y evidencias académicas actualmente presentes o preparados para el proyecto CitaJusta. La versión anterior correspondía al 3 de septiembre de 2026 y quedó desactualizada después de la implementación de la aplicación web, la integración con la API, la ampliación de pruebas y el uso real de GitHub Projects, Issues y Pull Requests.
@@ -11,17 +11,18 @@ Este inventario registra los documentos, artefactos técnicos y evidencias acad�
 | Nombre | Ruta | Propósito | Estado actual | Requiere actualización |
 | --- | --- | --- | --- | --- |
 | Memoria operativa | `AGENTS.md` | Reglas para agentes, arquitectura, seguridad y trabajo incremental | VIGENTE COMO APOYO | Sí; revisar referencias de estado inicial y scripts cuando corresponda |
-| README raíz | `README.md` | Estado, contratos y navegación del proyecto | ACTUALIZADO AL 22-09-2026 | Mantener junto con el avance; licencia y roles siguen pendientes |
-| Arquitectura | `docs/development/ARCHITECTURE.md` | Arquitectura, dominios y flujo crítico | ACTUALIZADO AL 22-09-2026 | Mantener; Desktop sigue planificado |
-| Decisiones técnicas | `docs/development/DECISIONS.md` | Decisiones de stack y arquitectura | ACTUALIZADO AL 22-09-2026 | HU-025/HU-026 incorporadas; actualizar Docker cuando se implemente |
-| Entorno de desarrollo | `docs/development/SETUP.md` | Instalación y configuración local | ACTUALIZADO AL 22-09-2026 | Mantener instrucciones del flujo automático y pruebas |
+| README raíz | `README.md` | Estado, contratos y navegación del proyecto | ACTUALIZADO AL 04-10-2026 | Mantener junto con el avance; licencia y roles siguen pendientes |
+| Arquitectura | `docs/development/ARCHITECTURE.md` | Arquitectura, dominios, Desktop e integraciones planificadas | ACTUALIZADO AL 04-10-2026 | Mantener al implementar HU-039 a HU-043 |
+| Decisiones técnicas | `docs/development/DECISIONS.md` | Decisiones de stack y arquitectura | ACTUALIZADO AL 04-10-2026 | Incluye Sprint 8/9; actualizar al implementar cada integración |
+| Entorno de desarrollo | `docs/development/SETUP.md` | Instalación, Web, Desktop y configuración local | ACTUALIZADO AL 04-10-2026 | Mantener variables/tooling de nuevas integraciones sin secretos |
 | Plantilla API | `apps/api/.env.example` | Variables de entorno ficticias del backend | VIGENTE | Mantener al agregar nuevas variables |
 | Plantilla Web | `apps/web/.env.example` | Configuración del frontend y proxy local | VIGENTE | Mantener al agregar nuevas variables |
 | README Web | `apps/web/README.md` | Uso y estado de la aplicación web | VIGENTE | Mantener junto con nuevas funcionalidades |
 | Prisma schema | `apps/api/prisma/schema.prisma` | Modelo de datos relacional | IMPLEMENTADO | Mantener trazabilidad con ER y normalización |
 | Migraciones Prisma | `apps/api/prisma/migrations/` | Evolución versionada de la base de datos | IMPLEMENTADO | Mantener por cada cambio estructural |
-| Aplicación Web | `apps/web/` | Frontend React/Vite integrado con la API | MVP CERRADO Y VALIDADO | Mantener el flujo Web; siguiente etapa Desktop |
-| API Backend | `apps/api/` | Backend NestJS y flujo Web/backend HU-007 a HU-026 | IMPLEMENTADO Y VALIDADO | Mantener; Desktop, Docker y hardening siguen pendientes |
+| Aplicación Web | `apps/web/` | Frontend React/Vite integrado con la API | MVP CERRADO Y VALIDADO | Mantener y evolucionar sólo cuando una HU lo requiera |
+| Aplicación Desktop | `apps/desktop/` | Cliente institucional Tauri 2 + React/Vite | IMPLEMENTADO Y VALIDADO HASTA HU-038 | Mantener; siguientes cambios sólo mediante HU refinadas |
+| API Backend | `apps/api/` | Backend NestJS consumido por Web y Desktop; dominios institucionales, reportes y auditoría implementados | IMPLEMENTADO Y VALIDADO | Mantener; integraciones Sprint 8 y Docker/OpenAPI/hardening Sprint 9 pendientes |
 
 ## Documentos académicos incorporados
 
@@ -29,16 +30,16 @@ Este inventario registra los documentos, artefactos técnicos y evidencias acad�
 | --- | --- | --- | --- | --- |
 | Documento Base CitaJusta | `Fase 2/Evidencias Proyecto/Evidencias de documentación/Documento_Base_CitaJusta.docx` | No declarada; indica “Versión base” | PARCIAL | Agregar versión, fecha, autores y reconciliar contenido con implementación real |
 | Justificación del Proyecto | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Justificacion_del_Proyecto_v0.1.docx` | 0.1, 23-08-2026 | PARCIAL | Validar integrantes, aprobar versión y enlazar evidencia real |
-| Requisitos Funcionales | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Requisitos_Funcionales_v0.1.docx` | 0.1, 24-08-2026 | PARCIAL | Agregar criterios de aceptación y trazabilidad con HU, Sprint y pruebas |
-| Arquitectura de Software | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_de_Software_v0.1.docx` | 0.1, 25-08-2026 | PARCIAL | Actualizar contra el estado real de Web, API, BD y pruebas |
-| Arquitectura APIs | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_APIs_v0.1.docx` | 0.1, 25-08-2026 | PARCIAL | Separar endpoints implementados y planificados; enlazar pruebas |
-| Stack Tecnológico | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Stack_Tecnologico_v0.1.docx` | 0.1, 25-08-2026 | PARCIAL | Actualizar tecnologías efectivamente implementadas y exigencias Docker |
+| Requisitos Funcionales | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Requisitos_Funcionales_v0.1.docx` + `v0.2` | 0.2, 04-10-2026 | ACTUALIZADO | v0.1 se conserva como histórico; v0.2 incorpora RF-039 a RF-043 |
+| Arquitectura de Software | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_de_Software_v0.1.docx` + `v0.2` | 0.2, 04-10-2026 | ACTUALIZADO | v0.1 histórico; v0.2 refleja Web/Desktop/API y Sprint 8 |
+| Arquitectura APIs | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_APIs_v0.1.docx` + `v0.2` | 0.2, 04-10-2026 | ACTUALIZADO | v0.1 histórico; v0.2 separa contratos reales y futuras integraciones |
+| Stack Tecnológico | `Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Stack_Tecnologico_v0.1.docx` + `v0.2` | 0.2, 04-10-2026 | ACTUALIZADO | v0.1 histórico; v0.2 alinea stack real, Prisma 7.10.0, Desktop e integraciones planificadas |
 
-Los seis DOCX continúan siendo evidencia útil, pero no deben considerarse versiones finales mientras conserven decisiones superadas o contenido aspiracional no reconciliado con el código actual.
+Los DOCX v0.1 se conservan como evidencia histórica. Requisitos, Arquitectura de Software, Arquitectura APIs y Stack cuentan con v0.2 sincronizadas al 04-10-2026; Documento Base y Justificación todavía requieren una revisión posterior si se decide versionarlos.
 
 ## Documentos de control Capstone
 
-| Nombre | Ruta | Propósito | Estado al 22-09-2026 |
+| Nombre | Ruta | Propósito | Estado al 04-10-2026 |
 | --- | --- | --- | --- |
 | Guía Capstone | `docs/capstone/README.md` | Organización y criterios de cumplimiento | REQUIERE REVISIÓN |
 | Matriz de cumplimiento | `docs/capstone/CAPSTONE_COMPLIANCE_MATRIX.md` | Trazar requisitos, evidencia y brechas | ACTUALIZADO EN ESTA REVISIÓN |
@@ -57,6 +58,10 @@ La documentación debe mantenerse alineada con la siguiente evidencia real:
 | HU-026 fechas | 10/10 PASS |
 | HU-026 UI | 16/16 PASS |
 | Web tests | 95/95 PASS |
+| HU-038 Auditoría Desktop | 34/34 PASS |
+| HU-038 API tooling + Auditoría | 24/24 PASS |
+| Desktop suite al cierre HU-038 | 163/163 PASS |
+| API/Desktop build + cargo check | PASS |
 | API build | PASS |
 | Web typecheck | PASS |
 | Web build | PASS |
@@ -128,7 +133,7 @@ Las evidencias Scrum recientes ya están incorporadas/versionadas. La siguiente 
 | Requisitos no funcionales medibles | PENDIENTE DE CONSOLIDAR | Evidencias de documentación de Fase 2 |
 | Informe de rendimiento | PENDIENTE | Evidencias de pruebas de Fase 2 |
 | Evaluación de seguridad dedicada | PARCIAL; existen pruebas de seguridad, falta informe consolidado | Evidencias de pruebas de Fase 2 |
-| Aplicación de escritorio | PENDIENTE DE IMPLEMENTAR | Evidencia de sistema |
+| Aplicación de escritorio | IMPLEMENTADA; falta consolidar evidencia académica final | Evidencia de sistema |
 | Dockerfile | PENDIENTE DE IMPLEMENTAR | Evidencia de sistema |
 | Docker Compose | PENDIENTE DE IMPLEMENTAR | Evidencia de sistema |
 | Evidencia funcional de innovación | PARCIAL | Evidencia de documentación y sistema |
@@ -151,4 +156,4 @@ Las siguientes reglas deben respetarse al actualizar evidencia:
 
 ## Próxima actualización recomendada
 
-Mantener la matriz y este inventario alineados con las evidencias recientes ya versionadas. Revisar los entregables académicos restantes y registrar sus versiones; el cierre del MVP Web no completa Desktop/Tauri, Docker, UML, ER formal, normalización, rendimiento ni licencia.
+Mantener la matriz y este inventario alineados con las evidencias recientes ya versionadas. Revisar los entregables académicos restantes y registrar sus versiones; Desktop/Tauri ya está implementado; continúan pendientes Docker/Compose, OpenAPI, UML, ER formal, normalización, rendimiento, licencia y demás entregables de cierre.

@@ -50,8 +50,15 @@ No existe todavía Dockerfile ni Docker Compose y la documentación previa no lo
 - Rama: `docs/capstone-compliance`.
 - Backend NestJS presente; aplicaciones web y escritorio pendientes.
 - PostgreSQL confirmado en Prisma, con 37 modelos y 37 tablas declaradas en migraciones.
-- Docker, Compose, CI, UML y modelo ER formal pendientes.
+- Desktop institucional implementado hasta HU-038. Docker/Compose, OpenAPI, CI, UML y modelo ER formal continúan pendientes para el cierre técnico/académico.
 - Remoto GitHub existente y no accesible públicamente; mantener privado hasta completar el checklist.
 - Auditoría preliminar de 40 commits sin secretos reales detectados; `apps/api/.env` nunca fue versionado.
 
 La visibilidad debe confirmarse nuevamente después de reautenticar GitHub CLI y antes de cualquier publicación.
+
+
+## Plan actualizado 04-10-2026
+
+- Sprint 7: cerrado con aplicación institucional Desktop, incluida Auditoría HU-038.
+- Sprint 8: integraciones externas HU-039 a HU-043 (Resend, Google OAuth/OIDC, Google Calendar, Google Maps y WhatsApp condicionado).
+- Sprint 9: Docker/Compose, OpenAPI, hardening, rendimiento, documentación/evidencias finales y preparación de entrega.

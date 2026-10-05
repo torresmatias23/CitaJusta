@@ -7,15 +7,15 @@
 | Backend | Monolito modular con NestJS |
 | Comunicación | API REST |
 | Web | React, Vite y TypeScript |
-| Escritorio | Tauri, React y TypeScript planificados; siguiente etapa, `apps/desktop` aún no existe |
+| Escritorio | Tauri 2 + React/Vite/TypeScript implementados en `apps/desktop` |
 | Persistencia | PostgreSQL |
-| Acceso a datos | Prisma |
+| Acceso a datos | Prisma 7.10.0; no actualizar a Prisma 8 sin decisión explícita |
 | Lenguaje | TypeScript |
 | Autenticación | JWT Access Token y Refresh Token |
 | Autorización | RBAC |
 | Control de versiones | Git y GitHub |
 | Despliegue lógico inicial | Sin microservicios |
-| Integración de clientes | Web consume la API; Desktop consumirá el mismo backend |
+| Integración de clientes | Web y Desktop consumen el mismo backend; no acceden directamente a PostgreSQL |
 | Autoridad de negocio | La lógica crítica reside en el backend |
 
 ## HU-023: disparador interno de expiración
@@ -41,3 +41,17 @@ Validación de estado, `lockVersion` y deduplicación evitan procesos/ofertas ad
 Se mantiene “Soy flexible” con 7/14/30 días y se añade “Fecha específica” con calendario, sin cambiar el backend ni los parámetros `institutionId`, `branchId`, `serviceId`, `from`, `to` de `/resultados`. Las fechas inválidas o anteriores a hoy no permiten buscar; cambiar de modo descarta la fecha específica anterior.
 
 `YYYY-MM-DD` se descompone manualmente en año/mes/día del dispositivo, nunca con `new Date('YYYY-MM-DD')`. Para hoy, `from` es ahora; para una fecha futura, el inicio local de ese día. `to` es el inicio local del día siguiente mediante calendario, sin sumar 86.400.000 ms, para respetar DST. La conversión a ISO se realiza al construir los query params.
+
+
+## Sprint 8: integraciones externas
+
+- Resend será el primer proveedor de correo transaccional (HU-039), encapsulado mediante un adaptador de backend.
+- Google OAuth/OpenID Connect será un método adicional de autenticación (HU-040), sin sustituir RBAC, sesiones ni el contexto institucional de CitaJusta.
+- Google Calendar (HU-041) sólo recibirá una copia autorizada de una cita confirmada; CitaJusta/PostgreSQL sigue siendo la fuente de verdad.
+- Google Maps (HU-042) consumirá datos reales de dirección/coordenadas de las sedes; no se inventará geolocalización.
+- WhatsApp (HU-043) permanece condicionado a proveedor, consentimiento, plantillas, costos y factibilidad.
+- Los contratos exactos se definen al refinar cada HU; no se agregan endpoints, dependencias ni persistencia por anticipado.
+
+## Sprint 9: cierre técnico
+
+Docker/Docker Compose, OpenAPI, hardening, rendimiento y cierre documental/académico se planifican después de las integraciones externas.
