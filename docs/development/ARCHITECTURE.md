@@ -2,24 +2,24 @@
 
 ## Resumen técnico
 
-CitaJusta es un monorepo con npm workspaces. Web consume una única API REST; Desktop está planificado sobre esa misma API. El backend es un monolito modular y concentra las reglas de negocio; PostgreSQL es la fuente persistente de verdad y Prisma la capa de acceso a datos.
+CitaJusta es un monorepo con npm workspaces. Web y Desktop consumen una única API REST. El backend es un monolito modular y concentra las reglas de negocio; PostgreSQL es la fuente persistente de verdad y Prisma la capa de acceso a datos.
 
 ```text
 Web React/Vite ---------\
                         > API REST NestJS -> Prisma -> PostgreSQL
-Desktop (planificado) --/
+Desktop Tauri 2/React --/
 ```
 
 ## Clientes web y desktop
 
 - Web: React, Vite y TypeScript; MVP cerrado funcionalmente al 22-09-2026. Incluye autenticación, catálogos, disponibilidad, reserva, Mis citas, cancelación, lista de espera/preferencias, ofertas y notificaciones. HU-026 añade fecha específica con calendario y flexible 7/14/30, manteniendo `from`/`to` y el calendario local/DST del dispositivo.
-- Desktop: Tauri, React y TypeScript planificados para la siguiente etapa; `apps/desktop` todavía no existe.
-- Web usa el backend y Desktop usará la misma API; ambos representan estado, recopilan intención del usuario y consumen resultados de la API.
+- Desktop: Tauri 2, React, Vite y TypeScript implementados en `apps/desktop`; autenticación y módulos institucionales de catálogo, profesionales, agenda, disponibilidad/bloqueos, asistencia, reasignaciones, reportes y auditoría están operativos según permisos.
+- Web y Desktop usan el mismo backend; ambos representan estado, recopilan intención del usuario y consumen resultados de la API.
 - Ningún cliente decide autorización, disponibilidad final, scoring, expiraciones ni reasignaciones.
 
 ## Backend
 
-NestJS expone la API REST como monolito modular. El backend valida las entradas y es responsable de autenticación JWT, autorización RBAC, aislamiento institucional, reglas de agenda y lista de espera, auditoría y coordinación transaccional. Docker y OpenAPI siguen pendientes. CORS es explícito y los endpoints sensibles aplican rate limiting.
+NestJS expone la API REST como monolito modular. El backend valida las entradas y es responsable de autenticación JWT, autorización RBAC, aislamiento institucional, reglas de agenda y lista de espera, auditoría y coordinación transaccional. Docker/Compose y la publicación OpenAPI siguen pendientes para Sprint 9. CORS es explícito y los endpoints sensibles aplican rate limiting.
 
 ## Persistencia
 
@@ -58,3 +58,8 @@ Cada transición debe comprobar el estado actual dentro de la operación crític
 ## Backend como autoridad
 
 Los clientes solo envían comandos o intenciones. El backend determina identidad, permisos, tenant, elegibilidad, disponibilidad, orden de prioridad, vigencia de ofertas y resultado de cada transición. Ningún estado aportado por un cliente puede sustituir estas comprobaciones.
+
+
+## Integraciones externas
+
+Sprint 8 incorpora adaptadores externos sin mover reglas de negocio fuera del backend: Resend (HU-039), Google OAuth/OIDC (HU-040), Google Calendar (HU-041), Google Maps (HU-042) y WhatsApp condicionado (HU-043). CitaJusta/PostgreSQL conserva la autoridad sobre usuarios, citas y estados. OAuth de Google se integra como método adicional de identidad y Calendar requiere autorización explícita del usuario. WhatsApp queda sujeto a proveedor, consentimiento, plantillas y costos.

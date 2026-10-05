@@ -1,7 +1,7 @@
-﻿# Checklist de publicación en GitHub
+# Checklist de publicación en GitHub
 
 **Proyecto:** CitaJusta
-**Fecha de actualización:** 22 de septiembre de 2026
+**Fecha de actualización:** 04 de octubre de 2026
 **Estado:** REPOSITORIO PUBLICADO / CHECKLIST DE MANTENCIÓN Y ENTREGA
 
 El repositorio de CitaJusta ya se encuentra disponible en GitHub y el acceso remoto fue validado mediante operaciones reales de `pull`, `push` y Pull Request. Este checklist deja de ser sólo una preparación para publicar y pasa a funcionar como control de seguridad, consistencia documental y preparación de la entrega académica final.
@@ -27,15 +27,15 @@ La revisión realizada hasta ahora no ha evidenciado claves privadas, tokens rea
 - [x] Documentos técnicos iniciales incorporados en `Fase 2/Evidencias Proyecto/Evidencias de documentación/`.
 - [x] Documentación técnica canónica presente en `docs/development/`.
 - [x] Documentación de control Capstone presente en `docs/capstone/`.
-- [x] MVP Web cerrado funcionalmente al 22-09-2026 e integrado con la API.
+- [x] MVP Web cerrado funcionalmente e integrado con la API.
 - [x] Backend NestJS y PostgreSQL implementados y operativos.
 - [x] Flujo Web/backend HU-007 a HU-026 implementado: lista de espera/preferencias y ofertas, además de autenticación, catálogos, disponibilidad, reserva, Mis citas y cancelación.
 - [x] HU-023 expiración automática, HU-024 notificaciones internas, HU-025 inicio automático de reasignación y HU-026 fecha específica/flexible completadas.
-- [x] README, ARCHITECTURE, DECISIONS y SETUP actualizados.
+- [x] README, ARCHITECTURE, DECISIONS y SETUP sincronizados al estado de HU-038 en la rama documental.
 - [x] Uso real de Issues, GitHub Projects, ramas y Pull Requests para trazabilidad.
 - [x] Evidencias Scrum recientes HU-025/HU-026 incorporadas/versionadas y mergeadas.
 - [ ] Revisar versiones y entregables académicos restantes de planificación y seguimiento.
-- [ ] Actualizar los documentos técnicos v0.1 que aún describen decisiones o estados superados.
+- [x] Crear versiones v0.2 de Requisitos, Arquitectura de Software, Arquitectura APIs y Stack Tecnológico sin borrar los v0.1 históricos.
 - [ ] Mantener consistente la identidad y los roles del equipo entre README y documentos académicos.
 - [ ] Revisar el repositorio desde una vista pública antes de la entrega al docente.
 
@@ -71,13 +71,15 @@ GitHub CLI (`gh`) no es un requisito para la publicación. En el entorno actual 
 
 ## Pendientes para cumplimiento Capstone final
 
+- Implementar Sprint 8: HU-039 Resend, HU-040 Google OAuth/OIDC, HU-041 Google Calendar, HU-042 Google Maps y HU-043 WhatsApp condicionado.
+
 Los siguientes puntos continúan abiertos y deben permanecer visibles como parte del avance incremental:
 
 - Revisar los artefactos académicos restantes; mantener las evidencias Scrum recientes ya incorporadas/versionadas.
 - Formalizar o actualizar Product Vision, Product Backlog, Definition of Done y Sprint Backlogs según la evidencia vigente.
 - Completar y aprobar el documento de diseño consolidado.
 - Completar manual técnico, modelo ER, UML, requisitos no funcionales medibles y evidencia de normalización.
-- Implementar y validar la aplicación de escritorio.
+- Consolidar la evidencia académica de la aplicación de escritorio ya implementada y validada hasta HU-038.
 - Implementar y validar Dockerfile y Docker Compose según la pauta Capstone vigente.
 - Mantener la evidencia funcional de lista de espera, preferencias y reasignación ya implementadas.
 - Consolidar planes y evidencia de pruebas por sprint.

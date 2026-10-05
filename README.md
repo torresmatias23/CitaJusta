@@ -18,17 +18,17 @@ Centralizar el catálogo y la disponibilidad, y realizar una reasignación segur
 
 ## Estado actual
 
-MVP Web cerrado funcionalmente al **22-09-2026**. HU-021 a HU-026 completadas; Desktop es la siguiente etapa. Docker, OpenAPI y hardening siguen pendientes.
+Al **04-10-2026**, el MVP Web permanece funcional y la aplicación institucional Desktop ya está implementada y validada hasta HU-038. Sprint 7 queda cerrado. Sprint 8 se planifica para integraciones externas (HU-039 a HU-043); Docker/Compose, OpenAPI y hardening quedan para Sprint 9.
 
 | Componente | Estado verificable |
 | --- | --- |
 | API backend | Funcional: autenticación/RBAC, catálogos, agenda/citas, lista de espera, ofertas, reasignación automática y notificaciones persistentes |
 | Persistencia | PostgreSQL y Prisma; modelos y migraciones versionadas |
 | Aplicación web | MVP integrado con API: autenticación, catálogos, disponibilidad, reserva, Mis citas, cancelación, lista de espera/preferencias (HU-021), ofertas (HU-022), notificaciones y búsqueda por fecha específica/flexible |
-| Aplicación de escritorio | Pendiente; `apps/desktop` aún no existe |
+| Aplicación de escritorio | Implementada con Tauri 2 + React/Vite/TypeScript: autenticación, catálogo, profesionales, agenda, disponibilidad/bloqueos, asistencia, reasignaciones, reportes y auditoría |
 | Docker | Obligatorio para Capstone, pendiente de implementación |
 | Funciones críticas de citas, lista de espera y reasignación | Implementadas, con inicio automático al cancelar un cupo reutilizable (HU-025) y expiración/continuación automática (HU-023) |
-| Documentación académica | Seis DOCX reales incorporados; evidencias Scrum HU-025/HU-026 actualizadas y mergeadas; se conserva el historial académico |
+| Documentación académica | Backlog y Release Plan sincronizados al 04-10-2026; v0.2 de requisitos y arquitecturas incorporadas en la rama documental, preservando v0.1 como historial |
 
 ## Tecnologías
 
@@ -37,18 +37,18 @@ MVP Web cerrado funcionalmente al **22-09-2026**. HU-021 a HU-026 completadas; D
 - PostgreSQL con Prisma ORM.
 - JWT Access Token y Refresh Token; base de autorización RBAC.
 - React, Vite, TypeScript, Tailwind CSS, Lucide e Inter para web.
-- Tauri, React y TypeScript planificados para escritorio.
+- Tauri 2, React, Vite y TypeScript para la aplicación institucional de escritorio.
 - Git y GitHub.
 
 ## Arquitectura resumida
 
 ```text
-Web React/Vite (MVP funcional) -----\
-                                      > API REST NestJS -> Prisma -> PostgreSQL
-Desktop Tauri/React (pendiente) ----/
+Web React/Vite ---------------------\
+                                      > API REST NestJS -> Prisma 7.10.0 -> PostgreSQL
+Desktop Tauri 2 + React/Vite -------/
 ```
 
-Web consume el backend; Desktop consumirá la misma API. La autenticación, autorización, aislamiento institucional, disponibilidad y transiciones de reservas, ofertas y reasignaciones se resuelven en el backend.
+Web y Desktop consumen la misma API. La autenticación, autorización, aislamiento institucional, disponibilidad y transiciones de reservas, ofertas y reasignaciones se resuelven en el backend.
 
 La API funcional usa el prefijo `/api/v1`; el endpoint técnico `GET /health` permanece sin prefijo.
 
@@ -66,7 +66,7 @@ La cancelación usa una transacción `Serializable`, cambios condicionales y `lo
 apps/
   api/          # backend implementado
   web/          # MVP funcional integrado con la API
-  desktop/      # planificado; todavía no existe
+  desktop/      # aplicación institucional Tauri/React implementada
 packages/       # reservado para necesidades compartidas reales
 docs/
   development/  # documentación técnica
@@ -82,7 +82,7 @@ Los cinco documentos v0.1 identifican a Matías Andrés Torres, Bastian Sepúlve
 
 ## Metodología Scrum
 
-Scrum se utiliza como marco de trazabilidad académica. La planificación inicial contemplaba Product Vision formal, Product Backlog priorizado, Definition of Done, Sprint Backlog, retrospectivas y evidencia de pruebas por sprint. Las evidencias HU-025/HU-026 ya están actualizadas y mergeadas; se conserva el historial académico. La estrategia está en [Evidencia Scrum con GitHub](docs/capstone/GITHUB_SCRUM_EVIDENCE.md).
+Scrum se utiliza como marco de trazabilidad académica. Product Backlog y Release Plan se sincronizaron al 04-10-2026: Sprint 7 queda cerrado con Desktop y Sprint 8 incorpora HU-039 a HU-043 para integraciones externas. Se conserva el historial académico y la trazabilidad por Issue, rama, PR, pruebas y Kanban. La estrategia está en [Evidencia Scrum con GitHub](docs/capstone/GITHUB_SCRUM_EVIDENCE.md).
 
 ## Requisitos locales
 
@@ -288,7 +288,7 @@ npm run --workspace @citajusta/api start
 
 Integración web y comandos: [apps/web/README.md](apps/web/README.md). Arranque: `npm run --workspace @citajusta/web dev`, con `apps/web/.env` preparado. La Web integra autenticación, catálogos, disponibilidad, reserva, Mis citas, cancelación, lista de espera/preferencias/retiro, ofertas y notificaciones con la API real; no simula datos de dominio. HU-024 permite listado, contador de no leídas y marcado individual; las fechas de las notificaciones usan timezone institucional y UTC sólo como fallback. HU-026 añade calendario de fecha específica y búsqueda flexible de 7/14/30 días con el mismo contrato `from`/`to`: fecha local del dispositivo, hoy desde ahora y fin al inicio local del día siguiente, respetando DST.
 
-Verificaciones recientes al 22-09-2026: HU-025 API **390/390**, E2E **8/8**; HU-026 fechas **10/10**, UI **16/16**, Web completa **95/95**; builds correspondientes **PASS**.
+Verificaciones conservadas del cierre Web (22-09-2026): HU-025 API **390/390**, E2E **8/8**; HU-026 fechas **10/10**, UI **16/16**, Web completa **95/95**. Cierre HU-038 (04-10-2026): Auditoría Desktop **34/34 PASS**, API tooling + Auditoría **24/24 PASS**, suite Desktop completa **163/163 PASS**, API build, Desktop build, `cargo check` y `git diff --check` **PASS**.
 
 Suite unitaria, aislada de PostgreSQL:
 
@@ -312,11 +312,23 @@ npm run --workspace @citajusta/api test:e2e:appointments
 
 Verifica reserva, concurrencia real y rollback mediante inyección controlada de fallo; también consulta propia, aislamiento por usuario, DTO público, ordenamiento, cancelación, historial, reintentos sin efectos y exclusión de cupos liberados de la disponibilidad pública. Ambos E2E comparten fixtures y deben ejecutarse secuencialmente sobre una base local permitida; limpian sus propios datos, incluidas cancelaciones, al finalizar.
 
+## Integraciones externas planificadas (Sprint 8)
+
+Las integraciones externas se incorporarán de forma incremental mediante adaptadores en el backend, sin convertir a proveedores externos en fuente de verdad del dominio:
+
+- **HU-039 / RF-039 — Resend:** correo transaccional para eventos de citas, cancelaciones, ofertas/reasignaciones y recordatorios definidos.
+- **HU-040 / RF-040 — Google OAuth / OpenID Connect:** autenticación adicional, manteniendo RBAC, sesiones y contexto institucional propios de CitaJusta.
+- **HU-041 / RF-041 — Google Calendar API:** incorporación explícita de una cita confirmada al calendario autorizado por el usuario; PostgreSQL/CitaJusta continúa siendo la autoridad.
+- **HU-042 / RF-042 — Google Maps:** visualización de ubicación/ruta de sedes usando los datos reales de dirección y coordenadas existentes.
+- **HU-043 / RF-043 — WhatsApp:** integración condicionada a proveedor, consentimiento, plantillas, costos y factibilidad.
+
+Los contratos HTTP exactos se definirán al refinar cada HU; no se documentan endpoints ficticios por anticipado.
+
 ## Docker
 
 Dockerfile y Docker Compose son obligatorios para la entrega Capstone, pero todavía no existen. Su implementación y validación corresponden a una fase técnica posterior.
 
-El Stack Tecnológico v0.1 trató Docker como tecnología no comprometida en esa versión. La pauta Capstone vigente supersede esa decisión y exige Docker; queda pendiente crear una versión actualizada del documento, sin modificar el DOCX original en esta revisión.
+El Stack Tecnológico v0.2 reconoce Docker/Docker Compose como entregable obligatorio del cierre técnico. Su implementación y validación están planificadas para Sprint 9; la versión v0.1 se conserva como evidencia histórica.
 
 ## Documentación
 
@@ -329,10 +341,14 @@ El Stack Tecnológico v0.1 trató Docker como tecnología no comprometida en esa
 - [Checklist de publicación](docs/capstone/PUBLICATION_CHECKLIST.md)
 - [Documento Base](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Documento_Base_CitaJusta.docx>)
 - [Justificación del Proyecto v0.1](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Justificacion_del_Proyecto_v0.1.docx>)
-- [Requisitos Funcionales v0.1](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Requisitos_Funcionales_v0.1.docx>)
-- [Arquitectura de Software v0.1](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_de_Software_v0.1.docx>)
-- [Arquitectura APIs v0.1](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_APIs_v0.1.docx>)
-- [Stack Tecnológico v0.1](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Stack_Tecnologico_v0.1.docx>)
+- [Requisitos Funcionales v0.1 — histórico](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Requisitos_Funcionales_v0.1.docx>)
+- [Requisitos Funcionales v0.2](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Requisitos_Funcionales_v0.2.docx>)
+- [Arquitectura de Software v0.1 — histórico](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_de_Software_v0.1.docx>)
+- [Arquitectura de Software v0.2](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_de_Software_v0.2.docx>)
+- [Arquitectura APIs v0.1 — histórico](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_APIs_v0.1.docx>)
+- [Arquitectura APIs v0.2](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_APIs_v0.2.docx>)
+- [Stack Tecnológico v0.1 — histórico](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Stack_Tecnologico_v0.1.docx>)
+- [Stack Tecnológico v0.2](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Stack_Tecnologico_v0.2.docx>)
 
 ## Estructura Capstone
 
