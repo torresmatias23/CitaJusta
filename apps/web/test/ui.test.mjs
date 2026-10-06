@@ -31,6 +31,20 @@ const { AuthProvider } = await vite.ssrLoadModule(
 );
 
 const { GoogleButton } = await vite.ssrLoadModule('/src/features/auth/google-button.tsx');
+const { CalendarExportView } = await vite.ssrLoadModule('/src/features/appointments/google-calendar-button.tsx');
+test('Calendar action renders only for eligible configured appointments and prevents busy/SDK-loading clicks', () => {
+  const props = { eligible: true, ready: true, pending: false, message: '', failed: false, onExport() {} };
+  assert.equal(renderToStaticMarkup(createElement(CalendarExportView, { ...props, eligible: false })), '');
+  const ready = renderToStaticMarkup(createElement(CalendarExportView, props));
+  assert.match(ready, /Agregar a Google Calendar/); assert.doesNotMatch(ready, /disabled/);
+  assert.match(renderToStaticMarkup(createElement(CalendarExportView, { ...props, ready: false })), /disabled/);
+  assert.match(renderToStaticMarkup(createElement(CalendarExportView, { ...props, pending: true })), /disabled.*Agregando a Google Calendar/);
+});
+test('Calendar created/already-existing and controlled failure messages have accessible status/alert', () => {
+  const props = { eligible: true, ready: true, pending: false, message: 'Cita agregada a Google Calendar', failed: false, onExport() {} };
+  assert.match(renderToStaticMarkup(createElement(CalendarExportView, props)), /role="status".*Cita agregada/);
+  assert.match(renderToStaticMarkup(createElement(CalendarExportView, { ...props, message: 'No autorizaste el permiso', failed: true })), /role="alert".*No autorizaste/);
+});
 test('Google button renders only with configuration and supports busy accessible state', () => {
   assert.equal(renderToStaticMarkup(createElement(GoogleButton, { onCredential() {}, clientId: '' })), '');
   const html = renderToStaticMarkup(createElement(GoogleButton, {

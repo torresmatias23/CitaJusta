@@ -192,6 +192,97 @@ npm test -w @citajusta/client-core
 npm run build -w @citajusta/web
 ```
 
+### HU-041: copia explícita a Google Calendar
+
+**Mis citas** muestra **Agregar a Google Calendar** únicamente para una cita
+`AGENDADA` futura con intervalo válido y Calendar configurado. El botón abre GIS
+Authorization Code en popup sólo al pulsarlo; rechazo/cierre muestra un mensaje
+controlado y conserva la cita. Login, registro y vinculación Google HU-040 siguen
+separados de esta autorización. Ambas funciones comparten una única carga del SDK.
+
+La API autenticada recibe únicamente `{ "code": "código temporal" }` en
+`POST /api/v1/appointments/:appointmentId/google-calendar`, con
+`X-Requested-With: XmlHttpRequest`. Verifica el origen confiable configurado,
+propietario activo, tenant, relaciones del cupo y elegibilidad, también después del
+intercambio OAuth. El cliente no decide fechas, destino ni identidad. La respuesta
+controlada contiene `appointmentId`, `eventId` y `CREATED` o `ALREADY_EXISTS`;
+ambos resultados muestran éxito. No se reenvía automáticamente el código tras refresh.
+
+Se solicita sólo `https://www.googleapis.com/auth/calendar.events.owned` para
+insertar en `primary`. El evento usa servicio, profesional, dirección real y zona
+horaria institucional. No contiene datos del usuario ni observaciones operativas.
+El ID determinista `citajusta` + UUID sin guiones en minúsculas cumple base32hex;
+un evento existente es éxito idempotente. Los tokens Google sólo viven en memoria
+del backend; no se guardan códigos/tokens Calendar en storage, DB, URLs o auditoría.
+No hay acceso offline mantenido, sincronización bidireccional ni background sync.
+Cambios, cancelaciones y reasignaciones posteriores no actualizan ni eliminan la
+copia. PostgreSQL/CitaJusta sigue siendo la fuente de verdad; no hay transacción
+distribuida con Google y la copia puede reflejar el estado leído antes de un cambio
+concurrente. Borrar la copia en Google no garantiza que el mismo ID pueda reutilizarse.
+
+Validación manual real HU-041 **PASS el 06-10-2026**:
+
+- Se habilitó Google Calendar API y se agregó exactamente el scope
+  `https://www.googleapis.com/auth/calendar.events.owned`. La app mantiene usuarios
+  externos y usuarios de prueba configurados; se reutilizó el OAuth Web Client de HU-040.
+- El origen real fue `http://127.0.0.1:5173`, también configurado en
+  `GOOGLE_CALENDAR_REDIRECT_URI`. API y Web se habilitaron localmente con
+  `GOOGLE_CALENDAR_ENABLED=true` y `VITE_GOOGLE_CALENDAR_ENABLED=true`, usando el
+  Client ID existente y el Client Secret exclusivamente en backend, sin publicar sus valores.
+- Con cupos futuros generados mediante `seed:booking-demo`, se reservó una cita
+  AGENDADA de **Atención General Demo**, con **Profesional Demo Booking** en
+  **Sede Centro Demo**, el **07-10-2026, 13:00–13:30 America/Santiago**.
+- Desde **Mis citas** apareció **Agregar a Google Calendar**; el popup GIS
+  Authorization Code funcionó y creó un evento real titulado
+  **CitaJusta · Atención General Demo**, con horario correcto **13:00–13:30**.
+  La ubicación utilizó sólo los datos disponibles (**Chile**); la descripción
+  incluyó al profesional y el aviso de consultar CitaJusta para conocer el estado vigente.
+- Un segundo intento reportó éxito y Google Calendar mantuvo **un solo evento**:
+  idempotencia real **PASS**.
+- Se reservó una segunda cita demo **13:30–14:00** y se cerró/canceló la autorización
+  en el popup. Web mostró «No se agregó la cita: cerraste o cancelaste la autorización
+  de Google.» y la cita permaneció **AGENDADA**.
+
+Configuración manual reproducible (utilizada en la validación anterior):
+
+1. Habilitar **Google Calendar API** en el proyecto Google Cloud del OAuth Client ID
+   Web existente. En Google Auth Platform, agregar el scope anterior y revisar
+   los test users si la aplicación sigue en Testing.
+2. Mantener los Authorized JavaScript origins utilizados por Web, por ejemplo
+   `http://127.0.0.1:5173` o `http://localhost:5173`. Elegir uno consistentemente.
+   Para popup, el intercambio usa ese origen exacto, sin ruta ni barra final;
+   no recibe `redirectUri` del navegador ni requiere un nuevo endpoint callback.
+3. En `apps/api/.env`, configurar `GOOGLE_CALENDAR_ENABLED=true`, el
+   `GOOGLE_CLIENT_ID` Web, `GOOGLE_CALENDAR_CLIENT_SECRET` y
+   `GOOGLE_CALENDAR_REDIRECT_URI` con el origen elegido. Client Secret sólo backend:
+   nunca usar un `VITE_...SECRET`. HU-040 sigue funcionando sin secret con Calendar
+   deshabilitado; no exige activar login Google para autorizar Calendar.
+4. En `apps/web/.env`, configurar el mismo `VITE_GOOGLE_CLIENT_ID` y
+   `VITE_GOOGLE_CALENDAR_ENABLED=true`. Reiniciar API y Vite; conservar `/api/v1`
+   y el proxy existente. No se amplía CORS global. Los `.env` no se versionan.
+5. Con una cita propia futura, pulsar el botón, autorizar y verificar contenido,
+   horarios y zona institucional en Google. Repetir con nueva autorización y
+   comprobar que no duplica. Probar también rechazo/cierre de popup y una cita
+   cancelada. Consultar CitaJusta para conocer siempre el estado vigente.
+
+Calendar se deshabilita por defecto en API/Web. No se añadieron dependencias,
+tablas ni migraciones. Las pruebas automáticas sustituyen sólo la frontera Google.
+
+Resultados automáticos ya obtenidos: backend HU-041 **26/26 PASS**;
+backend enfocado Auth/config/citas/HU-041 **114/114 PASS**; API completa **594/594 PASS**;
+E2E HU-041 PostgreSQL/HTTP **10/10 PASS**, Google HU-040 **12/12 PASS** y citas **22/22 PASS**.
+Web Google/Calendar/UI enfocado **51/51 PASS**; Web completa **130/130 PASS**;
+client-core **5/5 PASS** y auditoría Desktop **26/26 PASS**.
+API build, Web typecheck/build, Desktop typecheck, Prisma validate y `git diff --check`:
+**PASS**. Prisma migrate status: **12 migraciones, actualizado**.
+
+Referencias: [GIS code model y protección popup](https://developers.google.com/identity/oauth2/web/guides/use-code-model),
+[Calendar events.insert, scope y formato de ID](https://developers.google.com/workspace/calendar/api/v3/reference/events/insert).
+
+```powershell
+npm run test:e2e:google-calendar -w @citajusta/api
+```
+
 ## Evidencia visual
 
 `public/images/logo-citajusta.png`: logo oficial provisto por el proyecto, utilizado sin modificaciones en header y footer. `Brand` mantiene texto alternativo y enlace accesible a Inicio. CSS encuadra los márgenes transparentes del original 2000×2000 sin deformar ni cortar el dibujo; si se reemplaza el recurso, revisar ese encuadre.

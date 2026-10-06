@@ -17,6 +17,7 @@ export type RequestOptions = {
   signal?: AbortSignal;
   query?: Readonly<Record<string, string>>;
   retryAfterRefresh?: boolean;
+  requestedWith?: 'XmlHttpRequest';
   institutionContext?: { institutionId: string; branchId?: string };
 };
 
@@ -35,6 +36,7 @@ export function createHttpClient({ baseUrl, fetcher = fetch, getAccessToken }: {
       // Rutas relativas controladas: nunca enviar un Bearer a otro origen o prefijo.
       if (!/^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(path)) throw new Error('Ruta de API inválida.');
       const headers = new Headers({ Accept: 'application/json' });
+      if (options.requestedWith) headers.set('X-Requested-With', options.requestedWith);
       if (options.institutionContext) {
         const { institutionId, branchId } = options.institutionContext;
         const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

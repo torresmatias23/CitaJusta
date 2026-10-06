@@ -47,7 +47,7 @@ Se mantiene “Soy flexible” con 7/14/30 días y se añade “Fecha específic
 
 - Resend será el primer proveedor de correo transaccional (HU-039), encapsulado mediante un adaptador de backend.
 - Google OAuth/OpenID Connect será un método adicional de autenticación (HU-040), sin sustituir RBAC, sesiones ni el contexto institucional de CitaJusta.
-- Google Calendar (HU-041) sólo recibirá una copia autorizada de una cita confirmada; CitaJusta/PostgreSQL sigue siendo la fuente de verdad.
+- Google Calendar (HU-041) recibe una copia explícitamente autorizada de una cita propia AGENDADA futura en `primary`, mediante GIS popup/code y el scope `calendar.events.owned`. El backend usa tokens sólo en memoria y un event ID determinista por UUID; no requiere migración ni sincronización posterior. CitaJusta/PostgreSQL sigue siendo la fuente de verdad. Validación automática y manual real PASS el 06-10-2026: creación de evento, idempotencia sin duplicados y cierre del consentimiento sin cambiar la cita AGENDADA.
 - Google Maps (HU-042) consumirá datos reales de dirección/coordenadas de las sedes; no se inventará geolocalización.
 - WhatsApp (HU-043) permanece condicionado a proveedor, consentimiento, plantillas, costos y factibilidad.
 - Los contratos exactos se definen al refinar cada HU; no se agregan endpoints, dependencias ni persistencia por anticipado.

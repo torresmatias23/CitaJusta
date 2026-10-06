@@ -22,6 +22,9 @@ const environmentSchema = z
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     GOOGLE_AUTH_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
     GOOGLE_CLIENT_ID: z.string().trim().optional(),
+    GOOGLE_CALENDAR_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+    GOOGLE_CALENDAR_CLIENT_SECRET: z.string().trim().optional(),
+    GOOGLE_CALENDAR_REDIRECT_URI: z.string().trim().optional(),
     WAITLIST_OFFER_TTL_MINUTES: z.coerce.number().int().positive().default(10),
     OFFER_EXPIRATION_ENABLED: z.enum(['true', 'false']).transform((value) => value === 'true').optional(),
     OFFER_EXPIRATION_INTERVAL_MS: z.coerce.number().int().positive().max(2_147_483_647).default(30_000),
@@ -51,6 +54,17 @@ const environmentSchema = z
       .default(2_592_000),
   })
   .superRefine((environment, context) => {
+    if (environment.GOOGLE_CALENDAR_ENABLED) {
+      if (!/^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(environment.GOOGLE_CLIENT_ID ?? '')) {
+        context.addIssue({ code: 'custom', path: ['GOOGLE_CLIENT_ID'], message: 'must be a Google Web client ID when Calendar is enabled' });
+      }
+      if (!environment.GOOGLE_CALENDAR_CLIENT_SECRET) {
+        context.addIssue({ code: 'custom', path: ['GOOGLE_CALENDAR_CLIENT_SECRET'], message: 'is required when Calendar is enabled' });
+      }
+      if (!isGoogleCalendarOrigin(environment.GOOGLE_CALENDAR_REDIRECT_URI ?? '')) {
+        context.addIssue({ code: 'custom', path: ['GOOGLE_CALENDAR_REDIRECT_URI'], message: 'must be an exact HTTPS Web origin (HTTP only on loopback)' });
+      }
+    }
     if (environment.GOOGLE_AUTH_ENABLED && !/^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(environment.GOOGLE_CLIENT_ID ?? '')) {
       context.addIssue({ code: 'custom', path: ['GOOGLE_CLIENT_ID'], message: 'must be a Google Web client ID when Google authentication is enabled' });
     }
@@ -77,6 +91,14 @@ const environmentSchema = z
   }));
 
 export type Environment = z.infer<typeof environmentSchema>;
+
+export function isGoogleCalendarOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.origin === value && !url.username && !url.password &&
+      (url.protocol === 'https:' || (url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)));
+  } catch { return false; }
+}
 
 export function isEmailSender(value: string): boolean {
   if (/[\r\n]/.test(value) || value.length > 320) return false;
