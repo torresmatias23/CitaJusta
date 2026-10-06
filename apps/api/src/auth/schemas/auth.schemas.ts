@@ -77,6 +77,10 @@ export function parseRefreshToken(value: unknown): string {
   return parseBody(refreshTokenSchema, value).refreshToken;
 }
 
+export function parseGoogleCredential(value: unknown): string {
+  return parseBody(z.object({ credential: z.string().min(1).max(8192) }).strict(), value).credential;
+}
+
 export function parseRefreshTokenClaims(
   value: unknown,
 ): RefreshTokenClaims {

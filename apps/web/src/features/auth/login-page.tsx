@@ -1,14 +1,17 @@
 import { LogIn } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { Button } from '../../components/ui/button';
 import { AsyncState } from '../../components/ui/async-state';
 import { useAuth } from './auth-provider';
 import { authErrorMessage, safeReturnTo } from './auth-session';
+import { GoogleButton } from './google-button';
+import { signInWithGoogle } from './google-identity';
 
 export function LoginPage() {
-  const { status, login, error: sessionError, retrySession } = useAuth();
+  const { status, login, loginGoogle, error: sessionError, retrySession } = useAuth();
+  const busy = useRef(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState('');
@@ -21,7 +24,8 @@ export function LoginPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending) return;
+    if (busy.current) return;
+    busy.current = true;
     setPending(true);
     setError(null);
     try {
@@ -29,7 +33,14 @@ export function LoginPage() {
       setPassword('');
       navigate(returnTo, { replace: true });
     } catch (failure) { setError(authErrorMessage(failure, 'login')); }
-    finally { setPending(false); }
+    finally { busy.current = false; setPending(false); }
+  }
+
+  async function googleSignIn(credential: string) {
+    await signInWithGoogle(credential, {
+      busy, loginGoogle, setPending, setError,
+      onSuccess: () => { setPassword(''); navigate(returnTo, { replace: true }); },
+    });
   }
 
   if (status === 'authenticated') return <Navigate to={returnTo} replace />;
@@ -48,6 +59,7 @@ export function LoginPage() {
           {(error || sessionError) && <p role="alert" className="form-error">{error || sessionError}</p>}
           <Button type="submit" disabled={pending}>{pending ? 'Iniciando sesión…' : 'Iniciar sesión'}</Button>
         </form>
+        <GoogleButton disabled={pending} onCredential={(credential) => { void googleSignIn(credential); }} />
         {status === 'error' && <Button variant="outline" onClick={() => { void retrySession(); }}>Reintentar sesión existente</Button>}
         <p className="auth-switch">¿Aún no tienes una cuenta? <Link to="/registro">Crear cuenta</Link></p>
       </div>

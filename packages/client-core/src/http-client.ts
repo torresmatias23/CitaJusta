@@ -2,10 +2,12 @@ import { normalizeApiBaseUrl } from './api-base-url.ts';
 
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number) {
+  readonly code: 'GOOGLE_ACCOUNT_LINK_REQUIRED' | 'GOOGLE_IDENTITY_CONFLICT' | 'GOOGLE_PROFILE_REQUIRED' | undefined;
+  constructor(status: number, code?: ApiError['code']) {
     super(status === 401 ? 'Necesitas iniciar sesión.' : status === 409 ? 'La operación no pudo completarse por un conflicto.' : 'No se pudo completar la solicitud.');
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -57,7 +59,19 @@ export function createHttpClient({ baseUrl, fetcher = fetch, getAccessToken }: {
         ...(options.signal ? { signal: options.signal } : {}),
       });
       // No propagar mensajes, stacks ni cuerpos de error del servidor a la interfaz.
-      if (!response.ok) throw new ApiError(response.status);
+      if (!response.ok) {
+        let code: ApiError['code'];
+        if ([400, 409].includes(response.status)) {
+          try {
+            const error: unknown = await response.json();
+            if (typeof error === 'object' && error !== null && 'code' in error) {
+              if (response.status === 409 && (error.code === 'GOOGLE_ACCOUNT_LINK_REQUIRED' || error.code === 'GOOGLE_IDENTITY_CONFLICT')) code = error.code;
+              if (response.status === 400 && error.code === 'GOOGLE_PROFILE_REQUIRED') code = error.code;
+            }
+          } catch { /* Only allowlisted functional codes can leave the transport. */ }
+        }
+        throw new ApiError(response.status, code);
+      }
       if (response.status === 204) return undefined;
       const data: unknown = await response.json();
       return data;

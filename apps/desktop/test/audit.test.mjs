@@ -25,10 +25,16 @@ test('HU038 validates UUIDs, unknown query including institution/user/offset/pag
   for (const key of ['institutionId', 'userId', 'offset', 'page', 'body', 'limit', 'unknown', 'cursor']) assert.throws(() => auditQuery({ [key]: '50' }), status(400));
 });
 test('HU038 closed action/resource enums sent unchanged; invalid values rejected', () => {
-  assert.equal(auditActions.length, 24); assert.equal(auditResources.length, 10);
+  assert.equal(auditActions.length, 25); assert.equal(auditResources.length, 10);
   for (const action of auditActions) assert.equal(auditQuery({ action }).action, action);
   for (const resourceType of auditResources) assert.equal(auditQuery({ resourceType }).resourceType, resourceType);
   for (const filters of [{ action: 'DELETE_ALL' }, { resourceType: 'USER' }, { action: null }]) assert.throws(() => auditQuery(filters), status(400));
+});
+
+test('HU040 Google linking audit is readable and filterable without allowing unknown actions', () => {
+  const linked = auditEvent({ actionCode: 'AUTH_GOOGLE_LINKED', resourceType: 'AUTH', resourceId: null });
+  assert.equal(parseAuditPage(page([linked])).data[0].actionCode, 'AUTH_GOOGLE_LINKED');
+  assert.equal(auditQuery({ action: 'AUTH_GOOGLE_LINKED' }).action, 'AUTH_GOOGLE_LINKED');
 });
 test('HU038 exact audit/events GET, civil query, principal context in request options, no body', async () => {
   const filters = { from: '2020-01-01', to: '2026-10-01', branchId: branch.id, actorUserId: actorId, action: 'APPOINTMENT_CANCELLED', resourceType: 'APPOINTMENT' };

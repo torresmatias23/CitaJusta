@@ -211,6 +211,26 @@ export function createAuthSession({ publicApi, authenticatedApi, storage }: {
     return promise;
   }
 
+  async function signIn(path: 'auth/login' | 'auth/google', body: unknown) {
+    initialized = true;
+    clear();
+    const expected = generation;
+    update({ status: 'loading', user: null, error: null });
+    let issued = false;
+    try {
+      const value = await publicApi.request(path, { method: 'POST', body });
+      await savePair(value, expected);
+      issued = true;
+      await loadProfile(expected);
+    } catch (error) {
+      if (generation === expected) {
+        if (issued && !(error instanceof ApiError && error.status === 401)) update({ status: 'error', user: null, error: authErrorMessage(error, 'session') });
+        else clear(authErrorMessage(error, 'login'));
+      }
+      throw error;
+    }
+  }
+
   return {
     api,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
@@ -229,23 +249,13 @@ export function createAuthSession({ publicApi, authenticatedApi, storage }: {
       update({ status: 'authenticated', user, error: null });
     },
     async login(input: LoginInput) {
-      initialized = true;
-      clear();
-      const expected = generation;
-      update({ status: 'loading', user: null, error: null });
-      let issued = false;
-      try {
-        const value = await publicApi.request('auth/login', { method: 'POST', body: { email: input.email, password: input.password } });
-        await savePair(value, expected);
-        issued = true;
-        await loadProfile(expected);
-      } catch (error) {
-        if (generation === expected) {
-          if (issued && !(error instanceof ApiError && error.status === 401)) update({ status: 'error', user: null, error: authErrorMessage(error, 'session') });
-          else clear(authErrorMessage(error, 'login'));
-        }
-        throw error;
-      }
+      await signIn('auth/login', { email: input.email, password: input.password });
+    },
+    async loginGoogle(credential: string) {
+      await signIn('auth/google', { credential });
+    },
+    async linkGoogle(credential: string) {
+      await api.request('auth/google/link', { method: 'POST', body: { credential }, retryAfterRefresh: false });
     },
     async register(input: RegisterInput) {
       await publicApi.request('auth/register', {

@@ -245,7 +245,7 @@ enum OfferStatus {
 model User {
   id                      String      @id @db.Uuid
   email                   String      @unique @db.VarChar(254)
-  passwordHash            String      @map("password_hash") @db.VarChar(255)
+  passwordHash            String?     @map("password_hash") @db.VarChar(255)
   firstNames              String      @map("nombres") @db.VarChar(120)
   lastNames               String      @map("apellidos") @db.VarChar(120)
   phone                   String?     @map("telefono") @db.VarChar(30)
@@ -272,6 +272,7 @@ model User {
   reassignmentCandidates  ReassignmentCandidate[]
   respondedOffers         AppointmentOffer[]      @relation("AppointmentOfferRespondedByUser")
   authSessions            AuthSession[]
+  externalIdentities      ExternalIdentity[]
   notifications           Notification[]
   createdReassignmentPolicies ReassignmentPolicy[]
 
@@ -400,6 +401,26 @@ model UserRole {
   @@index([institutionId])
   @@index([branchId])
   @@map("usuarios_roles")
+}
+
+enum ExternalIdentityProvider {
+  GOOGLE
+
+  @@map("proveedor_identidad_externa")
+}
+
+model ExternalIdentity {
+  id              String                   @id @db.Uuid
+  userId          String                   @map("usuario_id") @db.Uuid
+  provider        ExternalIdentityProvider @map("proveedor")
+  providerSubject String                   @map("sujeto_proveedor") @db.VarChar(255)
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  user            User                     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([provider, providerSubject])
+  @@unique([userId, provider])
+  @@map("identidades_externas")
 }
 
 model AuthSession {

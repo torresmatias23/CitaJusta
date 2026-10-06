@@ -30,6 +30,19 @@ const { AuthProvider } = await vite.ssrLoadModule(
   '/src/features/auth/auth-provider.tsx',
 );
 
+const { GoogleButton } = await vite.ssrLoadModule('/src/features/auth/google-button.tsx');
+test('Google button renders only with configuration and supports busy accessible state', () => {
+  assert.equal(renderToStaticMarkup(createElement(GoogleButton, { onCredential() {}, clientId: '' })), '');
+  const html = renderToStaticMarkup(createElement(GoogleButton, {
+    onCredential() {}, clientId: 'test.apps.googleusercontent.com', disabled: true,
+  }));
+  assert.match(html, /Continuar con Google/); assert.match(html, /aria-busy="true"/); assert.match(html, /inert=""/);
+});
+test('account linking page requires a verified CitaJusta session', () => {
+  const html = renderRoute('/cuenta');
+  assert.match(html, /Verificando tu sesión/); assert.doesNotMatch(html, /Cuenta Google vinculada|Vincula Google/);
+});
+
 const renderRoute = (path) =>
   renderToStaticMarkup(
     createElement(
