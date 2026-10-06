@@ -1,4 +1,5 @@
 import { ApiError } from '@citajusta/client-core';
+import { loadGoogleSdk } from './google-sdk.ts';
 
 export function googleClientId(value: unknown): string | undefined {
   return typeof value === 'string' && /^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(value.trim()) ? value.trim() : undefined;
@@ -36,30 +37,11 @@ export interface GoogleIdentityApi {
   renderButton(element: HTMLElement, options: { type: 'standard'; theme: 'outline'; size: 'large'; text: 'continue_with'; locale: 'es'; width: number }): void;
 }
 type GoogleWindow = Window & { google?: { accounts?: { id?: GoogleIdentityApi } } };
-let scriptFlight: Promise<GoogleIdentityApi> | undefined;
-function loadGoogleIdentity(): Promise<GoogleIdentityApi> {
-  const existing = (window as GoogleWindow).google?.accounts?.id;
-  if (existing) return Promise.resolve(existing);
-  if (scriptFlight) return scriptFlight;
-  scriptFlight = new Promise<GoogleIdentityApi>((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    const timeout = window.setTimeout(fail, 10000);
-    function fail() {
-      window.clearTimeout(timeout);
-      script.remove();
-      reject(new Error('Google unavailable'));
-    }
-    script.onerror = fail;
-    script.onload = () => {
-      window.clearTimeout(timeout);
-      const api = (window as GoogleWindow).google?.accounts?.id;
-      if (api) resolve(api); else fail();
-    };
-    document.head.append(script);
-  }).catch((error: unknown) => { scriptFlight = undefined; throw error; });
-  return scriptFlight;
+async function loadGoogleIdentity(): Promise<GoogleIdentityApi> {
+  await loadGoogleSdk();
+  const api = (window as GoogleWindow).google?.accounts?.id;
+  if (!api) throw new Error('Google unavailable');
+  return api;
 }
 
 // GIS initializes once per page. Only the currently mounted explicit button owns its callback.

@@ -18,7 +18,7 @@ Centralizar el catálogo y la disponibilidad, y realizar una reasignación segur
 
 ## Estado actual
 
-Al **06-10-2026**, el MVP Web permanece funcional y la aplicación institucional Desktop está implementada y validada hasta HU-038. Sprint 7 queda cerrado y Sprint 8 está en curso. HU-039 incorpora correo transaccional con Resend y fue validada mediante pruebas automáticas y una prueba manual real de APPOINTMENT_BOOKED aceptada por el proveedor. HU-040 está implementada con login Google adicional y vinculación explícita, validación automática PASS y validación manual real PASS el 06-10-2026. HU-041 a HU-043 permanecen pendientes; Docker/Compose, OpenAPI y hardening quedan para Sprint 9.
+Al **06-10-2026**, el MVP Web permanece funcional y la aplicación institucional Desktop está implementada y validada hasta HU-038. Sprint 7 queda cerrado y Sprint 8 está en curso. HU-039 incorpora correo transaccional con Resend y fue validada mediante pruebas automáticas y una prueba manual real de APPOINTMENT_BOOKED aceptada por el proveedor. HU-040 está implementada con login Google adicional y vinculación explícita, validación automática PASS y validación manual real PASS el 06-10-2026. HU-041 incorpora exportación explícita a Google Calendar, con validación automática y manual real PASS el 06-10-2026. HU-042 y HU-043 permanecen pendientes; Docker/Compose, OpenAPI y hardening quedan para Sprint 9.
 
 | Componente | Estado verificable |
 | --- | --- |
@@ -74,6 +74,29 @@ controlado de perfil insuficiente y sin auto-link. El alta Google exitosa desde
 `/registro` está cubierta por tests Web; no se ejecutó manualmente con una tercera
 cuenta Google nueva de perfil completo.
 Configuración y prueba manual: [README Web](apps/web/README.md#hu-040-google-login-y-vinculación).
+
+HU-041: una cita propia `AGENDADA`, futura y coherente puede copiarse explícitamente
+desde **Mis citas** al calendario Google `primary`. `POST /api/v1/appointments/:appointmentId/google-calendar`
+requiere Bearer CitaJusta, `X-Requested-With: XmlHttpRequest`, origen Web configurado
+y body estricto `{ "code": "código temporal" }`, sin query ni identidades/fechas del cliente.
+Responde `200 { data: { appointmentId, eventId, status: "CREATED" | "ALREADY_EXISTS" } }`.
+La autorización GIS usa popup y sólo `https://www.googleapis.com/auth/calendar.events.owned`;
+la API intercambia el código mediante `google-auth-library` y usa el access token
+únicamente en memoria, descartando cualquier refresh token. No altera `ExternalIdentity`,
+la cita, el cupo ni el historial; no requiere migración. Google no autentica este endpoint.
+El ID `citajusta` + UUID sin guiones y en minúsculas evita duplicados en el mismo calendario;
+un `409` de inserción se trata como `ALREADY_EXISTS`. Sólo una creación confirmada
+genera `GOOGLE_CALENDAR_EVENT_CREATED`, con actor USER y datos mínimos. Si falla la
+auditoría posterior, se conserva el éxito externo y se emite sólo una advertencia fija.
+Propietario, estado y relaciones se revalidan después del intercambio, sin una
+transacción PostgreSQL abierta durante HTTP externo. Una cancelación/transferencia
+concurrente posterior a esa comprobación aún puede dejar una copia del estado leído.
+No hay sincronización bidireccional, background sync ni actualización/eliminación
+automática por cambios, cancelaciones o reasignaciones posteriores. CitaJusta/PostgreSQL
+sigue siendo la autoridad. Validación manual real **PASS el 06-10-2026**: evento demo
+creado con horario y contenido correctos, segundo intento sin duplicados y cierre
+del consentimiento con mensaje controlado y cita aún AGENDADA. Configuración y
+evidencia: [README Web](apps/web/README.md#hu-041-copia-explícita-a-google-calendar).
 
 La API funcional usa el prefijo `/api/v1`; el endpoint técnico `GET /health` permanece sin prefijo.
 
@@ -387,7 +410,7 @@ Las integraciones externas se incorporarán de forma incremental mediante adapta
 
 - **HU-039 / RF-039 — Resend:** implementada y validada. Correo transaccional para reserva/cancelación de citas y eventos elegibles de ofertas/reasignación; lista de espera y recordatorios programados quedan fuera de este canal.
 - **HU-040 / RF-040 — Google OAuth / OpenID Connect:** autenticación adicional, manteniendo RBAC, sesiones y contexto institucional propios de CitaJusta.
-- **HU-041 / RF-041 — Google Calendar API:** incorporación explícita de una cita confirmada al calendario autorizado por el usuario; PostgreSQL/CitaJusta continúa siendo la autoridad.
+- **HU-041 / RF-041 — Google Calendar API:** implementada y validada automática y manualmente el 06-10-2026. Incorporación explícita de una cita confirmada al calendario autorizado por el usuario; PostgreSQL/CitaJusta continúa siendo la autoridad.
 - **HU-042 / RF-042 — Google Maps:** visualización de ubicación/ruta de sedes usando los datos reales de dirección y coordenadas existentes.
 - **HU-043 / RF-043 — WhatsApp:** integración condicionada a proveedor, consentimiento, plantillas, costos y factibilidad.
 

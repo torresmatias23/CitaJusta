@@ -77,6 +77,16 @@ function parseBooking(value: unknown): BookingResponse {
 
 export function createAppointmentsApi(client: ApiClient) {
   return {
+    async exportCalendar(appointmentId: string, code: string, signal?: AbortSignal) {
+      if (!isAppointmentId(appointmentId) || !/^\S{1,4096}$/.test(code)) throw new Error('Solicitud de Google Calendar inválida.');
+      const response = record(await client.request(`appointments/${appointmentId}/google-calendar`, {
+        method: 'POST', body: { code }, requestedWith: 'XmlHttpRequest', retryAfterRefresh: false, ...(signal ? { signal } : {}),
+      }));
+      const data = record(response.data), eventId = text(data.eventId);
+      if (data.appointmentId !== appointmentId || !/^[0-9a-v]{5,1024}$/.test(eventId) ||
+        (data.status !== 'CREATED' && data.status !== 'ALREADY_EXISTS')) return invalidResponse();
+      return { appointmentId, eventId, status: data.status };
+    },
     async list(signal?: AbortSignal): Promise<AppointmentSummary[]> {
       const response = record(await client.request('appointments/me', signal ? { signal } : {}));
       if (!Array.isArray(response.data)) return invalidResponse();

@@ -42,6 +42,18 @@ test('institution context uses only validated headers; existing requests remain 
   assert.equal(requests.length, 2);
 });
 
+test('popup callback header is explicit opt-in and preserves existing request headers', async () => {
+  const requests = [];
+  const api = createHttpClient({ baseUrl: '/api/v1', getAccessToken: () => 'internal-access', fetcher: async (_url, options) => {
+    requests.push(options); return new Response(null, { status: 204 });
+  } });
+  await api.request('appointments/test/google-calendar', { method: 'POST', body: { code: 'transient' }, requestedWith: 'XmlHttpRequest' });
+  assert.equal(requests[0].headers.get('X-Requested-With'), 'XmlHttpRequest');
+  assert.equal(requests[0].headers.get('Authorization'), 'Bearer internal-access');
+  assert.equal(requests[0].headers.get('Content-Type'), 'application/json');
+  await api.request('users/me'); assert.equal(requests[1].headers.has('X-Requested-With'), false);
+});
+
 test('selectContext accepts only server profile/context and rejects stale account/context responses', async () => {
   const profile = { id: 'user', firstName: 'Ana', lastName: 'Test', email: 'test@example.invalid', status: 'ACTIVE', roles: [], permissions: [], context: {} };
   const pending = [];
