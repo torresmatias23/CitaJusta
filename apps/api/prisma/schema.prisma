@@ -42,11 +42,46 @@ model Notification {
   createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamp(3)
   readAt          DateTime?                @map("leida_at") @db.Timestamp(3)
   recipient       User                     @relation(fields: [recipientUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  emailDelivery   NotificationEmailDelivery?
 
   @@unique([recipientUserId, dedupeKey])
   @@index([recipientUserId, createdAt(sort: Desc), id(sort: Desc)])
-  @@index([recipientUserId, readAt, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([recipientUserId, readAt, createdAt(sort: Desc), id(sort: Desc)], map: "notificaciones_destinatario_usuario_id_leida_at_created_at_id_i")
   @@map("notificaciones")
+}
+
+enum EmailDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+
+  @@map("estado_entrega_email")
+}
+
+// Technical outbox child; deleting a notification only removes its delivery, never domain data.
+model NotificationEmailDelivery {
+  id                String              @id @db.Uuid
+  notificationId    String              @unique @map("notificacion_id") @db.Uuid
+  status            EmailDeliveryStatus @default(PENDING) @map("estado")
+  attemptCount      Int                 @default(0) @map("intentos")
+  nextAttemptAt     DateTime            @default(now()) @map("proximo_intento_at") @db.Timestamp(3)
+  lockedUntil       DateTime?           @map("bloqueada_hasta") @db.Timestamp(3)
+  claimToken        String?             @map("token_reclamo") @db.Uuid
+  firstAttemptAt    DateTime?           @map("primer_intento_at") @db.Timestamp(3)
+  lastAttemptAt     DateTime?           @map("ultimo_intento_at") @db.Timestamp(3)
+  sentAt            DateTime?           @map("enviada_at") @db.Timestamp(3)
+  providerMessageId String?             @map("proveedor_mensaje_id") @db.VarChar(100)
+  lastErrorCode     String?             @map("ultimo_error_codigo") @db.VarChar(80)
+  // Frozen minimal provider payload ensures identical retries; never stores API keys.
+  payload           Json?               @map("payload") @db.JsonB
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamp(3)
+  notification      Notification        @relation(fields: [notificationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([status, nextAttemptAt, id])
+  @@index([status, lockedUntil, id])
+  @@map("entregas_email_notificacion")
 }
 
 enum AuditActorType {

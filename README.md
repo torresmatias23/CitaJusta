@@ -18,7 +18,7 @@ Centralizar el catálogo y la disponibilidad, y realizar una reasignación segur
 
 ## Estado actual
 
-Al **04-10-2026**, el MVP Web permanece funcional y la aplicación institucional Desktop ya está implementada y validada hasta HU-038. Sprint 7 queda cerrado. Sprint 8 se planifica para integraciones externas (HU-039 a HU-043); Docker/Compose, OpenAPI y hardening quedan para Sprint 9.
+Al **05-10-2026**, el MVP Web permanece funcional y la aplicación institucional Desktop está implementada y validada hasta HU-038. Sprint 7 queda cerrado y Sprint 8 está en curso. HU-039 incorpora correo transaccional con Resend y fue validada mediante pruebas automáticas y una prueba manual real de APPOINTMENT_BOOKED aceptada por el proveedor. HU-040 a HU-043 permanecen pendientes; Docker/Compose, OpenAPI y hardening quedan para Sprint 9.
 
 | Componente | Estado verificable |
 | --- | --- |
@@ -267,6 +267,50 @@ no cambian. Integración Desktop y tooling local optativo en
 
 ## Variables de entorno
 
+### HU-039: correo transaccional con Resend
+
+`NotificationsService.create(tx, input)` persiste Notification y su outbox 1:1 `NotificationEmailDelivery` en la misma transacción de dominio. Sólo encola `APPOINTMENT_BOOKED`, `APPOINTMENT_CANCELLED`, `OFFER_CREATED`, `OFFER_ACCEPTED`, `OFFER_REJECTED` y `OFFER_EXPIRED`. `WAITLIST_ENTERED`, `WAITLIST_WITHDRAWN` y recordatorios programados quedan fuera del canal email. HU-024 conserva su contrato, contador y `readAt`, independientes de la entrega externa. No hay backfill automático de notificaciones históricas; un replay explícito del helper sí asegura su entrega única.
+
+El runner reclama filas mediante UPDATE condicional en PostgreSQL, lease y token de propietario; ordena por `nextAttemptAt ASC, id ASC`, procesa un lote acotado y espera el trabajo activo al apagar. La llamada HTTP ocurre **fuera de las transacciones de citas/reasignación**. Una caída de Resend no revierte negocio ya confirmado. El lease se renueva antes del HTTP y supera el timeout por al menos 5 segundos; un worker vencido no puede completar el claim de otro.
+
+Configuración en `apps/api/.env.example` (no versionar secretos locales):
+
+| Variable | Default / límites |
+| --- | --- |
+| `EMAIL_DELIVERY_ENABLED` | `false`, string estricto `true`/`false`; también deshabilitado en E2E |
+| `EMAIL_DELIVERY_INTERVAL_MS` | 30000; 1000–300000 |
+| `EMAIL_DELIVERY_BATCH_SIZE` | 10; 1–100 |
+| `EMAIL_DELIVERY_MAX_ATTEMPTS` | 5; 1–10, incluye claims recuperados tras crash |
+| `EMAIL_DELIVERY_REQUEST_TIMEOUT_MS` | 10000; 100–30000 |
+| `EMAIL_DELIVERY_LEASE_MS` | 60000; 5000–300000 y al menos timeout + 5000 |
+| `RESEND_API_KEY`, `RESEND_FROM` | Obligatorios y validados sólo cuando email está habilitado |
+
+El adaptador usa fetch nativo contra `https://api.resend.com/emails`, sin SDK ni URL configurable. Reutiliza `notificationContent` y timezone institucional (fallback UTC), sin HTML dinámico ni enlaces especulativos. Congela sólo `from`, `to`, `subject` y `text` en la outbox para conservar el mismo payload y `Idempotency-Key: citajusta-email/<notificationId>` en retries. El destinatario proviene del User persistido; un cambio de email, usuario inactivo/eliminado o dirección inválida detiene la entrega. El payload contiene el destinatario necesario para envío: requiere la misma protección y retención operativa que datos personales, y no se expone por HU-024.
+
+Retries: red con códigos reconocidos, timeout, 408/429/5xx y 409 `concurrent_idempotent_requests`; backoff determinista 30 s × 2^(intentos−1), máximo 1 h. Otros 4xx (incluido 409 `invalid_idempotent_request`), configuración/destinatario inválido y agotamiento de intentos terminan en FAILED. SENT/FAILED son terminales. Errores de programación no son retries del proveedor; errores DB propagan y el lease permite recuperación acotada. Sólo se guardan códigos controlados, nunca API key, response body o stack. El log del runner no imprime destinatarios ni excepciones.
+
+Resend conserva sus claves [24 horas](https://resend.com/docs/dashboard/emails/idempotency-keys). La DB es la defensa principal; no se promete exactly-once externo. Si un envío incierto supera 24 h desde el primer intento, termina FAILED (`EMAIL_IDEMPOTENCY_WINDOW_EXPIRED`) y requiere revisión manual en Resend, sin reenvío automático. Una pausa de proceso que supere un lease o una caída tras aceptación externa puede producir un resultado incierto; el fencing protege escrituras locales y la clave del proveedor mitiga duplicados dentro de su ventana. SENT indica aceptación por la API de Resend, no recepción garantizada en inbox; webhooks y reenvíos administrativos quedan fuera de alcance.
+
+La migración aditiva `20261005020721_notification_email_delivery` crea sólo el enum, outbox, índices y FK. La eliminación de una Notification elimina su hija técnica de entrega (útil para cleanup de fixtures); nunca elimina citas/ofertas/reasignaciones. Las operaciones funcionales no eliminan notificaciones.
+
+Prueba automática, con PostgreSQL local seguro y esquema actualizado, **sin enviar correo real**:
+
+```powershell
+npm run prisma:validate -w @citajusta/api
+npm exec -w @citajusta/api -- prisma migrate status
+npm run test:e2e:email-delivery -w @citajusta/api
+npm test -w @citajusta/api
+```
+
+Validación manual reproducible. El 05-10-2026 se validó un flujo real APPOINTMENT_BOOKED con destinatario de prueba de Resend: la entrega pasó de PENDING a SENT en un único intento, con providerMessageId persistido y sin error del proveedor. SENT representa aceptación por la API de Resend, no garantiza recepción final en inbox:
+
+1. Crear cuenta Resend y [verificar dominio/remitente](https://resend.com/docs/dashboard/domains/introduction). Alternativamente usar el remitente de prueba permitido por Resend, respetando sus restricciones de destinatario.
+2. Crear [API key de sólo envío](https://resend.com/docs/dashboard/api-keys/introduction), restringida al dominio cuando corresponda; guardarla sólo en `apps/api/.env`, nunca en consola/screenshots/Git.
+3. Configurar `RESEND_API_KEY`, `RESEND_FROM` y `EMAIL_DELIVERY_ENABLED=true`; reiniciar API. Antes de habilitar, revisar pendientes propios: eventos elegibles se encolan también con el runner apagado y serán procesados al habilitarlo.
+4. Provocar una reserva controlada u oferta por los flujos existentes con una cuenta ACTIVE y email autorizado. Consultar Notification interna y su outbox en una herramienta local sin mostrar secretos.
+5. Comprobar SENT, `sentAt`, `providerMessageId`, aceptación en Resend y recepción en inbox. Para un replay funcional reproducible, cancelar la cita controlada, esperar su correo `APPOINTMENT_CANCELLED` y repetir esa cancelación: debe devolver 200, conservar una sola Notification/delivery de cancelación y no enviar otro correo. La primera cancelación es otro evento legítimo, no un duplicado del correo de reserva. Repetir una reserva sobre un cupo ya reservado devuelve conflicto, no constituye un nuevo evento.
+6. Dejar el runner deshabilitado cuando termine la prueba local si no se desea procesar futuros eventos.
+
 El backend valida su configuración al arrancar. Usa [apps/api/.env.example](apps/api/.env.example) como contrato y crea un archivo local `apps/api/.env` con valores propios del entorno.
 
 ```powershell
@@ -312,11 +356,11 @@ npm run --workspace @citajusta/api test:e2e:appointments
 
 Verifica reserva, concurrencia real y rollback mediante inyección controlada de fallo; también consulta propia, aislamiento por usuario, DTO público, ordenamiento, cancelación, historial, reintentos sin efectos y exclusión de cupos liberados de la disponibilidad pública. Ambos E2E comparten fixtures y deben ejecutarse secuencialmente sobre una base local permitida; limpian sus propios datos, incluidas cancelaciones, al finalizar.
 
-## Integraciones externas planificadas (Sprint 8)
+## Integraciones externas — Sprint 8
 
 Las integraciones externas se incorporarán de forma incremental mediante adaptadores en el backend, sin convertir a proveedores externos en fuente de verdad del dominio:
 
-- **HU-039 / RF-039 — Resend:** correo transaccional para eventos de citas, cancelaciones, ofertas/reasignaciones y recordatorios definidos.
+- **HU-039 / RF-039 — Resend:** implementada y validada. Correo transaccional para reserva/cancelación de citas y eventos elegibles de ofertas/reasignación; lista de espera y recordatorios programados quedan fuera de este canal.
 - **HU-040 / RF-040 — Google OAuth / OpenID Connect:** autenticación adicional, manteniendo RBAC, sesiones y contexto institucional propios de CitaJusta.
 - **HU-041 / RF-041 — Google Calendar API:** incorporación explícita de una cita confirmada al calendario autorizado por el usuario; PostgreSQL/CitaJusta continúa siendo la autoridad.
 - **HU-042 / RF-042 — Google Maps:** visualización de ubicación/ruta de sedes usando los datos reales de dirección y coordenadas existentes.

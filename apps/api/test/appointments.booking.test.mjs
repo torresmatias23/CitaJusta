@@ -31,7 +31,8 @@ function setup(options = {}) {
   const state = { slot: structuredClone(initial), appointments: [], history: [], audit: [] };
   let working;
   const tx = {
-    notification: { createMany: async () => ({ count: 1 }) },
+    notification: { createMany: async () => ({ count: 1 }), findUniqueOrThrow: async () => ({ id: randomUUID() }) },
+    notificationEmailDelivery: { createMany: async () => ({ count: 1 }) },
     auditEvent: { create: mock.fn(async ({ data }) => { working.audit.push(data); return { id: data.id }; }) },
     user: { findFirst: mock.fn(async () => options.userMissing ? null : { id: principal.userId }) },
     agendaSlot: {

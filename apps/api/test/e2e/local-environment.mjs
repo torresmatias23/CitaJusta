@@ -11,6 +11,8 @@ export function loadApiEnvironment() {
   }
   // Historical suites explicitly control expired PENDING offers. Opt in after loading only in runner tests.
   process.env.OFFER_EXPIRATION_ENABLED = 'false';
+  // Never call an external email provider from PostgreSQL fixtures.
+  process.env.EMAIL_DELIVERY_ENABLED = 'false';
 }
 
 export function assertSafeLocalDatabaseUrl(connectionString) {

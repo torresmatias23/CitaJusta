@@ -59,6 +59,7 @@ test('eight typed events create only controlled data through the supplied transa
   for (const type of types) {
     const input = event(type);
     let write;
+    let delivery;
 
     await NotificationsService.create(
       {
@@ -67,7 +68,9 @@ test('eight typed events create only controlled data through the supplied transa
             write = args;
             return { count: 1 };
           },
+          findUniqueOrThrow: async () => ({ id: write.data[0].id }),
         },
+        notificationEmailDelivery: { createMany: async (args) => { delivery = args; return { count: 1 }; } },
       },
       input,
     );
@@ -80,6 +83,12 @@ test('eight typed events create only controlled data through the supplied transa
     assert.match(id, /^[\da-f-]{36}$/);
     assert.deepEqual(saved, input);
     assert.ok(!('readAt' in saved));
+    if (type.startsWith('WAITLIST')) assert.equal(delivery, undefined);
+    else {
+      assert.equal(delivery.skipDuplicates, true);
+      assert.equal(delivery.data.length, 1);
+      assert.equal(delivery.data[0].notificationId, id);
+    }
 
     const content = notificationContent(input);
 
@@ -149,7 +158,9 @@ test('replays do not perform updates and non-duplicate storage failures propagat
     {
       notification: {
         createMany: async () => ({ count: 0 }),
+        findUniqueOrThrow: async () => ({ id: randomUUID() }),
       },
+      notificationEmailDelivery: { createMany: async () => ({ count: 0 }) },
     },
     event(),
   );

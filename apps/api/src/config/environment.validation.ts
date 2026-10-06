@@ -24,6 +24,14 @@ const environmentSchema = z
     OFFER_EXPIRATION_ENABLED: z.enum(['true', 'false']).transform((value) => value === 'true').optional(),
     OFFER_EXPIRATION_INTERVAL_MS: z.coerce.number().int().positive().max(2_147_483_647).default(30_000),
     OFFER_EXPIRATION_BATCH_SIZE: z.coerce.number().int().positive().max(1000).default(50),
+    EMAIL_DELIVERY_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+    EMAIL_DELIVERY_INTERVAL_MS: z.coerce.number().int().min(1000).max(300_000).default(30_000),
+    EMAIL_DELIVERY_BATCH_SIZE: z.coerce.number().int().min(1).max(100).default(10),
+    EMAIL_DELIVERY_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(5),
+    EMAIL_DELIVERY_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(100).max(30_000).default(10_000),
+    EMAIL_DELIVERY_LEASE_MS: z.coerce.number().int().min(5000).max(300_000).default(60_000),
+    RESEND_API_KEY: z.string().optional(),
+    RESEND_FROM: z.string().optional(),
     DATABASE_URL: z.string().refine(isPostgresqlUrl, {
       message: 'must be a valid PostgreSQL URL',
     }),
@@ -41,6 +49,17 @@ const environmentSchema = z
       .default(2_592_000),
   })
   .superRefine((environment, context) => {
+    if (environment.EMAIL_DELIVERY_LEASE_MS < environment.EMAIL_DELIVERY_REQUEST_TIMEOUT_MS + 5000) {
+      context.addIssue({ code: 'custom', path: ['EMAIL_DELIVERY_LEASE_MS'], message: 'must exceed request timeout by at least 5000 ms' });
+    }
+    if (environment.EMAIL_DELIVERY_ENABLED) {
+      if (!/^re_[A-Za-z0-9_-]{10,200}$/.test(environment.RESEND_API_KEY ?? '')) {
+        context.addIssue({ code: 'custom', path: ['RESEND_API_KEY'], message: 'must be a valid sending API key when email is enabled' });
+      }
+      if (!isEmailSender(environment.RESEND_FROM ?? '')) {
+        context.addIssue({ code: 'custom', path: ['RESEND_FROM'], message: 'must be a valid sender when email is enabled' });
+      }
+    }
     if (environment.JWT_ACCESS_SECRET === environment.JWT_REFRESH_SECRET) {
       context.addIssue({
         code: 'custom',
@@ -53,6 +72,12 @@ const environmentSchema = z
   }));
 
 export type Environment = z.infer<typeof environmentSchema>;
+
+export function isEmailSender(value: string): boolean {
+  if (/[\r\n]/.test(value) || value.length > 320) return false;
+  const match = /^([^<>]+) <([^<>]+)>$/.exec(value);
+  return z.email().safeParse(match ? match[2] : value).success;
+}
 
 export function validateEnvironment(
   config: Record<string, unknown>,
