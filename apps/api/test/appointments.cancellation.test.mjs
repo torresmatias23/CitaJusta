@@ -55,7 +55,8 @@ function setup(options = {}) {
       working.notifications.push(...data);
       if (options.notificationError && data[0].type === 'OFFER_CREATED') throw options.notificationError;
       return { count: data.length };
-    } },
+    }, findUniqueOrThrow: async ({ where }) => ({ id: working.notifications.find((row) => row.recipientUserId === where.recipientUserId_dedupeKey.recipientUserId && row.dedupeKey === where.recipientUserId_dedupeKey.dedupeKey).id }) },
+    notificationEmailDelivery: { createMany: async () => ({ count: 1 }) },
     auditEvent: { create: mock.fn(async ({ data }) => { working.audit.push(data); return { id: data.id }; }) },
     user: { findFirst: mock.fn(async () => options.userMissing ? null : { id: principal.userId }) },
     userRole: { count: async () => options.noGrant ? 0 : 1 },

@@ -4,6 +4,7 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { AuthenticatedPrincipal } from '../auth/types/authenticated-principal.js';
 import { notificationContent } from './notification-content.js';
+import { emailEligibleTypes } from './resend.client.js';
 import {
   decodeNotificationCursor,
   encodeNotificationCursor,
@@ -28,6 +29,16 @@ export class NotificationsService {
       data: [{ id: randomUUID(), ...data }],
       skipDuplicates: true,
     });
+    if (emailEligibleTypes.has(data.type)) {
+      const notification = await tx.notification.findUniqueOrThrow({
+        where: { recipientUserId_dedupeKey: { recipientUserId: data.recipientUserId, dedupeKey: data.dedupeKey } },
+        select: { id: true },
+      });
+      await tx.notificationEmailDelivery.createMany({
+        data: [{ id: randomUUID(), notificationId: notification.id }],
+        skipDuplicates: true,
+      });
+    }
   }
 
   async findMine(
