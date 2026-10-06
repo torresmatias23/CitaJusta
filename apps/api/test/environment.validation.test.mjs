@@ -16,6 +16,7 @@ test('environment validation applies safe defaults', () => {
   assert.deepEqual(validateEnvironment(validEnvironment), {
     NODE_ENV: 'development',
     PORT: 3000,
+    GOOGLE_AUTH_ENABLED: false,
     WAITLIST_OFFER_TTL_MINUTES: 10,
     OFFER_EXPIRATION_ENABLED: true,
     OFFER_EXPIRATION_INTERVAL_MS: 30000,
@@ -46,6 +47,7 @@ test('environment validation accepts and coerces valid values', () => {
     {
       NODE_ENV: 'test',
       PORT: 4100,
+      GOOGLE_AUTH_ENABLED: false,
       WAITLIST_OFFER_TTL_MINUTES: 10,
       OFFER_EXPIRATION_ENABLED: false,
       OFFER_EXPIRATION_INTERVAL_MS: 30000,

@@ -7,7 +7,7 @@ import type { AuthSession, AuthSnapshot } from './auth-session';
 import { createSessionStorage } from './session-storage';
 
 export type { UserProfile } from './auth-session';
-type AuthValue = AuthSnapshot & Pick<AuthSession, 'api' | 'login' | 'register' | 'logout' | 'retrySession'>;
+type AuthValue = AuthSnapshot & Pick<AuthSession, 'api' | 'login' | 'loginGoogle' | 'linkGoogle' | 'register' | 'logout' | 'retrySession'>;
 const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   useEffect(() => { void session.restore(); }, [session]);
-  return <AuthContext.Provider value={{ ...snapshot, api: session.api, login: session.login, register: session.register, logout: session.logout, retrySession: session.retrySession }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ ...snapshot, api: session.api, login: session.login, loginGoogle: session.loginGoogle, linkGoogle: session.linkGoogle, register: session.register, logout: session.logout, retrySession: session.retrySession }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthValue {

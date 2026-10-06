@@ -20,6 +20,8 @@ const environmentSchema = z
       .enum(['development', 'test', 'production'])
       .default('development'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    GOOGLE_AUTH_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+    GOOGLE_CLIENT_ID: z.string().trim().optional(),
     WAITLIST_OFFER_TTL_MINUTES: z.coerce.number().int().positive().default(10),
     OFFER_EXPIRATION_ENABLED: z.enum(['true', 'false']).transform((value) => value === 'true').optional(),
     OFFER_EXPIRATION_INTERVAL_MS: z.coerce.number().int().positive().max(2_147_483_647).default(30_000),
@@ -49,6 +51,9 @@ const environmentSchema = z
       .default(2_592_000),
   })
   .superRefine((environment, context) => {
+    if (environment.GOOGLE_AUTH_ENABLED && !/^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(environment.GOOGLE_CLIENT_ID ?? '')) {
+      context.addIssue({ code: 'custom', path: ['GOOGLE_CLIENT_ID'], message: 'must be a Google Web client ID when Google authentication is enabled' });
+    }
     if (environment.EMAIL_DELIVERY_LEASE_MS < environment.EMAIL_DELIVERY_REQUEST_TIMEOUT_MS + 5000) {
       context.addIssue({ code: 'custom', path: ['EMAIL_DELIVERY_LEASE_MS'], message: 'must exceed request timeout by at least 5000 ms' });
     }

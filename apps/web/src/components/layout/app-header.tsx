@@ -91,6 +91,7 @@ export function AppHeader() {
                   <small>{user.email}</small>
                 </span>
               </div>
+              <NavLink to="/cuenta" onClick={() => setMenuOpen(false)}>Mi cuenta</NavLink>
 
               <button
                 type="button"

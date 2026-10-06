@@ -23,6 +23,7 @@ Desarrollo: `http://127.0.0.1:5173`. El Home público no requiere sesión; los f
 
 - `/`: Home público con acceso a Login/Registro. Sin sesión no consulta catálogos protegidos; con sesión carga instituciones → sedes → servicios.
 - `/login` y `/registro`: autenticación y creación de cuenta.
+- `/cuenta`: sesión requerida; vinculación explícita con Google cuando está configurado.
 - `/resultados`: disponibilidad y reserva de horas.
 - `/mis-citas`: listado de reservas propias y diálogo de cancelación.
 - `/citas/:appointmentId/confirmacion`: comprobante y estado actual de la reserva.
@@ -71,6 +72,125 @@ Waitlist requiere `seed:dev` o catálogo institucional preparado y `bootstrap:wa
 `AuthProvider` proporciona el cliente autenticado a las features. El cliente HTTP devuelve `unknown` para exigir validación por feature; acepta paths relativos controlados, JSON y `AbortSignal`, y obtiene el Bearer mediante callback. La sesión administra los tokens y su renovación. Los errores HTTP no propagan cuerpos internos del servidor.
 
 Los contratos contra NestJS/PostgreSQL se comprueban con `node --test apps/web/test/e2e/web-api.e2e.test.mjs` desde la raíz, con la API compilada y el entorno local preparado. Estos E2E no son pruebas de interacción en navegador.
+
+### HU-040: Google login y vinculación
+
+El registro y login local siguen disponibles. `/login` y `/registro` comparten
+**Continuar con Google** y `POST /auth/google` para crear una cuenta Google-only
+nueva o acceder a una ya vinculada; no hay una API separada de registro Google.
+Tras Google desde `/registro`, la sesión CitaJusta queda autenticada y navega a Inicio.
+Una cuenta local existente requiere vinculación explícita desde **Mi cuenta**.
+`VITE_GOOGLE_CLIENT_ID` vacío oculta Google;
+configurado, carga el SDK oficial GIS desde `https://accounts.google.com/gsi/client`
+y muestra un botón explícito, sin One Tap ni selección automática. El ID token vive
+sólo durante su envío JSON a `POST /auth/google`; no se guarda en storage, URLs,
+JWT internos ni auditoría. Client-core guarda únicamente el refresh CitaJusta y
+verifica `/users/me`, igual que en login local, conservando `safeReturnTo`.
+
+La API exige `GOOGLE_AUTH_ENABLED=true` y `GOOGLE_CLIENT_ID` válido; deshabilitada
+responde `503` y el login local sigue operativo. Firma, audience, issuer, expiración,
+sub y email verificado se validan en backend. Google sólo autentica identidad;
+PostgreSQL mantiene la autoridad sobre User, AuthSession, RBAC, AuthorizationContext y tenants.
+Si el email ya existe sin link, `GOOGLE_ACCOUNT_LINK_REQUIRED` indica iniciar sesión
+con contraseña y abrir **Mi cuenta**. Allí el botón vincula mediante
+`POST /auth/google/link`, con el principal autenticado y el mismo email verificado.
+El enlace repetido es idempotente; otra identidad/usuario o email diferente devuelve
+conflicto. No hay unlink ni nueva sesión al vincular. Las cuentas nuevas requieren
+nombre y apellido válidos de Google; no se inventan datos ni contraseñas.
+No se solicitan scopes Calendar ni se guardan access/refresh tokens Google.
+
+Validación manual real **PASS el 06-10-2026**, con OAuth Client ID Web real y Google
+Identity Services configurados. Escenarios comprobados en Web y PostgreSQL:
+
+- **Cuenta Google nueva:** login exitoso; User ACTIVE/ACTIVO, `passwordHash=NULL`,
+  `emailVerifiedAt` presente, una ExternalIdentity GOOGLE, una AuthSession inicial
+  y cero roles creados automáticamente.
+- **Segundo login tras logout:** mismo User e identidad, sin duplicados; dos
+  sesiones totales, una activa y una revocada.
+- **Cuenta local existente:** sin auto-link por email; la Web mostró
+  `GOOGLE_ACCOUNT_LINK_REQUIRED` e indicó iniciar sesión con contraseña y vincular
+  Google desde **Mi cuenta**.
+- **Vinculación explícita:** tras login local y con el mismo email verificado,
+  conservó la contraseña local, una identidad GOOGLE y los roles; no creó otra sesión.
+- **Ambos métodos:** login Google y posterior login local exitosos en la cuenta
+  vinculada; contraseña conservada, una identidad GOOGLE y tres sesiones totales,
+  una activa y dos revocadas.
+
+HU-040 `/registro` — validación final **PASS, 06-10-2026**:
+
+- Conserva el formulario local y muestra **Continuar con Google**, con texto que
+  explica que permite crear o acceder a una cuenta.
+- Una identidad Google ya existente inició sesión correctamente desde `/registro`
+  y navegó a `/`.
+- Una cuenta Google nueva cuyo perfil no entregaba nombre/apellido fue rechazada
+  con un mensaje controlado de perfil insuficiente; no se creó una cuenta incompleta.
+- El email de una cuenta local no vinculada mantiene el flujo controlado
+  `GOOGLE_ACCOUNT_LINK_REQUIRED`, sin auto-link.
+
+El alta Google exitosa de una cuenta nueva desde `/registro` está cubierta por los
+tests automáticos Web. No se ejecutó manualmente un alta exitosa desde `/registro`
+con una tercera cuenta Google nueva de perfil completo. Se conserva la evidencia
+manual anterior de login, vinculación explícita y convivencia de ambos métodos.
+
+Los tests automáticos usan un verificador falso o certificados RSA locales, sin
+llamadas reales a Google. Para reproducir la validación manual:
+
+1. En Google Cloud Console, configurar Google Auth Platform (audiencia/branding) y
+   crear un OAuth Client ID de tipo **Web application**. Si está en Testing, añadir
+   las cuentas de prueba. Registrar como Authorized JavaScript origin
+   `http://127.0.0.1:5173`; si se usa localhost, añadir `http://localhost:5173` y usar
+   ese origen consistentemente. No se necesita redirect URI para el popup/callback
+   JavaScript de esta HU. Seguir la [configuración oficial GIS](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid).
+2. En `apps/api/.env`, configurar `GOOGLE_AUTH_ENABLED=true` y `GOOGLE_CLIENT_ID`
+   con el Client ID Web. En `apps/web/.env`, configurar el mismo valor en
+   `VITE_GOOGLE_CLIENT_ID`, conservar `/api/v1` y el proxy. No configurar client secret.
+3. Aplicar la migración aditiva y arrancar desde la raíz, sin reset ni db push:
+
+   ```powershell
+   npm exec -w @citajusta/api -- prisma migrate deploy
+   npm run build -w @citajusta/api
+   npm run start -w @citajusta/api
+   # Otra terminal:
+   npm run dev -w @citajusta/web
+   ```
+
+4. Abrir `/login` y continuar con una cuenta Google cuyo email no exista aún en
+   CitaJusta. Verificar acceso y perfil; consultar en PostgreSQL `usuarios`,
+   `identidades_externas` y `sesiones_autenticacion` filtrando exclusivamente ese
+   usuario: un User ACTIVE con password_hash NULL, una identidad GOOGLE y una sesión.
+   No mostrar hashes ni tokens. Comprobar que `usuarios_roles` no recibió asignaciones.
+5. Cerrar sesión y repetir Google: mismo User/identidad, nueva AuthSession; la sesión
+   previa queda revocada. No se duplica la identidad ni se alteran roles/permisos.
+6. Crear o usar una cuenta local ACTIVE con el mismo email que otra cuenta Google
+   controlada. Google debe mostrar LINK_REQUIRED. Iniciar sesión con contraseña,
+   abrir **Mi cuenta** y vincular Google. Verificar una identidad y ninguna sesión
+   nueva por link; repetir link y comprobar que conserva identidad, roles y grants.
+7. Cerrar sesión y acceder con Google a esa cuenta local: mismo usuario y permisos.
+   Probar también contraseña, refresh/logout y contexto institucional propio/ajeno.
+   La vinculación con un correo Google diferente debe rechazarse.
+
+Validación automática:
+
+Resultados finales verificados de HU-040: Auth Google enfocado **15/15 PASS**;
+Auth Google/verificador/login local **31/31 PASS**; E2E Google PostgreSQL/HTTP
+**12/12 PASS**; API **568/568 PASS**; Web **114/114 PASS** (incluye el ajuste de
+`/registro`); client-core **4/4 PASS**.
+Google/Auth/UI Web enfocados: **51 PASS, 0 FAIL**; Web completa: **114 PASS, 0 FAIL**;
+client-core: **4 PASS, 0 FAIL**. Typecheck Web: **PASS**.
+Builds API/Web, Prisma validate y `git diff --check`: **PASS**.
+Prisma migrate status: **12 migraciones, actualizado**.
+
+```powershell
+npm run prisma:generate -w @citajusta/api
+npm run prisma:validate -w @citajusta/api
+npm run build -w @citajusta/api
+node --test apps/api/test/google-token.verifier.test.mjs apps/api/test/auth.google.test.mjs apps/api/test/auth.service.test.mjs
+npm run test:e2e:google -w @citajusta/api
+npm test -w @citajusta/api
+npm test -w @citajusta/web
+npm test -w @citajusta/client-core
+npm run build -w @citajusta/web
+```
 
 ## Evidencia visual
 

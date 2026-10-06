@@ -4,11 +4,16 @@ import {
   ConflictException,
   Injectable,
   UnauthorizedException,
+  BadRequestException,
+  Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
-import { UserStatus } from '../generated/prisma/client.js';
+import { Prisma, UserStatus } from '../generated/prisma/client.js';
+import { isTransactionConflict } from '../database/transaction-conflict.js';
+import { GoogleTokenVerifier, type GoogleIdentity } from './google-token.verifier.js';
 import { PrismaService } from '../database/prisma.service.js';
 import {
   parseRefreshTokenClaims,
@@ -56,6 +61,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     configService: ConfigService,
+    @Optional() private readonly googleVerifier?: GoogleTokenVerifier,
   ) {
     this.accessSecret =
       configService.getOrThrow<string>('JWT_ACCESS_SECRET');
@@ -140,6 +146,7 @@ export class AuthService {
 
     if (
       !user ||
+      !user.passwordHash ||
       !passwordMatches ||
       user.status !== UserStatus.ACTIVE ||
       user.deletedAt !== null
@@ -152,36 +159,131 @@ export class AuthService {
       throw this.invalidCredentials();
     }
 
+    return this.prisma.$transaction((transaction) => this.createSession(transaction, user.id));
+  }
+
+  private async createSession(transaction: Prisma.TransactionClient, userId: string): Promise<AuthTokenPair> {
     const sessionId = randomUUID();
     const now = new Date();
     const expiresAt = new Date(
       now.getTime() + this.refreshTtlSeconds * 1_000,
     );
     const tokens = await this.issueTokenPair(
-      user.id,
+      userId,
       sessionId,
       this.refreshTtlSeconds,
     );
 
-    await this.prisma.$transaction(async (transaction) => {
-      await transaction.authSession.create({
-        data: {
-          id: sessionId,
-          userId: user.id,
-          refreshTokenHash: this.hashRefreshToken(tokens.refreshToken),
-          expiresAt,
-        },
-      });
-
-      await transaction.user.update({
-        where: { id: user.id },
-        data: { lastLoginAt: now },
-      });
-      await AuditService.record(transaction, { actorUserId: user.id, actorType: 'USER',
-        actionCode: 'AUTH_LOGIN_SUCCESS', resourceType: 'AUTH', outcome: 'SUCCESS' });
+    await transaction.authSession.create({
+      data: {
+        id: sessionId,
+        userId,
+        refreshTokenHash: this.hashRefreshToken(tokens.refreshToken),
+        expiresAt,
+      },
     });
 
+    await transaction.user.update({
+      where: { id: userId },
+      data: { lastLoginAt: now },
+    });
+    await AuditService.record(transaction, { actorUserId: userId, actorType: 'USER',
+      actionCode: 'AUTH_LOGIN_SUCCESS', resourceType: 'AUTH', outcome: 'SUCCESS' });
+
     return tokens;
+  }
+
+  async loginGoogle(credential: string): Promise<AuthTokenPair> {
+    let identity: GoogleIdentity;
+    try { identity = await this.verifyGoogle(credential); }
+    catch (error) {
+      if (error instanceof UnauthorizedException) {
+        try {
+          await AuditService.record(this.prisma, { actorType: 'USER', actionCode: 'AUTH_LOGIN_FAILURE',
+            resourceType: 'AUTH', outcome: 'FAILURE', reasonCode: 'INVALID_CREDENTIALS' });
+        } catch { /* Verification errors remain sanitized during audit outages. */ }
+      }
+      throw error;
+    }
+    return this.googleTransaction(async (tx) => {
+      const existing = await tx.externalIdentity.findUnique({
+        where: { provider_providerSubject: { provider: 'GOOGLE', providerSubject: identity.subject } },
+        select: { user: { select: { id: true, status: true, deletedAt: true } } },
+      });
+      if (existing) {
+        this.requireActive(existing.user);
+        return this.createSession(tx, existing.user.id);
+      }
+      if (await tx.user.findUnique({ where: { email: identity.email }, select: { id: true } })) {
+        throw new ConflictException({ code: 'GOOGLE_ACCOUNT_LINK_REQUIRED', message: 'Sign in locally and link Google first' });
+      }
+      if (!identity.firstName || !identity.lastName) {
+        throw new BadRequestException({ code: 'GOOGLE_PROFILE_REQUIRED', message: 'Google profile requires given and family names' });
+      }
+      const user = await tx.user.create({ data: {
+        id: randomUUID(), email: identity.email, passwordHash: null,
+        firstNames: identity.firstName, lastNames: identity.lastName,
+        status: UserStatus.ACTIVE, emailVerifiedAt: new Date(),
+      }, select: { id: true } });
+      await tx.externalIdentity.create({ data: { id: randomUUID(), userId: user.id,
+        provider: 'GOOGLE', providerSubject: identity.subject }, select: { id: true } });
+      return this.createSession(tx, user.id);
+    });
+  }
+
+  async linkGoogle(userId: string, credential: string): Promise<void> {
+    const identity = await this.verifyGoogle(credential);
+    await this.googleTransaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: userId },
+        select: { id: true, email: true, status: true, deletedAt: true } });
+      this.requireActive(user);
+      if (!user || user.email.trim().toLowerCase() !== identity.email) {
+        throw new ConflictException({ code: 'GOOGLE_IDENTITY_CONFLICT', message: 'Google identity cannot be linked' });
+      }
+      const subject = await tx.externalIdentity.findUnique({
+        where: { provider_providerSubject: { provider: 'GOOGLE', providerSubject: identity.subject } },
+        select: { userId: true },
+      });
+      if (subject) {
+        if (subject.userId === userId) return;
+        throw new ConflictException({ code: 'GOOGLE_IDENTITY_CONFLICT', message: 'Google identity cannot be linked' });
+      }
+      if (await tx.externalIdentity.findUnique({ where: { userId_provider: { userId, provider: 'GOOGLE' } }, select: { id: true } })) {
+        throw new ConflictException({ code: 'GOOGLE_IDENTITY_CONFLICT', message: 'Google identity cannot be linked' });
+      }
+      await tx.externalIdentity.create({ data: { id: randomUUID(), userId, provider: 'GOOGLE', providerSubject: identity.subject }, select: { id: true } });
+      await AuditService.record(tx, { actorUserId: userId, actorType: 'USER',
+        actionCode: 'AUTH_GOOGLE_LINKED', resourceType: 'AUTH', outcome: 'SUCCESS' });
+    });
+  }
+
+  private requireActive(user: { status: UserStatus; deletedAt: Date | null } | null): void {
+    if (!user || user.status !== UserStatus.ACTIVE || user.deletedAt !== null) throw this.invalidCredentials();
+  }
+
+  private verifyGoogle(credential: string): Promise<GoogleIdentity> {
+    if (!this.googleVerifier) throw new ServiceUnavailableException('Google authentication unavailable');
+    return this.googleVerifier.verify(credential);
+  }
+
+  private async googleTransaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try { return await this.prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }); }
+      catch (error) {
+        const retryable = isTransactionConflict(error) || this.isGoogleUniqueConflict(error);
+        if (!retryable) throw error;
+        if (attempt < 2) continue;
+        throw new ConflictException({ code: 'GOOGLE_IDENTITY_CONFLICT', message: 'Google identity operation conflicted; retry' });
+      }
+    }
+  }
+
+  private isGoogleUniqueConflict(error: unknown): boolean {
+    if (!this.isUniqueConstraintError(error) || typeof error !== 'object' || error === null || !('meta' in error)) return false;
+    const meta = error.meta;
+    if (typeof meta !== 'object' || meta === null || !('target' in meta) || !Array.isArray(meta.target)) return false;
+    const target = meta.target.join(',');
+    return ['email', 'proveedor,sujeto_proveedor', 'usuario_id,proveedor'].includes(target);
   }
 
   async refresh(refreshToken: string): Promise<AuthTokenPair> {

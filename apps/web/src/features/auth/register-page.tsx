@@ -1,14 +1,18 @@
 import { UserPlus } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router';
 import { Button } from '../../components/ui/button';
 import { AsyncState } from '../../components/ui/async-state';
 import { useAuth } from './auth-provider';
 import { authErrorMessage } from './auth-session';
+import { GoogleButton } from './google-button';
+import { googleClientId, signInWithGoogle } from './google-identity';
 
 export function RegisterPage() {
-  const { register, status } = useAuth();
+  const { register, loginGoogle, status } = useAuth();
+  const busy = useRef(false);
+  const clientId = googleClientId(import.meta.env.VITE_GOOGLE_CLIENT_ID);
   const navigate = useNavigate();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -19,20 +23,27 @@ export function RegisterPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending) return;
+    if (busy.current) return;
     setError(null);
     if (!firstName.trim() || !lastName.trim()) { setError('Ingresa tu nombre y apellido.'); return; }
-    setPending(true);
+    busy.current = true; setPending(true);
     try {
       await register({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), password });
       setPassword('');
       navigate('/login', { replace: true, state: { registered: true } });
     } catch (failure) { setError(authErrorMessage(failure, 'register')); }
-    finally { setPending(false); }
+    finally { busy.current = false; setPending(false); }
+  }
+
+  async function googleSignIn(credential: string) {
+    await signInWithGoogle(credential, {
+      busy, loginGoogle, setPending, setError,
+      onSuccess: () => { setPassword(''); navigate('/', { replace: true }); },
+    });
   }
 
   if (status === 'authenticated') return <Navigate to="/" replace />;
-  if (status === 'loading') return <AsyncState kind="loading" title="Verificando tu sesión" />;
+  if (status === 'loading' && !pending) return <AsyncState kind="loading" title="Verificando tu sesión" />;
   return (
     <section className="auth-page" aria-labelledby="register-title">
       <div className="auth-card">
@@ -48,6 +59,11 @@ export function RegisterPage() {
           {error && <p role="alert" className="form-error">{error}</p>}
           <Button type="submit" disabled={pending}>{pending ? 'Creando cuenta…' : 'Crear cuenta'}</Button>
         </form>
+        {clientId && <>
+          <div className="auth-divider" aria-hidden="true">o</div>
+          <p>También puedes crear o acceder a tu cuenta con Google.</p>
+          <GoogleButton clientId={clientId} disabled={pending} onCredential={(credential) => { void googleSignIn(credential); }} />
+        </>}
         <p className="auth-switch">¿Ya tienes cuenta? <Link to="/login">Iniciar sesión</Link></p>
       </div>
     </section>

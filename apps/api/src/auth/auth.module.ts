@@ -4,11 +4,12 @@ import { DatabaseModule } from '../database/database.module.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { AccessTokenGuard } from './guards/access-token.guard.js';
+import { GoogleTokenVerifier } from './google-token.verifier.js';
 
 @Module({
   imports: [DatabaseModule, JwtModule.register({})],
   controllers: [AuthController],
-  providers: [AuthService, AccessTokenGuard],
+  providers: [AuthService, AccessTokenGuard, GoogleTokenVerifier],
   exports: [AccessTokenGuard, JwtModule],
 })
 export class AuthModule {}

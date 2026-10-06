@@ -18,7 +18,7 @@ Centralizar el catálogo y la disponibilidad, y realizar una reasignación segur
 
 ## Estado actual
 
-Al **05-10-2026**, el MVP Web permanece funcional y la aplicación institucional Desktop está implementada y validada hasta HU-038. Sprint 7 queda cerrado y Sprint 8 está en curso. HU-039 incorpora correo transaccional con Resend y fue validada mediante pruebas automáticas y una prueba manual real de APPOINTMENT_BOOKED aceptada por el proveedor. HU-040 a HU-043 permanecen pendientes; Docker/Compose, OpenAPI y hardening quedan para Sprint 9.
+Al **06-10-2026**, el MVP Web permanece funcional y la aplicación institucional Desktop está implementada y validada hasta HU-038. Sprint 7 queda cerrado y Sprint 8 está en curso. HU-039 incorpora correo transaccional con Resend y fue validada mediante pruebas automáticas y una prueba manual real de APPOINTMENT_BOOKED aceptada por el proveedor. HU-040 está implementada con login Google adicional y vinculación explícita, validación automática PASS y validación manual real PASS el 06-10-2026. HU-041 a HU-043 permanecen pendientes; Docker/Compose, OpenAPI y hardening quedan para Sprint 9.
 
 | Componente | Estado verificable |
 | --- | --- |
@@ -49,6 +49,31 @@ Desktop Tauri 2 + React/Vite -------/
 ```
 
 Web y Desktop consumen la misma API. La autenticación, autorización, aislamiento institucional, disponibilidad y transiciones de reservas, ofertas y reasignaciones se resuelven en el backend.
+
+HU-040: Web permite crear o acceder a una cuenta con Google Identity Services/OIDC
+desde `/login` y `/registro`, además del registro y login local. La API
+verifica el ID token con `google-auth-library` y resuelve `ExternalIdentity` por
+`GOOGLE/sub`; emite las mismas AuthSession y JWT internos. Google no otorga roles,
+permisos ni contexto institucional. User, RBAC y AuthorizationContext siguen bajo
+autoridad de CitaJusta. Usuarios Google-only tienen `passwordHash=null`;
+el login por contraseña mantiene `Invalid credentials` para ellos.
+`POST /api/v1/auth/google` devuelve AuthTokenPair; un email local sin identidad
+vinculada devuelve `409 GOOGLE_ACCOUNT_LINK_REQUIRED`, sin auto-link.
+`POST /api/v1/auth/google/link` requiere Bearer y email verificado coincidente con
+el usuario autenticado; es idempotente, admite una sola identidad Google por usuario
+y devuelve `204` sin crear sesión. Web ofrece la vinculación en `/cuenta`.
+Configurar `GOOGLE_AUTH_ENABLED=true`, `GOOGLE_CLIENT_ID` y el mismo
+`VITE_GOOGLE_CLIENT_ID`; por defecto Google está deshabilitado. No persiste ID tokens
+ni usa secretos de cliente o tokens/scopes de Google Calendar. La migración aditiva
+`20261006000000_google_external_identity` mantiene Prisma 7.10.0.
+Validación manual real **PASS el 06-10-2026**: cuenta nueva, segundo login sin
+duplicados, rechazo de auto-link, vinculación explícita y convivencia con login local.
+HU-040 `/registro`: validación final **PASS el 06-10-2026**, con formulario local
+y alternativa Google conservados, acceso de identidad existente a `/`, rechazo
+controlado de perfil insuficiente y sin auto-link. El alta Google exitosa desde
+`/registro` está cubierta por tests Web; no se ejecutó manualmente con una tercera
+cuenta Google nueva de perfil completo.
+Configuración y prueba manual: [README Web](apps/web/README.md#hu-040-google-login-y-vinculación).
 
 La API funcional usa el prefijo `/api/v1`; el endpoint técnico `GET /health` permanece sin prefijo.
 

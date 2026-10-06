@@ -4,6 +4,7 @@ import { AsyncState } from '../components/ui/async-state';
 import { AppointmentConfirmationPage } from '../features/appointments/appointment-confirmation-page';
 import { AppointmentsPage } from '../features/appointments/appointments-page';
 import { LoginPage } from '../features/auth/login-page';
+import { AccountPage } from '../features/auth/account-page';
 import { ProtectedRoute } from '../features/auth/protected-route';
 import { RegisterPage } from '../features/auth/register-page';
 import { ResultsPage } from '../features/availability/results-page';
@@ -22,6 +23,7 @@ export function AppRoutes() {
         <Route path="registro" element={<RegisterPage />} />
 
         <Route element={<ProtectedRoute />}>
+          <Route path="cuenta" element={<AccountPage />} />
           <Route path="resultados" element={<ResultsPage />} />
           <Route path="mis-citas" element={<AppointmentsPage />} />
           <Route path="lista-de-espera" element={<WaitlistPage />} />

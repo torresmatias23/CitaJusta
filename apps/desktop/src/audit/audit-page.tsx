@@ -9,7 +9,7 @@ import { createAuditModel } from './audit-model';
 import type { AuditState } from './audit-model';
 
 const actionLabels: Record<typeof auditActions[number], string> = {
-  AUTH_LOGIN_SUCCESS: 'Inicio de sesión exitoso', AUTH_LOGIN_FAILURE: 'Inicio de sesión fallido', AUTH_LOGOUT: 'Cierre de sesión',
+  AUTH_LOGIN_SUCCESS: 'Inicio de sesión exitoso', AUTH_LOGIN_FAILURE: 'Inicio de sesión fallido', AUTH_LOGOUT: 'Cierre de sesión', AUTH_GOOGLE_LINKED: 'Cuenta Google vinculada',
   APPOINTMENT_CREATED: 'Cita creada', APPOINTMENT_CANCELLED: 'Cita cancelada', ATTENDANCE_RECORDED: 'Asistencia registrada', NO_SHOW_RECORDED: 'Inasistencia registrada',
   OFFER_CREATED: 'Oferta creada', OFFER_ACCEPTED: 'Oferta aceptada', OFFER_REJECTED: 'Oferta rechazada', OFFER_EXPIRED: 'Oferta expirada',
   REASSIGNMENT_STARTED: 'Reasignación iniciada', REASSIGNMENT_COMPLETED: 'Reasignación completada', REASSIGNMENT_EXHAUSTED: 'Reasignación agotada',
