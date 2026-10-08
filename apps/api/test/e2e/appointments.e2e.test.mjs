@@ -319,7 +319,7 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
           'id', 'institutionId', 'status', 'startsAt', 'endsAt', 'origin',
           'branch', 'service', 'professional',
         ].sort());
-        assert.deepEqual(Object.keys(item.branch).sort(), ['id', 'name']);
+        assert.deepEqual(Object.keys(item.branch).sort(), ['addressLine1', 'addressLine2', 'country', 'id', 'latitude', 'longitude', 'municipality', 'name', 'region']);
         assert.deepEqual(Object.keys(item.service).sort(), ['id', 'name']);
         assert.deepEqual(Object.keys(item.professional).sort(), ['firstNames', 'id', 'lastNames']);
         assert.equal(item.startsAt, visible[index].startsAt.toISOString());
@@ -342,6 +342,30 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
       }
       assert.deepEqual(await getMine(listingUser.token), response);
       assert.deepEqual(await snapshot(), before);
+    });
+
+    await t.test('HU-042 real Decimal coordinates/nulls in catalog and owned appointment DTO; no foreign appointments', async () => {
+      const select = { addressLine1: true, addressLine2: true, municipality: true, region: true, country: true, latitude: true, longitude: true };
+      const original = await prisma.branch.findUniqueOrThrow({ where: { id: ids.branchA1 }, select });
+      try {
+        await prisma.branch.update({ where: { id: ids.branchA1 }, data: { addressLine1: 'Fixture Calle 123', municipality: 'Fixture Comuna', country: 'Chile', latitude: '-33.4500000', longitude: '-70.6600000' } });
+        const catalogUrl = `${baseUrl}/api/v1/institutions/${ids.institutionA}/branches`;
+        assert.equal((await fetch(catalogUrl)).status, 401);
+        const response = await fetch(catalogUrl, { headers: { authorization: `Bearer ${listingUser.token}` } });
+        assert.equal(response.status, 200);
+        const branch = (await response.json()).data.find((row) => row.id === ids.branchA1);
+        assert.equal(branch.latitude, -33.45); assert.equal(branch.longitude, -70.66);
+        const mine = await getMine(listingUser.token);
+        for (const row of mine.body.data.filter((row) => row.branch.id === ids.branchA1)) {
+          assert.equal(row.branch.latitude, -33.45); assert.equal(row.branch.longitude, -70.66);
+          assert.equal(row.branch.addressLine1, 'Fixture Calle 123');
+          assert.ok(visibleIds.includes(row.id));
+        }
+        for (const user of [first, second]) assert.equal((await getMine(user.token)).body.data.some((row) => visibleIds.includes(row.id)), false);
+        await prisma.branch.update({ where: { id: ids.branchA1 }, data: { latitude: null, longitude: null } });
+        const without = await getMine(listingUser.token);
+        for (const row of without.body.data.filter((row) => row.branch.id === ids.branchA1)) { assert.equal(row.branch.latitude, null); assert.equal(row.branch.longitude, null); }
+      } finally { await prisma.branch.update({ where: { id: ids.branchA1 }, data: original }); }
     });
 
     await t.test('HU-005 retains owned history when catalogs become inactive', async () => {
@@ -519,7 +543,7 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
         'id', 'institutionId', 'status', 'startsAt', 'endsAt', 'origin',
         'branch', 'service', 'professional',
       ].sort());
-      assert.deepEqual(Object.keys(response.body.data.branch).sort(), ['id', 'name']);
+      assert.deepEqual(Object.keys(response.body.data.branch).sort(), ['addressLine1', 'addressLine2', 'country', 'id', 'latitude', 'longitude', 'municipality', 'name', 'region']);
       assert.deepEqual(Object.keys(response.body.data.service).sort(), ['id', 'name']);
       assert.deepEqual(Object.keys(response.body.data.professional).sort(), ['firstNames', 'id', 'lastNames']);
       assert.equal(response.body.data.status, 'CANCELADA');

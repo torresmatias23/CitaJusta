@@ -8,6 +8,7 @@ import { AppointmentDetails } from './appointment-details';
 import { CancelAppointmentDialog } from './cancel-appointment-dialog';
 import { useAppointments } from './use-appointments';
 import { GoogleCalendarButton } from './google-calendar-button';
+import { BranchLocationPanel } from '../locations/branch-location-panel';
 
 export function AppointmentsPage() {
   const appointments = useAppointments();
@@ -33,6 +34,7 @@ export function AppointmentsPage() {
           {appointments.data.map((appointment) => (
             <li key={appointment.id} className="appointment-card">
               <AppointmentDetails appointment={appointment} />
+              <BranchLocationPanel branch={appointment.branch} />
               <GoogleCalendarButton key={`${user?.id}:${appointment.id}`} appointment={appointment} />
               {appointment.status === 'AGENDADA' && <div className="mt-5 flex justify-end"><Button variant="danger" onClick={(event) => {
                 if (!user) return;

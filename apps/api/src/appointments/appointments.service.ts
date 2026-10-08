@@ -23,6 +23,8 @@ import {
   UserStatus,
 } from '../generated/prisma/client.js';
 
+import { branchLocationSelect, branchLocation } from '../institutions/branch-location.js';
+
 const appointmentSummarySelect = {
   id: true,
   institutionId: true,
@@ -30,7 +32,7 @@ const appointmentSummarySelect = {
   endsAt: true,
   origin: true,
   status: { select: { code: true } },
-  branch: { select: { id: true, institutionId: true, name: true } },
+  branch: { select: { id: true, institutionId: true, name: true, ...branchLocationSelect } },
   service: { select: { id: true, institutionId: true, name: true } },
   professional: {
     select: {
@@ -51,7 +53,7 @@ function mapAppointmentSummary(appointment: AppointmentSummaryRecord) {
     startsAt: appointment.startsAt.toISOString(),
     endsAt: appointment.endsAt.toISOString(),
     origin: appointment.origin,
-    branch: { id: appointment.branch.id, name: appointment.branch.name },
+    branch: { id: appointment.branch.id, name: appointment.branch.name, ...branchLocation(appointment.branch) },
     service: { id: appointment.service.id, name: appointment.service.name },
     professional: {
       id: appointment.professional.id,

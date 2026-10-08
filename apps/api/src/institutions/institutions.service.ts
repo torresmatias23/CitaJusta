@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service.js';
+import { branchLocationSelect, branchLocation } from './branch-location.js';
 import {
   BranchStatus,
   InstitutionStatus,
@@ -100,11 +101,7 @@ export class InstitutionsService {
             institutionId: true,
             code: true,
             name: true,
-            addressLine1: true,
-            addressLine2: true,
-            municipality: true,
-            region: true,
-            country: true,
+            ...branchLocationSelect,
             phone: true,
             email: true,
             status: true,
@@ -135,11 +132,7 @@ export class InstitutionsService {
           institutionId: branch.institutionId,
           code: branch.code,
           name: branch.name,
-          addressLine1: branch.addressLine1,
-          addressLine2: branch.addressLine2,
-          municipality: branch.municipality,
-          region: branch.region,
-          country: branch.country,
+          ...branchLocation(branch),
           phone: branch.phone,
           email: branch.email,
         })),

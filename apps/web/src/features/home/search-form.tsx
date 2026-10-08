@@ -14,6 +14,7 @@ import { Button } from '../../components/ui/button';
 import { useResource } from '../../lib/use-resource';
 import { useAuth } from '../auth/auth-provider';
 import { createCatalogApi } from '../availability/catalog-api';
+import { BranchLocationPanel } from '../locations/branch-location-panel';
 import {
   changeSelection,
   initialSelection,
@@ -125,6 +126,11 @@ export function SearchDateFields({ selection, update, disabled, now }: {
       </p>
     </fieldset>
   );
+}
+
+export function SelectedBranchLocation({ branches, branchId }: { branches: readonly import('../availability/catalog-api').Branch[]; branchId: string }) {
+  const branch = branches.find((item) => item.id === branchId);
+  return branch ? <BranchLocationPanel key={branch.id} branch={branch} /> : null;
 }
 
 export function SearchForm() {
@@ -321,6 +327,7 @@ export function SearchForm() {
           </Link>
         )}
       </form>
+      {authenticated && <SelectedBranchLocation branches={branchOptions} branchId={selection.branchId} />}
 
       {!authenticated && status !== 'loading' && (
         <div className="search-login-notice">
