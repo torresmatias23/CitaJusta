@@ -183,6 +183,8 @@ test('branch listing keeps only available branches of the requested institution'
         municipality: 'Santiago',
         region: 'Metropolitana',
         country: 'Chile',
+        latitude: null,
+        longitude: null,
         phone: null,
         email: null,
       },

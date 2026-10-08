@@ -89,7 +89,8 @@ test('my appointments selects and maps only the defined public fields', async ()
     data: [{
       id: row.id, institutionId: row.institutionId, status: 'AGENDADA',
       startsAt: row.startsAt.toISOString(), endsAt: row.endsAt.toISOString(), origin: 'WEB',
-      branch: { id: row.branch.id, name: row.branch.name },
+      branch: { id: row.branch.id, name: row.branch.name, addressLine1: null, addressLine2: null,
+        municipality: null, region: null, country: null, latitude: null, longitude: null },
       service: { id: row.service.id, name: row.service.name },
       professional: { id: row.professional.id, firstNames: 'Ana', lastNames: 'Perez' },
     }],
@@ -97,7 +98,8 @@ test('my appointments selects and maps only the defined public fields', async ()
   assert.deepEqual(findMany.mock.calls[0].arguments[0].select, {
     id: true, institutionId: true, startsAt: true, endsAt: true, origin: true,
     status: { select: { code: true } },
-    branch: { select: { id: true, institutionId: true, name: true } },
+    branch: { select: { id: true, institutionId: true, name: true, addressLine1: true, addressLine2: true,
+      municipality: true, region: true, country: true, latitude: true, longitude: true } },
     service: { select: { id: true, institutionId: true, name: true } },
     professional: {
       select: {

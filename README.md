@@ -411,11 +411,20 @@ Las integraciones externas se incorporarán de forma incremental mediante adapta
 - **HU-039 / RF-039 — Resend:** implementada y validada. Correo transaccional para reserva/cancelación de citas y eventos elegibles de ofertas/reasignación; lista de espera y recordatorios programados quedan fuera de este canal.
 - **HU-040 / RF-040 — Google OAuth / OpenID Connect:** autenticación adicional, manteniendo RBAC, sesiones y contexto institucional propios de CitaJusta.
 - **HU-041 / RF-041 — Google Calendar API:** implementada y validada automática y manualmente el 06-10-2026. Incorporación explícita de una cita confirmada al calendario autorizado por el usuario; PostgreSQL/CitaJusta continúa siendo la autoridad.
-- **HU-042 / RF-042 — Google Maps:** visualización de ubicación/ruta de sedes usando los datos reales de dirección y coordenadas existentes.
+- **HU-042 / RF-042 — OpenStreetMap + Google Maps URLs:** implementación local de mapa integrado y Cómo llegar en búsqueda y Mis citas, con datos geográficos reales; pendiente de revisión humana. Sin Maps API Key, facturación de Google Maps Platform ni migraciones.
 - **HU-043 / RF-043 — WhatsApp:** integración condicionada a proveedor, consentimiento, plantillas, costos y factibilidad.
 
 Los contratos HTTP exactos se definirán al refinar cada HU; no se documentan endpoints ficticios por anticipado.
 
+### HU-042: ubicación de sedes
+
+Al seleccionar una sede en Inicio o desde cada tarjeta de Mis citas, **Ver ubicación** despliega dirección y mapa. El mapa sólo se monta al abrir el panel, mediante el [iframe de OpenStreetMap](https://wiki.openstreetmap.org/wiki/Export), con marcador, carga diferida y atribución visible. No se descargan mosaicos directamente ni se geocodifican direcciones. Respetar [atribución/licencia](https://www.openstreetmap.org/copyright) y [política de uso del servicio](https://operations.osmfoundation.org/policies/tiles/); no se promete disponibilidad ni gratuidad ilimitada. Abrir el mapa conecta al navegador con OSM; las indicaciones conectan con Google. CitaJusta no solicita ni guarda ubicación del usuario.
+
+Cómo llegar utiliza [Google Maps URLs](https://developers.google.com/maps/documentation/urls/get-started) (`api=1`, sólo `destination`), sin API key ni origen inventado; abre una nueva pestaña con `noopener noreferrer`. Prioriza un par finito en latitud −90…90 y longitud −180…180. Sin coordenadas válidas, exige dirección principal con texto y número, comuna y país; la dirección no garantiza una ubicación exacta y debe verificarse en Google Maps. País aislado/datos insuficientes no habilitan indicaciones. Una dirección no produce por sí sola un mapa integrado.
+
+Contratos aditivos: `GET /api/v1/institutions/:institutionId/branches` incorpora `latitude` y `longitude` como **number o null**, manteniendo dirección y filtros actuales. `GET /api/v1/appointments/me` amplía `branch` con `addressLine1`, `addressLine2`, `municipality`, `region`, `country`, `latitude`, `longitude`; el DTO compartido de cancelación incluye los mismos campos. Se preservan dueño autenticado, aislamiento y citas históricas. Campos de dirección ausentes se representan como null. No se cambia Prisma, endpoints, permisos, reserva/cancelación, OAuth ni Calendar.
+
+Validación manual pendiente: iniciar API/Web, autenticar una cuenta, seleccionar una sede real y abrir Ver ubicación. Con coordenadas registradas comprobar marcador y que el parámetro `destination` de Cómo llegar coincide con ellas; sin coordenadas comprobar fallback de dirección y aviso. Desde Mis citas abrir el panel de la sede y confirmar que Google Calendar/cancelación siguen disponibles como antes. Usar una sede con datos reales previamente registrados: no inventar coordenadas ni modificar datos ajenos para demostrar la HU. En móvil comprobar ancho del mapa, teclado/foco, atribución y apertura segura; con país únicamente no debe aparecer mapa ni enlace de indicaciones.
 ## Docker
 
 Dockerfile y Docker Compose son obligatorios para la entrega Capstone, pero todavía no existen. Su implementación y validación corresponden a una fase técnica posterior.

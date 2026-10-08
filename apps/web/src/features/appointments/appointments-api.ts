@@ -1,4 +1,5 @@
 import { ApiError, type ApiClient } from '../../lib/http-client.ts';
+import { parseBranchLocation, type BranchLocation } from '../locations/branch-location.ts';
 
 export type AppointmentSummary = {
   id: string;
@@ -7,7 +8,7 @@ export type AppointmentSummary = {
   startsAt: string;
   endsAt: string;
   origin: string;
-  branch: { id: string; name: string };
+  branch: { id: string; name: string } & BranchLocation;
   service: { id: string; name: string };
   professional: { id: string; firstNames: string; lastNames: string };
 };
@@ -60,7 +61,7 @@ export function parseAppointment(value: unknown): AppointmentSummary {
   return {
     id: id(item.id), institutionId: id(item.institutionId), status: text(item.status),
     startsAt: date(item.startsAt), endsAt: date(item.endsAt), origin: text(item.origin),
-    branch: { id: id(branch.id), name: text(branch.name) },
+    branch: { id: id(branch.id), name: text(branch.name), ...parseBranchLocation(branch) },
     service: { id: id(service.id), name: text(service.name) },
     professional: { id: id(professional.id), firstNames: text(professional.firstNames), lastNames: text(professional.lastNames) },
   };

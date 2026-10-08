@@ -9,7 +9,8 @@ const ids = Array.from({ length: 6 }, (_, index) => `10000000-0000-4000-8000-${S
 const summary = {
   id: ids[0], institutionId: ids[1], status: 'AGENDADA',
   startsAt: '2030-05-27T13:30:00.000Z', endsAt: '2030-05-27T14:00:00.000Z', origin: 'WEB',
-  branch: { id: ids[2], name: 'Sucursal Centro' }, service: { id: ids[3], name: 'Orientación de trámites' },
+  branch: { id: ids[2], name: 'Sucursal Centro', addressLine1: null, addressLine2: null, municipality: null,
+    region: null, country: null, latitude: null, longitude: null }, service: { id: ids[3], name: 'Orientación de trámites' },
   professional: { id: ids[4], firstNames: 'Camila', lastNames: 'López' },
 };
 const booking = {
