@@ -71,7 +71,7 @@ GitHub CLI (`gh`) no es un requisito para la publicación. En el entorno actual 
 
 ## Pendientes para cumplimiento Capstone final
 
-- Implementar Sprint 8: HU-039 Resend, HU-040 Google OAuth/OIDC, HU-041 Google Calendar, HU-042 Google Maps y HU-043 WhatsApp condicionado.
+- Consolidar implementación y evidencias de Sprint 8 para HU-039 Resend, HU-040 Google OAuth/OIDC, HU-041 Google Calendar y HU-042 OpenStreetMap/Google Maps. HU-043 WhatsApp Cloud API queda descartada del entregable desde el 15-10-2026 por restricciones empresariales de Meta en el contexto académico; no es pendiente de implementación ni bloqueador de publicación. Actualizar los documentos académicos vigentes sin reescribir evidencias históricas.
 
 Los siguientes puntos continúan abiertos y deben permanecer visibles como parte del avance incremental:
 
