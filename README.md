@@ -20,6 +20,8 @@ Centralizar el catálogo y la disponibilidad, y realizar una reasignación segur
 
 Al **06-10-2026**, el MVP Web permanece funcional y la aplicación institucional Desktop está implementada y validada hasta HU-038. Sprint 7 queda cerrado y Sprint 8 está en curso. HU-039 incorpora correo transaccional con Resend y fue validada mediante pruebas automáticas y una prueba manual real de APPOINTMENT_BOOKED aceptada por el proveedor. HU-040 está implementada con login Google adicional y vinculación explícita, validación automática PASS y validación manual real PASS el 06-10-2026. HU-041 incorpora exportación explícita a Google Calendar, con validación automática y manual real PASS el 06-10-2026. HU-042 y HU-043 permanecen pendientes; Docker/Compose, OpenAPI y hardening quedan para Sprint 9.
 
+Actualización de alcance del **15-10-2026**: HU-043 (WhatsApp Cloud API) fue descartada definitivamente por restricciones empresariales de Meta para el contexto académico; ya no es un pendiente de implementación del entregable. El estado fechado anterior se conserva como antecedente. Ver la decisión vigente y la advertencia de base local en la sección de integraciones.
+
 | Componente | Estado verificable |
 | --- | --- |
 | API backend | Funcional: autenticación/RBAC, catálogos, agenda/citas, lista de espera, ofertas, reasignación automática y notificaciones persistentes |
@@ -412,7 +414,9 @@ Las integraciones externas se incorporarán de forma incremental mediante adapta
 - **HU-040 / RF-040 — Google OAuth / OpenID Connect:** autenticación adicional, manteniendo RBAC, sesiones y contexto institucional propios de CitaJusta.
 - **HU-041 / RF-041 — Google Calendar API:** implementada y validada automática y manualmente el 06-10-2026. Incorporación explícita de una cita confirmada al calendario autorizado por el usuario; PostgreSQL/CitaJusta continúa siendo la autoridad.
 - **HU-042 / RF-042 — OpenStreetMap + Google Maps URLs:** implementación local de mapa integrado y Cómo llegar en búsqueda y Mis citas, con datos geográficos reales; pendiente de revisión humana. Sin Maps API Key, facturación de Google Maps Platform ni migraciones.
-- **HU-043 / RF-043 — WhatsApp:** integración condicionada a proveedor, consentimiento, plantillas, costos y factibilidad.
+- **HU-043 / RF-043 — WhatsApp Cloud API:** descartada definitivamente del alcance entregable el 15-10-2026 por restricciones empresariales de Meta para el contexto académico. Integración experimental retirada; no disponible ni pendiente de habilitación. Las evidencias históricas se conservan.
+
+La base local que aplicó la migración experimental conserva sus objetos e historial sin cambios. Antes de operar migraciones o E2E en esa base, revisar la [reconciliación pendiente](docs/development/DECISIONS.md#retiro-hu-043-y-reconciliación-local-pendiente). No usar reset, db push ni borrar historial para resolver la divergencia. No se implementa una API sustituta en esta retirada.
 
 Los contratos HTTP exactos se definirán al refinar cada HU; no se documentan endpoints ficticios por anticipado.
 

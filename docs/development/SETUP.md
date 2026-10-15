@@ -4,6 +4,8 @@
 
 Al 04-10-2026, el MVP Web permanece funcional y `apps/desktop` está implementado con Tauri 2 + React/Vite/TypeScript hasta HU-038. Sprint 7 está cerrado. Sprint 8 corresponde a integraciones externas HU-039 a HU-043; Docker/Compose, OpenAPI y hardening siguen pendientes para Sprint 9.
 
+Actualización de alcance del 15-10-2026: HU-043 (WhatsApp Cloud API) fue descartada; no configurar ese proveedor. Si la base local aplicó `20261012193504_whatsapp_notifications_consent`, conserva objetos experimentales y una migración ausente del árbol limpio. Suspender migraciones/E2E en ella y seguir la [reconciliación pendiente de autorización](DECISIONS.md#retiro-hu-043-y-reconciliación-local-pendiente); no resetearla ni borrar historial. Una instalación nueva utiliza sólo las migraciones conservadas, sin WhatsApp.
+
 | Componente | Versión verificada |
 | --- | --- |
 | Sistema operativo | Windows |

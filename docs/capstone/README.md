@@ -62,3 +62,5 @@ La visibilidad debe confirmarse nuevamente después de reautenticar GitHub CLI y
 - Sprint 7: cerrado con aplicación institucional Desktop, incluida Auditoría HU-038.
 - Sprint 8: integraciones externas HU-039 a HU-043 (Resend, Google OAuth/OIDC, Google Calendar, Google Maps y WhatsApp condicionado).
 - Sprint 9: Docker/Compose, OpenAPI, hardening, rendimiento, documentación/evidencias finales y preparación de entrega.
+
+Actualización de alcance del 15-10-2026: HU-043 / RF-043 (WhatsApp Cloud API) fue descartada definitivamente por restricciones empresariales de Meta para el contexto académico. El plan del 04-10-2026 anterior se conserva como antecedente, no como compromiso vigente de implementar WhatsApp. Las integraciones HU-039 a HU-042 se mantienen; actualizar las versiones académicas según el [inventario documental](DOCUMENT_INVENTORY.md#retiro-hu-043-del-alcance-entregable).

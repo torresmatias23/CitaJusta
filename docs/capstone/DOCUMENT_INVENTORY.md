@@ -37,6 +37,23 @@ Este inventario registra los documentos, artefactos técnicos y evidencias acad�
 
 Los DOCX v0.1 se conservan como evidencia histórica. Requisitos, Arquitectura de Software, Arquitectura APIs y Stack cuentan con v0.2 sincronizadas al 04-10-2026; Documento Base y Justificación todavía requieren una revisión posterior si se decide versionarlos.
 
+### Retiro HU-043 del alcance entregable
+
+Revisión específica del 15-10-2026, sólo lectura de Office: WhatsApp Cloud API se descarta por restricciones empresariales de Meta para el contexto académico. No se modificaron archivos Office, sus imágenes ni el historial Scrum. Las siguientes referencias requieren revisión humana y una actualización versionada, no sustituciones masivas dentro de ZIP/XML. Rutas relativas a `Fase 2/Evidencias Proyecto/Evidencias de documentación/`:
+
+| Ruta | Referencia encontrada | Acción pendiente |
+| --- | --- | --- |
+| `CitaJusta_Requisitos_Funcionales_v0.2.docx` | RF-043 y avisos WhatsApp sujetos a viabilidad | Marcar RF-043 fuera del entregable en la siguiente versión; conservar la decisión y trazabilidad |
+| `CitaJusta_Arquitectura_APIs_v0.2.docx` | Sección 9.5 WhatsApp, tabla HU/RF-043 y alcance planificado | Retirar del alcance/API vigente; conservar v0.2 como antecedente |
+| `CitaJusta_Arquitectura_de_Software_v0.2.docx` | Sprint 8 y adaptador WhatsApp condicionado | Actualizar la arquitectura entregable sin ese adaptador |
+| `CitaJusta_Stack_Tecnologico_v0.2.docx` | WhatsApp como integración condicionada | Registrar exclusión; conservar stack e integraciones anteriores |
+| `Documento_Base_CitaJusta.docx` | Preparación futura para correo/WhatsApp/SMS | Diferenciar preparación genérica histórica del alcance entregable sin WhatsApp |
+| `Scrum/06_Product_Backlog_CitaJusta.xlsx` | HU-043 pendiente en Sprint 8 y notas de alcance | Registrar cambio de alcance fechado, sin marcar Done ni borrar la historia |
+| `Scrum/09_Epicas_Historias_Usuario_CitaJusta.docx` | Historia HU-043 y alcance planificado | Incorporar decisión de exclusión en nueva versión; mantener antecedentes |
+| `Scrum/13_Release_Plan_CitaJusta.xlsx` | R0.8 y WhatsApp pendiente/condicionado | Registrar retiro de R0.8 sin reescribir releases cerrados |
+
+También se encontraron menciones genéricas en Arquitectura APIs, Arquitectura de Software y Stack v0.1, y antecedentes en `Scrum/04_Alcances_Proyecto_CitaJusta.docx` y `Scrum/05_Revision_Daily_Meeting_CitaJusta.docx`. Se conservan como historia; no acreditan integración disponible. La reconciliación de la base local experimental se documenta aparte en [DECISIONS](../development/DECISIONS.md#retiro-hu-043-y-reconciliación-local-pendiente).
+
 ## Documentos de control Capstone
 
 | Nombre | Ruta | Propósito | Estado al 04-10-2026 |
