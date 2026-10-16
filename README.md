@@ -18,9 +18,9 @@ Centralizar el catálogo y la disponibilidad, y realizar una reasignación segur
 
 ## Estado actual
 
-Al **06-10-2026**, el MVP Web permanece funcional y la aplicación institucional Desktop está implementada y validada hasta HU-038. Sprint 7 queda cerrado y Sprint 8 está en curso. HU-039 incorpora correo transaccional con Resend y fue validada mediante pruebas automáticas y una prueba manual real de APPOINTMENT_BOOKED aceptada por el proveedor. HU-040 está implementada con login Google adicional y vinculación explícita, validación automática PASS y validación manual real PASS el 06-10-2026. HU-041 incorpora exportación explícita a Google Calendar, con validación automática y manual real PASS el 06-10-2026. HU-042 y HU-043 permanecen pendientes; Docker/Compose, OpenAPI y hardening quedan para Sprint 9.
+Al **16-10-2026**, el MVP Web y Desktop institucional se encuentran implementados. HU-039 a HU-042 constan cerradas con PR fusionadas (Resend, Google OAuth, Google Calendar y OpenStreetMap/Google Maps URLs). HU-043 (WhatsApp) fue excluida del alcance. Docker/Compose, OpenAPI y hardening siguen pendientes; el cierre formal de Sprint 8 requiere validación.
 
-Actualización de alcance del **15-10-2026**: HU-043 (WhatsApp Cloud API) fue descartada definitivamente por restricciones empresariales de Meta para el contexto académico; ya no es un pendiente de implementación del entregable. El estado fechado anterior se conserva como antecedente. Ver la decisión vigente y la advertencia de base local en la sección de integraciones.
+Decisión de alcance del **15-10-2026**: HU-043 (WhatsApp Cloud API) fue descartada definitivamente por restricciones empresariales de Meta para el contexto académico; ya no es un pendiente de implementación del entregable. Ver la decisión vigente y la advertencia de base local en la sección de integraciones. Avance general estimado 70% y técnico 80% según el equipo; no son mediciones definitivas ni acreditan cumplimiento completo de Fase 2.
 
 | Componente | Estado verificable |
 | --- | --- |
@@ -30,7 +30,7 @@ Actualización de alcance del **15-10-2026**: HU-043 (WhatsApp Cloud API) fue de
 | Aplicación de escritorio | Implementada con Tauri 2 + React/Vite/TypeScript: autenticación, catálogo, profesionales, agenda, disponibilidad/bloqueos, asistencia, reasignaciones, reportes y auditoría |
 | Docker | Obligatorio para Capstone, pendiente de implementación |
 | Funciones críticas de citas, lista de espera y reasignación | Implementadas, con inicio automático al cancelar un cupo reutilizable (HU-025) y expiración/continuación automática (HU-023) |
-| Documentación académica | Backlog y Release Plan sincronizados al 04-10-2026; v0.2 de requisitos y arquitecturas incorporadas en la rama documental, preservando v0.1 como historial |
+| Documentación académica | Fase 2 incorpora guías grupales, diarios individuales, Arquitectura/UML/ER, Mockups y actualizaciones Scrum; documentos pendientes de validación y evidencia del sistema por consolidar |
 
 ## Tecnologías
 
@@ -132,7 +132,7 @@ Los cinco documentos v0.1 identifican a Matías Andrés Torres, Bastian Sepúlve
 
 ## Metodología Scrum
 
-Scrum se utiliza como marco de trazabilidad académica. Product Backlog y Release Plan se sincronizaron al 04-10-2026: Sprint 7 queda cerrado con Desktop y Sprint 8 incorpora HU-039 a HU-043 para integraciones externas. Se conserva el historial académico y la trazabilidad por Issue, rama, PR, pruebas y Kanban. La estrategia está en [Evidencia Scrum con GitHub](docs/capstone/GITHUB_SCRUM_EVIDENCE.md).
+Scrum se utiliza como marco de trazabilidad académica. Se conservan el plan del 04-10-2026 y las actualizaciones fechadas del 15-10 en el [índice Scrum de Fase 2](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Scrum/README.md>). HU-039 a HU-042 están cerradas según el estado confirmado; HU-043 queda excluida del alcance vigente. La retrospectiva está por validar y el seguimiento Sprint 8 no sustituye un cierre formal aprobado. Se mantiene la trazabilidad por Issue, rama, PR, pruebas y Kanban; estrategia en [Evidencia Scrum con GitHub](docs/capstone/GITHUB_SCRUM_EVIDENCE.md).
 
 ## Requisitos locales
 
@@ -413,7 +413,7 @@ Las integraciones externas se incorporarán de forma incremental mediante adapta
 - **HU-039 / RF-039 — Resend:** implementada y validada. Correo transaccional para reserva/cancelación de citas y eventos elegibles de ofertas/reasignación; lista de espera y recordatorios programados quedan fuera de este canal.
 - **HU-040 / RF-040 — Google OAuth / OpenID Connect:** autenticación adicional, manteniendo RBAC, sesiones y contexto institucional propios de CitaJusta.
 - **HU-041 / RF-041 — Google Calendar API:** implementada y validada automática y manualmente el 06-10-2026. Incorporación explícita de una cita confirmada al calendario autorizado por el usuario; PostgreSQL/CitaJusta continúa siendo la autoridad.
-- **HU-042 / RF-042 — OpenStreetMap + Google Maps URLs:** implementación local de mapa integrado y Cómo llegar en búsqueda y Mis citas, con datos geográficos reales; pendiente de revisión humana. Sin Maps API Key, facturación de Google Maps Platform ni migraciones.
+- **HU-042 / RF-042 — OpenStreetMap + Google Maps URLs:** cerrada con PR fusionada según el estado confirmado del proyecto. Mapa integrado y Cómo llegar en búsqueda y Mis citas, con datos geográficos reales. Sin Maps API Key, facturación de Google Maps Platform ni migraciones.
 - **HU-043 / RF-043 — WhatsApp Cloud API:** descartada definitivamente del alcance entregable el 15-10-2026 por restricciones empresariales de Meta para el contexto académico. Integración experimental retirada; no disponible ni pendiente de habilitación. Las evidencias históricas se conservan.
 
 La base local que aplicó la migración experimental conserva sus objetos e historial sin cambios. Antes de operar migraciones o E2E en esa base, revisar la [reconciliación pendiente](docs/development/DECISIONS.md#retiro-hu-043-y-reconciliación-local-pendiente). No usar reset, db push ni borrar historial para resolver la divergencia. No se implementa una API sustituta en esta retirada.
@@ -428,7 +428,7 @@ Cómo llegar utiliza [Google Maps URLs](https://developers.google.com/maps/docum
 
 Contratos aditivos: `GET /api/v1/institutions/:institutionId/branches` incorpora `latitude` y `longitude` como **number o null**, manteniendo dirección y filtros actuales. `GET /api/v1/appointments/me` amplía `branch` con `addressLine1`, `addressLine2`, `municipality`, `region`, `country`, `latitude`, `longitude`; el DTO compartido de cancelación incluye los mismos campos. Se preservan dueño autenticado, aislamiento y citas históricas. Campos de dirección ausentes se representan como null. No se cambia Prisma, endpoints, permisos, reserva/cancelación, OAuth ni Calendar.
 
-Validación manual pendiente: iniciar API/Web, autenticar una cuenta, seleccionar una sede real y abrir Ver ubicación. Con coordenadas registradas comprobar marcador y que el parámetro `destination` de Cómo llegar coincide con ellas; sin coordenadas comprobar fallback de dirección y aviso. Desde Mis citas abrir el panel de la sede y confirmar que Google Calendar/cancelación siguen disponibles como antes. Usar una sede con datos reales previamente registrados: no inventar coordenadas ni modificar datos ajenos para demostrar la HU. En móvil comprobar ancho del mapa, teclado/foco, atribución y apertura segura; con país únicamente no debe aparecer mapa ni enlace de indicaciones.
+Procedimiento de comprobación manual de HU-042, ya cerrada según el estado confirmado del proyecto: iniciar API/Web, autenticar una cuenta, seleccionar una sede real y abrir Ver ubicación. Con coordenadas registradas comprobar marcador y que el parámetro `destination` de Cómo llegar coincide con ellas; sin coordenadas comprobar fallback de dirección y aviso. Desde Mis citas abrir el panel de la sede y confirmar que Google Calendar/cancelación siguen disponibles como antes. Usar una sede con datos reales previamente registrados: no inventar coordenadas ni modificar datos ajenos para demostrar la HU. En móvil comprobar ancho del mapa, teclado/foco, atribución y apertura segura; con país únicamente no debe aparecer mapa ni enlace de indicaciones.
 ## Docker
 
 Dockerfile y Docker Compose son obligatorios para la entrega Capstone, pero todavía no existen. Su implementación y validación corresponden a una fase técnica posterior.
@@ -446,14 +446,24 @@ El Stack Tecnológico v0.2 reconoce Docker/Docker Compose como entregable obliga
 - [Checklist de publicación](docs/capstone/PUBLICATION_CHECKLIST.md)
 - [Documento Base](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Documento_Base_CitaJusta.docx>)
 - [Justificación del Proyecto v0.1](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Justificacion_del_Proyecto_v0.1.docx>)
-- [Requisitos Funcionales v0.1 — histórico](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Requisitos_Funcionales_v0.1.docx>)
+- [Requisitos Funcionales v0.1 — histórico](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Versiones anteriores/CitaJusta_Requisitos_Funcionales_v0.1.docx>)
 - [Requisitos Funcionales v0.2](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Requisitos_Funcionales_v0.2.docx>)
-- [Arquitectura de Software v0.1 — histórico](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_de_Software_v0.1.docx>)
-- [Arquitectura de Software v0.2](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_de_Software_v0.2.docx>)
-- [Arquitectura APIs v0.1 — histórico](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_APIs_v0.1.docx>)
-- [Arquitectura APIs v0.2](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Arquitectura_APIs_v0.2.docx>)
-- [Stack Tecnológico v0.1 — histórico](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Stack_Tecnologico_v0.1.docx>)
+- [Arquitectura de Software v0.1 — histórico](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Versiones anteriores/CitaJusta_Arquitectura_de_Software_v0.1.docx>)
+- [Arquitectura de Software v0.2](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Arquitectura/CitaJusta_Arquitectura_de_Software_v0.2.docx>)
+- [Arquitectura APIs v0.1 — histórico](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Versiones anteriores/CitaJusta_Arquitectura_APIs_v0.1.docx>)
+- [Arquitectura APIs v0.2](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Arquitectura/CitaJusta_Arquitectura_APIs_v0.2.docx>)
+- [Stack Tecnológico v0.1 — histórico](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Versiones anteriores/CitaJusta_Stack_Tecnologico_v0.1.docx>)
 - [Stack Tecnológico v0.2](<Fase 2/Evidencias Proyecto/Evidencias de documentación/CitaJusta_Stack_Tecnologico_v0.2.docx>)
+
+La [documentación de Fase 2](<Fase 2/Evidencias Proyecto/Evidencias de documentación/README.md>) inventaría las rutas actuales, con:
+
+- [Casos de Uso UML](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Arquitectura/CitaJusta_Casos_de_Uso_UML.docx>).
+- [UML de secuencia y componentes](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Arquitectura/CitaJusta_UML_Secuencia_Componentes.docx>).
+- [Modelo ER v0.1](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Arquitectura/CitaJusta_Modelo_Entidad_Relacion_v0.1.docx>), basado en 42 modelos Prisma mapeados y 90 relaciones con `fields`/`references`; no acredita reconciliación del PostgreSQL local.
+- [Mockups y evidencias visuales Web/Desktop](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Mockups/CitaJusta_Mockups_Web_Desktop.docx>), distinguiendo diseños conceptuales de capturas de ejecución al validar el documento.
+- [Guías grupales](<Fase 2/Evidencias Grupales/README.md>), [diarios individuales](<Fase 2/Evidencias Individuales/README.md>) y [Scrum](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Scrum/README.md>).
+
+Estos documentos están incorporados, no necesariamente aprobados. El inventario y la matriz Capstone se encuentran sincronizados con los documentos disponibles; siguen pendientes validaciones y evidencias del sistema. Las [evidencias de sistema](<Fase 2/Evidencias Proyecto/Evidencias de sistema/README.md>) siguen por consolidar.
 
 ## Estructura Capstone
 
