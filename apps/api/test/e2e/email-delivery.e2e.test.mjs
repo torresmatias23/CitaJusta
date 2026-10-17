@@ -93,12 +93,12 @@ test('HU-039 PostgreSQL outbox and real booking; never calls an external provide
     });
     await t.test('two PostgreSQL workers claim once, persist SENT and never resend terminal deliveries', async () => {
       let sends = 0;
-      const send = async (_id, payload) => { sends++; assert.match(payload.text, /America\/Santiago/); await new Promise((resolve) => setTimeout(resolve, 30)); return randomUUID(); };
+      const send = async (_id, payload) => { sends++; assert.match(payload.text, /America\/Santiago/); assert.match(payload.html, /Tu reserva está registrada/); assert.equal(payload.attachments[0].content_id, 'citajusta-logo'); await new Promise((resolve) => setTimeout(resolve, 30)); return randomUUID(); };
       await Promise.all([worker(send).deliver(booked.emailDelivery.id), worker(send).deliver(booked.emailDelivery.id)]);
       await worker(send).deliver(booked.emailDelivery.id);
       const row = await prisma.notificationEmailDelivery.findUniqueOrThrow({ where: { id: booked.emailDelivery.id } });
       assert.equal(sends, 1); assert.equal(row.status, 'SENT'); assert.equal(row.attemptCount, 1); assert.ok(row.sentAt && row.providerMessageId);
-      assert.deepEqual(Object.keys(row.payload).sort(), ['from', 'subject', 'text', 'to']);
+      assert.deepEqual(Object.keys(row.payload).sort(), ['attachments', 'from', 'html', 'subject', 'text', 'to']);
       assert.doesNotMatch(JSON.stringify(row), /re_e2e|passwordHash|Authorization|accessToken|refreshToken/);
     });
     await t.test('retryable failure persists attempt/backoff and retries identical frozen payload', async () => {

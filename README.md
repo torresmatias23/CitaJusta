@@ -18,7 +18,7 @@ Centralizar el catálogo y la disponibilidad, y realizar una reasignación segur
 
 ## Estado actual
 
-Al **16-10-2026**, el MVP Web y Desktop institucional se encuentran implementados. HU-039 a HU-042 constan cerradas con PR fusionadas (Resend, Google OAuth, Google Calendar y OpenStreetMap/Google Maps URLs). HU-043 (WhatsApp) fue excluida del alcance. Docker/Compose, OpenAPI y hardening siguen pendientes; el cierre formal de Sprint 8 requiere validación.
+Al **16-10-2026**, el MVP Web y Desktop institucional permanecen implementados. HU-039 a HU-042 están cerradas con PR fusionadas según el estado confirmado del proyecto: Resend, Google OAuth, Google Calendar y ubicación con OpenStreetMap/enlaces Google Maps. Resend V2 con logo está implementado localmente, conserva cambios sin commit y está pendiente de publicación; no se presenta como mejora ya fusionada. Docker/Compose, OpenAPI y hardening permanecen pendientes del cierre técnico.
 
 Decisión de alcance del **15-10-2026**: HU-043 (WhatsApp Cloud API) fue descartada definitivamente por restricciones empresariales de Meta para el contexto académico; ya no es un pendiente de implementación del entregable. Ver la decisión vigente y la advertencia de base local en la sección de integraciones. Avance general estimado 70% y técnico 80% según el equipo; no son mediciones definitivas ni acreditan cumplimiento completo de Fase 2.
 
@@ -335,7 +335,11 @@ Configuración en `apps/api/.env.example` (no versionar secretos locales):
 | `EMAIL_DELIVERY_LEASE_MS` | 60000; 5000–300000 y al menos timeout + 5000 |
 | `RESEND_API_KEY`, `RESEND_FROM` | Obligatorios y validados sólo cuando email está habilitado |
 
-El adaptador usa fetch nativo contra `https://api.resend.com/emails`, sin SDK ni URL configurable. Reutiliza `notificationContent` y timezone institucional (fallback UTC), sin HTML dinámico ni enlaces especulativos. Congela sólo `from`, `to`, `subject` y `text` en la outbox para conservar el mismo payload y `Idempotency-Key: citajusta-email/<notificationId>` en retries. El destinatario proviene del User persistido; un cambio de email, usuario inactivo/eliminado o dirección inválida detiene la entrega. El payload contiene el destinatario necesario para envío: requiere la misma protección y retención operativa que datos personales, y no se expone por HU-024.
+El adaptador usa fetch nativo contra `https://api.resend.com/emails`, sin SDK ni URL configurable. `email-content.ts` conserva texto plano explícito con los mensajes por evento de `notificationContent` y timezone institucional (fallback UTC), sin cambiar HU-024. La V2 HTML de `APPOINTMENT_BOOKED` usa cabecera blanca con logo original y línea turquesa, azul `#172B50`, turquesa `#008184`, fondos `#F3F8FB`/`#EDF8F8`, tarjeta fluida de hasta 600 px y columnas que se apilan en móvil. Distingue «Tu reserva está registrada» de confirmación de asistencia; muestra fecha completa `es-CL`, hora de inicio en formato 24 horas y zona institucional. `AGENDADA` sólo figura en este evento de reserva, no como afirmación del estado actual posterior; se indica consultar Mis citas. Cancelación y ofertas mantienen sus mensajes propios sin ese distintivo. Tablas de presentación, estilos inline y una media query para móvil; texto dinámico escapado, sin scripts, fuentes externas, enlaces ni datos de sede/servicio/profesional inventados.
+
+El logo inline utiliza [CID según el contrato REST de Resend](https://resend.com/changelog/embed-images-using-cid): `src="cid:citajusta-logo"` y attachment con `content_id`, `content_type=image/png`, filename y contenido Base64. No usa `contentId` del SDK ni `data:image` en el HTML. `apps/api/assets/logo-citajusta.png` es una copia byte a byte del recurso oficial Web (228015 bytes, sin recortar ni rediseñar). Empaquetar **assets junto con dist**: se resuelve mediante `import.meta.url`, independiente del directorio de ejecución y sin depender de Web/localhost. El límite local es 256 KiB para el PNG; Base64 añade aproximadamente un tercio y aumenta el tamaño del payload persistido. Si falta el archivo se usa branding textual sin adjunto; PNG inválido/sobredimensionado se rechaza. Todo el contenido funcional y el pie textual siguen legibles con imágenes bloqueadas. Gmail y otros clientes pueden ocultar imágenes CID: la V2 requiere validación manual posterior.
+
+La outbox congela `from`, `to`, `subject`, `text` y, para payloads nuevos, `html` y el attachment cuando corresponda, incluido su Base64, conservando el mismo contenido y `Idempotency-Key: citajusta-email/<notificationId>` en retries. Los payloads históricos ya congelados sólo con texto o con HTML V1 siguen válidos: no se les añade HTML V2/logo ni se regeneran aunque cambien la plantilla, el recurso o el remitente configurado; tampoco se reabren filas SENT. No hay backfill visual. El destinatario proviene del User persistido; un cambio de email, usuario inactivo/eliminado o dirección inválida detiene la entrega. El payload contiene el destinatario necesario para envío: requiere la misma protección y retención operativa que datos personales, y no se expone por HU-024.
 
 Retries: red con códigos reconocidos, timeout, 408/429/5xx y 409 `concurrent_idempotent_requests`; backoff determinista 30 s × 2^(intentos−1), máximo 1 h. Otros 4xx (incluido 409 `invalid_idempotent_request`), configuración/destinatario inválido y agotamiento de intentos terminan en FAILED. SENT/FAILED son terminales. Errores de programación no son retries del proveedor; errores DB propagan y el lease permite recuperación acotada. Sólo se guardan códigos controlados, nunca API key, response body o stack. El log del runner no imprime destinatarios ni excepciones.
 
@@ -343,23 +347,48 @@ Resend conserva sus claves [24 horas](https://resend.com/docs/dashboard/emails/i
 
 La migración aditiva `20261005020721_notification_email_delivery` crea sólo el enum, outbox, índices y FK. La eliminación de una Notification elimina su hija técnica de entrega (útil para cleanup de fixtures); nunca elimina citas/ofertas/reasignaciones. Las operaciones funcionales no eliminan notificaciones.
 
-Prueba automática, con PostgreSQL local seguro y esquema actualizado, **sin enviar correo real**:
+Pruebas unitarias con proveedor simulado, sin PostgreSQL ni envío real:
 
 ```powershell
-npm run prisma:validate -w @citajusta/api
-npm exec -w @citajusta/api -- prisma migrate status
-npm run test:e2e:email-delivery -w @citajusta/api
+npm run build -w @citajusta/api
+node --test apps/api/test/email-content.test.mjs apps/api/test/email-logo.test.mjs apps/api/test/email-delivery.test.mjs apps/api/test/notifications.test.mjs
 npm test -w @citajusta/api
+npm run prisma:validate -w @citajusta/api
+```
+
+E2E únicamente en una base aislada cuyo esquema y ciclo de vida se hayan verificado, con proveedor simulado. **No ejecutar sobre `citajusta_dev`**: conserva una migración experimental retirada y los fixtures escriben/borran datos. No reconciliarla ni aplicar migraciones como parte de esta mejora de correo.
+
+```powershell
+npm run test:e2e:email-delivery -w @citajusta/api
 ```
 
 Validación manual reproducible. El 05-10-2026 se validó un flujo real APPOINTMENT_BOOKED con destinatario de prueba de Resend: la entrega pasó de PENDING a SENT en un único intento, con providerMessageId persistido y sin error del proveedor. SENT representa aceptación por la API de Resend, no garantiza recepción final en inbox:
 
-1. Crear cuenta Resend y [verificar dominio/remitente](https://resend.com/docs/dashboard/domains/introduction). Alternativamente usar el remitente de prueba permitido por Resend, respetando sus restricciones de destinatario.
+1. Crear cuenta Resend y [verificar dominio/remitente](https://resend.com/docs/dashboard/domains/introduction). `onboarding@resend.dev` es un remitente de prueba: sólo permite destinatarios del correo asociado a la cuenta Resend, no el correo del profesor u otros destinatarios arbitrarios. Ver [restricción oficial](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain). Mantener el remitente ya autorizado; no sustituirlo por un dominio sin verificar ni cambiar destinatarios para eludir la restricción.
 2. Crear [API key de sólo envío](https://resend.com/docs/dashboard/api-keys/introduction), restringida al dominio cuando corresponda; guardarla sólo en `apps/api/.env`, nunca en consola/screenshots/Git.
 3. Configurar `RESEND_API_KEY`, `RESEND_FROM` y `EMAIL_DELIVERY_ENABLED=true`; reiniciar API. Antes de habilitar, revisar pendientes propios: eventos elegibles se encolan también con el runner apagado y serán procesados al habilitarlo.
 4. Provocar una reserva controlada u oferta por los flujos existentes con una cuenta ACTIVE y email autorizado. Consultar Notification interna y su outbox en una herramienta local sin mostrar secretos.
 5. Comprobar SENT, `sentAt`, `providerMessageId`, aceptación en Resend y recepción en inbox. Para un replay funcional reproducible, cancelar la cita controlada, esperar su correo `APPOINTMENT_CANCELLED` y repetir esa cancelación: debe devolver 200, conservar una sola Notification/delivery de cancelación y no enviar otro correo. La primera cancelación es otro evento legítimo, no un duplicado del correo de reserva. Repetir una reserva sobre un cupo ya reservado devuelve conflicto, no constituye un nuevo evento.
 6. Dejar el runner deshabilitado cuando termine la prueba local si no se desea procesar futuros eventos.
+
+**Demo de la V2 desde Web (ejecución manual, no realizada por las pruebas):** el equipo comprobó previamente una reserva real desde Web, recepción automática del HTML V1 en Gmail y visualización de la reserva en Desktop. La V2 con logo todavía requiere validación manual en Gmail. Mantener `onboarding@resend.dev` como remitente de prueba ya autorizado hasta disponer de un dominio propio verificado; no cambiar destinatarios ni credenciales en esta mejora. Con la configuración privada ya preparada, abrir una terminal y ejecutar desde la raíz:
+
+```powershell
+npm run build -w @citajusta/api
+# Revisar antes los pendientes: habilitar el runner puede procesar toda la cola elegible.
+$env:EMAIL_DELIVERY_ENABLED = 'true'
+npm run start -w @citajusta/api
+```
+
+En otra terminal, con el proxy Web ya configurado:
+
+```powershell
+npm run dev -w @citajusta/web
+```
+
+Iniciar sesión con la cuenta propia cuyo correo esté autorizado por Resend, buscar Institución Demo CitaJusta → Sede Centro Demo → Atención General Demo y reservar **un cupo nuevo AVAILABLE**. Para el escenario previsto del 16-10-2026, buscar entre 13:00 y 15:00 `America/Santiago`, sólo si sigue disponible; no ejecutar seeds ni revivir cupos consumidos. Esperar el ciclo asíncrono (30 s por defecto). Verificar por separado: reserva en Mis citas; fila de entrega SENT con providerMessageId (aceptación de Resend); y correo realmente recibido en Gmail, incluida carpeta Spam, con logo CID, texto alternativo, fecha completa, hora y zona correctas. Comprobar también legibilidad con imágenes bloqueadas y vista móvil. Un correo antiguo SENT o un payload ya congelado de texto/HTML V1 no cambia a V2 con este despliegue. La recepción anterior del HTML V1 no acredita el nuevo diseño con logo.
+
+No mostrar API keys, tokens, connection strings, destinatarios ni payloads con datos personales en capturas o logs de la demo. No editar filas para forzar reenvíos. Al terminar, detener la API y retirar el override de esa terminal con `Remove-Item Env:EMAIL_DELIVERY_ENABLED`; antes de reiniciar comprobar también que la configuración local no mantiene habilitado el runner.
 
 El backend valida su configuración al arrancar. Usa [apps/api/.env.example](apps/api/.env.example) como contrato y crea un archivo local `apps/api/.env` con valores propios del entorno.
 
@@ -463,7 +492,7 @@ La [documentación de Fase 2](<Fase 2/Evidencias Proyecto/Evidencias de document
 - [Mockups y evidencias visuales Web/Desktop](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Mockups/CitaJusta_Mockups_Web_Desktop.docx>), distinguiendo diseños conceptuales de capturas de ejecución al validar el documento.
 - [Guías grupales](<Fase 2/Evidencias Grupales/README.md>), [diarios individuales](<Fase 2/Evidencias Individuales/README.md>) y [Scrum](<Fase 2/Evidencias Proyecto/Evidencias de documentación/Scrum/README.md>).
 
-Estos documentos están incorporados, no necesariamente aprobados. El inventario y la matriz Capstone se encuentran sincronizados con los documentos disponibles; siguen pendientes validaciones y evidencias del sistema. Las [evidencias de sistema](<Fase 2/Evidencias Proyecto/Evidencias de sistema/README.md>) siguen por consolidar.
+Estos documentos están incorporados, no necesariamente aprobados. El inventario y la matriz Capstone conservan algunas rutas/estados anteriores y requieren sincronización; no se modifican en esta actualización de README. Las [evidencias de sistema](<Fase 2/Evidencias Proyecto/Evidencias de sistema/README.md>) siguen por consolidar.
 
 ## Estructura Capstone
 

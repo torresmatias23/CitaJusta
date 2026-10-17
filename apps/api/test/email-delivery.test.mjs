@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mock, test } from 'node:test';
 import { validateEnvironment } from '../dist/config/environment.validation.js';
-import { ResendClient, EmailProviderError } from '../dist/notifications/resend.client.js';
+import { ResendClient, EmailProviderError, emailPayloadSchema } from '../dist/notifications/resend.client.js';
 import { EmailDeliveryService } from '../dist/notifications/email-delivery.service.js';
 import { EmailDeliveryRunner } from '../dist/notifications/email-delivery.runner.js';
 import { notificationContent } from '../dist/notifications/notification-content.js';
+import { renderEmailContent } from '../dist/notifications/email-content.js';
 
 const base = { DATABASE_URL: 'postgresql://test:test@localhost/citajusta_test',
   JWT_ACCESS_SECRET: 'access-test-only-'.repeat(4), JWT_REFRESH_SECRET: 'refresh-test-only-'.repeat(4) };
@@ -135,7 +136,11 @@ test('batch is bounded, stably ordered and disabled does not query', async () =>
 test('success freezes minimal content in institutional timezone, marks SENT and never resends', async () => {
   const f = fixture(); await f.service.processBatch(); await f.service.processBatch();
   assert.equal(f.row.status, 'SENT'); assert.equal(f.row.attemptCount, 1); assert.equal(f.adapter.send.mock.callCount(), 1);
-  assert.deepEqual(f.row.payload, { ...payload, text: notificationContent({ type: f.row.notification.type, data: f.row.notification.data }, 'America/Santiago').message });
+  const content = { type: f.row.notification.type, data: f.row.notification.data };
+  assert.deepEqual(f.row.payload, { from: payload.from, to: payload.to, ...renderEmailContent(content, 'America/Santiago') });
+  assert.equal(f.row.payload.text, notificationContent(content, 'America/Santiago').message);
+  assert.match(f.row.payload.html, /<h1[^>]*>Tu reserva está registrada<\/h1>/);
+  assert.equal(f.row.payload.attachments[0].content_id, 'citajusta-logo');
   assert.ok(f.row.sentAt); assert.ok(f.row.providerMessageId); assert.equal(f.row.claimToken, null); assert.equal(f.row.lockedUntil, null);
 });
 test('two services use atomic DB claims and only one sends', async () => {
@@ -157,8 +162,69 @@ test('retryable failure persists deterministic backoff and frozen payload across
   assert.equal(f.row.status, 'PENDING'); assert.equal(f.row.lastErrorCode, 'RESEND_HTTP_429');
   assert.ok(+f.row.nextAttemptAt >= before + 30000); assert.equal(f.row.lockedUntil, null);
   const frozen = structuredClone(f.row.payload); f.row.nextAttemptAt = new Date(0);
+  assert.ok(frozen.html && frozen.text);
+  f.row.notification.data = { startsAt: '2040-02-01T15:00:00.000Z' };
+  f.prisma.institution.findUnique = async () => assert.fail('Frozen payload must not be rendered again');
   await new EmailDeliveryService(f.prisma, config({ RESEND_FROM: 'different@example.test' }), f.adapter).processBatch();
   assert.deepEqual(f.row.payload, frozen); assert.deepEqual(f.adapter.send.mock.calls[1].arguments[1], frozen);
+  assert.deepEqual(f.adapter.send.mock.calls[0].arguments.slice(0, 2), f.adapter.send.mock.calls[1].arguments.slice(0, 2));
+});
+
+test('legacy frozen text-only payload retries unchanged and is never upgraded to HTML', async () => {
+  const frozen = { ...payload, subject: 'Asunto histórico', text: 'Contenido histórico congelado.' };
+  const requests = [];
+  const f = fixture({ payload: structuredClone(frozen), firstAttemptAt: new Date() }, {}, async (id, value) => {
+    requests.push([id, structuredClone(value)]);
+    if (requests.length === 1) throw new EmailProviderError('RESEND_HTTP_429', true);
+    return randomUUID();
+  });
+  f.prisma.institution.findUnique = async () => assert.fail('Must not render frozen content');
+  await f.service.processBatch();
+  assert.equal(f.row.status, 'PENDING');
+  f.row.nextAttemptAt = new Date(0);
+  await new EmailDeliveryService(f.prisma, config({ RESEND_FROM: 'different@example.test' }), f.adapter).processBatch();
+  await f.service.processBatch();
+  assert.equal(f.row.status, 'SENT');
+  assert.deepEqual(f.row.payload, frozen);
+  assert.deepEqual(requests, [[f.row.notification.id, frozen], [f.row.notification.id, frozen]]);
+  assert.equal(Object.hasOwn(f.row.payload, 'html'), false);
+});
+
+test('Resend sends HTML and explicit plain text together without changing the idempotency key', async (t) => {
+  const id = randomUUID();
+  const current = { from: payload.from, to: payload.to, ...renderEmailContent({ type: 'APPOINTMENT_BOOKED', data: { startsAt: '2026-10-16T16:00:00.000Z' } }, 'America/Santiago') };
+  const calls = [];
+  t.mock.method(globalThis, 'fetch', async (_url, options) => { calls.push(options); return Response.json({ id: randomUUID() }); });
+  const client = new ResendClient();
+  await client.send(id, current, settings.RESEND_API_KEY, 100);
+  await client.send(id, current, settings.RESEND_API_KEY, 100);
+  assert.deepEqual(emailPayloadSchema.parse(current), current);
+  assert.deepEqual(emailPayloadSchema.parse(payload), payload);
+  assert.equal(current.attachments.length, 1);
+  assert.equal(current.attachments[0].filename, 'logo-citajusta.png');
+  assert.equal(current.attachments[0].content_type, 'image/png');
+  assert.equal(current.attachments[0].content_id, 'citajusta-logo');
+  assert.equal(Object.hasOwn(current.attachments[0], 'contentId'), false);
+  assert.match(current.html, /src="cid:citajusta-logo"/);
+  for (const call of calls) {
+    assert.deepEqual(JSON.parse(call.body), current);
+    assert.equal(call.headers['Idempotency-Key'], `citajusta-email/${id}`);
+  }
+  assert.equal(calls[0].body, calls[1].body);
+  for (const html of ['', 1, null, 'x'.repeat(32_001)]) assert.equal(emailPayloadSchema.safeParse({ ...payload, html }).success, false);
+});
+
+test('previous HTML-only frozen payload is never rendered again or given a logo attachment', async () => {
+  const frozen = { ...payload, html: '<p>Primera versión HTML congelada.</p>' };
+  const f = fixture({ payload: structuredClone(frozen) });
+  f.prisma.institution.findUnique = async () => assert.fail('Frozen HTML must bypass rendering and logo loading');
+  await f.service.processBatch();
+  await f.service.processBatch();
+  assert.equal(f.row.status, 'SENT');
+  assert.equal(f.adapter.send.mock.callCount(), 1);
+  assert.deepEqual(f.row.payload, frozen);
+  assert.deepEqual(f.adapter.send.mock.calls[0].arguments[1], frozen);
+  assert.equal(Object.hasOwn(f.row.payload, 'attachments'), false);
 });
 test('permanent and max-attempt failures are terminal, including lease-crash exhaustion', async () => {
   for (const f of [fixture({}, {}, async () => { throw new EmailProviderError('RESEND_HTTP_422', false); }),
