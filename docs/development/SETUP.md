@@ -36,6 +36,109 @@ La última ruta corresponde a la instalación actualmente verificada. `Get-Comma
 
 El monorepo contiene API NestJS, Web React/Vite y Desktop Tauri 2 + React/Vite, con npm workspaces. Prisma permanece fijado en 7.10.0.
 
+## Docker local para Capstone Fase 2
+
+Alternativa aislada al entorno Windows descrito después. Requiere Docker Desktop con engine Linux (WSL 2) o Docker Engine, y Compose v2 reciente con `up --wait`. No necesita ejecutar Desktop Tauri en un contenedor ni instalar PostgreSQL en el host. No es una configuración de producción.
+
+Estado de validación: Docker CLI/Desktop no está disponible en el entorno donde se incorporaron estos archivos. Pruebas unitarias de protección/configuración y builds locales no sustituyen build/arranque de imágenes, `nginx -t`, conectividad y persistencia reales; esas comprobaciones siguen pendientes.
+
+### Configuración
+
+Desde la raíz en PowerShell:
+
+```powershell
+docker --version
+docker compose version
+docker info
+if (-not (Test-Path docker/.env)) { Copy-Item docker/.env.example docker/.env }
+```
+
+Completar **localmente** `DOCKER_DB_PASSWORD`, `DOCKER_JWT_ACCESS_SECRET` y `DOCKER_JWT_REFRESH_SECRET` con tres valores aleatorios diferentes, de 64 caracteres hexadecimales cada uno. Usar un generador criptográfico/gestor de contraseñas; no compartirlos en capturas, logs o Git. Las entradas vacías de la plantilla impiden iniciar Compose. `docker/.env` ya queda ignorado por la regla existente; no se crea ni copia automáticamente. No copiar credenciales de `apps/api/.env`.
+
+`DOCKER_API_PORT=3000` y `DOCKER_WEB_PORT=8080` son puertos del host configurables; internamente API escucha 3000 y Nginx 8080. Se publican sólo en `127.0.0.1`. PostgreSQL **no publica puertos**, por lo que no compite con el PostgreSQL Windows en 5432. Si otra API ocupa 3000, cambiar `DOCKER_API_PORT` antes de iniciar. Desktop conserva su URL/capability actual `http://localhost:3000/api/v1`; usar ese puerto para probarlo, sin ampliar sus permisos aquí.
+
+Compose construye `DATABASE_URL` únicamente hacia `db:5432/citajusta_docker`, usuario técnico `citajusta`; nunca hereda `DATABASE_URL` del host. `SHADOW_DATABASE_URL` es un destino ficticio no accesible en puerto 1: Prisma config exige la variable, pero `generate`, `validate` y `migrate deploy` no necesitan conectar una shadow DB. No utilizar `migrate dev` en este entorno.
+
+La API usa `NODE_ENV=development` explícito para esta demostración, JWT propios y validación existente. Resend, Google Auth y Calendar quedan deshabilitados en API y build Web; no requiere credenciales externas. El runner de expiración conserva su default del backend, después de preparar el esquema. Habilitar integraciones posteriormente exige configurar tanto el backend como las opciones públicas de build Web y los orígenes autorizados reales; no colocar secretos en `VITE_*`.
+
+### Construcción e inicialización explícita
+
+```powershell
+# Validar sin imprimir el modelo expandido, que contiene secretos:
+docker compose --env-file docker/.env --profile tools config --quiet
+docker compose --env-file docker/.env --profile tools build
+docker compose --env-file docker/.env up -d --wait db
+docker compose --env-file docker/.env exec -T db pg_isready -h 127.0.0.1 -U citajusta -d citajusta_docker
+docker compose --env-file docker/.env exec -T db psql -U citajusta -d citajusta_docker -c "SELECT current_database(), current_user, shobj_description(oid, 'pg_database') AS marker FROM pg_database WHERE datname = current_database();"
+```
+
+Revisar que el destino es `citajusta_docker` y el marcador `citajusta-capstone-docker-v1`. El proyecto Compose `citajusta-capstone` crea red propia y volumen `citajusta-capstone_postgres_data`. No es un volumen externo ni un montaje de datos del host. Para PostgreSQL 18 se monta `/var/lib/postgresql`, conforme a la [imagen oficial](https://hub.docker.com/_/postgres). El único bind mount es el SQL de identificación, de sólo lectura: añade un comentario a la base nueva, no tablas ni datos de negocio. Sólo se ejecuta en el primer inicio de un volumen vacío.
+
+Aplicar **únicamente en esta instancia Docker verificada** las 12 migraciones existentes:
+
+```powershell
+docker compose --env-file docker/.env --profile tools run --rm migrate
+docker compose --env-file docker/.env --profile tools run --rm --workdir /workspace/apps/api migrate node /workspace/node_modules/prisma/build/index.js migrate status
+docker compose --env-file docker/.env up -d --wait api web
+```
+
+El helper exige modo development, URL exacta de Compose, contraseña URL-safe, identidad PostgreSQL 18 y marcador real de la base. Comprueba en una transacción `READ ONLY` que el esquema está vacío o tiene historial Prisma compatible con nombres/checksums locales y migraciones finalizadas. Rechaza bases ajenas, historial experimental/desconocido, migraciones fallidas o alteradas; no las repara. Sólo después ejecuta el Prisma instalado (`migrate deploy`), sin descargar otro CLI, y revalida el historial. No certifica ausencia de todo posible drift SQL manual.
+
+No hay migraciones automáticas en `up`, ni en reinicios ni al iniciar NestJS. El entrypoint API hace la misma comprobación en **modo sólo lectura**, exige cero pendientes y ejecuta `node dist/main.js`; con esquema pendiente falla y pide la inicialización explícita. El servicio `migrate` tiene perfil `tools` y no se ejecuta con el arranque habitual. `citajusta_dev` y su migración experimental de WhatsApp quedan intactos. `.dockerignore` excluye también el directorio local vacío de esa migración retirada; no elimina ni modifica el original.
+
+Bootstrap y seed permanecen separados de migraciones. No se crean instituciones, cuentas, contraseñas, roles ni agenda de negocio automáticamente. Si se necesitan estados de citas en esta base ya inicializada:
+
+```powershell
+docker compose --env-file docker/.env --profile tools run --rm migrate node apps/api/scripts/bootstrap-appointment-status.mjs
+# Después de configurar instituciones reales mediante los flujos autorizados:
+docker compose --env-file docker/.env --profile tools run --rm migrate node apps/api/scripts/bootstrap-waitlist.mjs
+```
+
+Estos comandos son explícitos e idempotentes; Waitlist sin instituciones sólo prepara estados, no inventa STANDARD global. `seed:dev`, `check:dev` y toolings Windows conservan sus restricciones de loopback/nombre de base: **no** se relajan para Docker ni se documentan como compatibles. Los fixtures E2E tampoco se reutilizan como seed ni se apuntan a `citajusta_dev`.
+
+### Comprobación y operación
+
+```powershell
+docker compose --env-file docker/.env ps
+Invoke-RestMethod http://localhost:3000/health
+Invoke-RestMethod http://127.0.0.1:8080/health
+curl.exe -I http://127.0.0.1:8080/
+curl.exe -I http://127.0.0.1:8080/mis-citas
+curl.exe -i http://127.0.0.1:8080/api/v1/users/me
+docker compose --env-file docker/.env exec -T web nginx -t
+docker compose --env-file docker/.env logs --tail=100 api web db
+```
+
+Con puertos distintos, adaptar las URLs. Esperado: ambos `/health` devuelven `{ "status": "ok" }`; HTML/SPA responde 200; `users/me` sin token devuelve **401 del backend**, no HTML. La ruta protegida `/mis-citas` sirve el shell y la autenticación se mantiene en React/API. La Web usa `/api/v1` del mismo origen mediante Nginx; preserva ruta, Authorization y Origin. No usa el proxy de Vite dev ni requiere CORS nuevo. `/health` sigue sin prefijo. El healthcheck HTTP es de vida del proceso; no sustituye las comprobaciones de DB/esquema del arranque.
+
+API y Web esperan healthchecks reales con [`service_healthy`](https://docs.docker.com/compose/how-tos/startup-order/). La API ejecuta como `node`; Nginx como `nginx`, con archivos temporales en `/tmp`. Ambos tienen filesystem de sólo lectura, capacidades retiradas y `no-new-privileges`. El runtime API contiene dependencias productivas, salida ESM/Prisma compilada y `apps/api/assets/logo-citajusta.png` en la ruta relativa utilizada por Resend V2. No se incluyen `.env`, dependencias de Windows ni cliente generado en el host.
+
+Prueba manual pendiente: registrar una cuenta controlada desde Web, comprobar acceso a los endpoints reales y volver a entrar después de detener/recrear contenedores con el mismo volumen. No registrar credenciales en evidencias. Para detener **conservando datos**:
+
+```powershell
+docker compose --env-file docker/.env stop
+# O retirar sólo contenedores/red del proyecto, conservando el volumen:
+docker compose --env-file docker/.env down
+docker compose --env-file docker/.env up -d --wait
+docker compose --env-file docker/.env --profile tools run --rm --workdir /workspace/apps/api migrate node /workspace/node_modules/prisma/build/index.js migrate status
+```
+
+Nunca añadir `-v`, borrar volúmenes, montar directorios de PostgreSQL Windows, usar `db push` o resetear. Si ya existía un volumen sin marcador/historial compatible, detenerse y revisarlo; no marcarlo manualmente ni hacerlo pasar por nuevo. Cambiar la contraseña en `.env` no cambia una contraseña ya inicializada en el volumen: restaurar la configuración local correcta o planificar una rotación explícita, sin borrar datos.
+
+Problemas comunes: daemon apagado/engine Windows en lugar de Linux; variables vacías; puerto ocupado; schema pendiente; historial/checksum incompatible; contraseña del volumen distinta; descarga de imágenes/npm sin red. Para `502` de Nginx comprobar salud API; después de recrear sólo API reiniciar Web para renovar la resolución del upstream. No compartir salida de `docker compose config` sin `--quiet` ni `docker inspect`, porque pueden incluir secretos.
+
+Validaciones locales sin Docker (dependencias del monorepo ya instaladas):
+
+```powershell
+node --test docker/test/*.test.mjs
+npm run build -w @citajusta/api
+npm run build -w @citajusta/web
+npm run prisma:validate -w @citajusta/api
+git diff --check
+```
+
+Las pruebas de `docker/test` usan filesystem/mocks de cliente y proceso: **no prueban PostgreSQL o Compose reales**. No ejecutar E2E destructivos sobre desarrollo. Limitaciones: sin TLS/despliegue productivo, secretos sólo en archivo local ignorado, usuario DB técnico con privilegios de inicialización de la imagen oficial, imágenes PG/Nginx sin digest fijado y hardening/escaneo de vulnerabilidades pendiente. Node/npm se fijan al entorno acordado (24.11.0/11.6.1); revisar actualizaciones de seguridad en una tarea autorizada. Esta entrega aporta configuración al requisito Docker de Capstone, no acredita despliegue ni cumplimiento final.
+
 
 ## Desktop
 

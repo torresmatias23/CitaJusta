@@ -28,7 +28,7 @@ Decisión de alcance del **15-10-2026**: HU-043 (WhatsApp Cloud API) fue descart
 | Persistencia | PostgreSQL y Prisma; modelos y migraciones versionadas |
 | Aplicación web | MVP integrado con API: autenticación, catálogos, disponibilidad, reserva, Mis citas, cancelación, lista de espera/preferencias (HU-021), ofertas (HU-022), notificaciones y búsqueda por fecha específica/flexible |
 | Aplicación de escritorio | Implementada con Tauri 2 + React/Vite/TypeScript: autenticación, catálogo, profesionales, agenda, disponibilidad/bloqueos, asistencia, reasignaciones, reportes y auditoría |
-| Docker | Obligatorio para Capstone, pendiente de implementación |
+| Docker | Configuración local API/Web/PostgreSQL incorporada; validación con Docker Engine pendiente |
 | Funciones críticas de citas, lista de espera y reasignación | Implementadas, con inicio automático al cancelar un cupo reutilizable (HU-025) y expiración/continuación automática (HU-023) |
 | Documentación académica | Fase 2 incorpora guías grupales, diarios individuales, Arquitectura/UML/ER, Mockups y actualizaciones Scrum; documentos pendientes de validación y evidencia del sistema por consolidar |
 
@@ -482,9 +482,13 @@ node --test apps/api/test/nager-date-holidays.test.mjs apps/api/test/availabilit
 
 ## Docker
 
-Dockerfile y Docker Compose son obligatorios para la entrega Capstone, pero todavía no existen. Su implementación y validación corresponden a una fase técnica posterior.
+Dockerfiles multietapa y `compose.yaml` incorporados para el requisito de Capstone Fase 2: API NestJS, Web compilada servida por Nginx y PostgreSQL 18 en un volumen exclusivo. Desktop permanece nativo. Node 24.11.0/npm 11.6.1 y Prisma 7.10.0 se conservan; no hay cambios de dominio ni migraciones nuevas.
 
-El Stack Tecnológico v0.2 reconoce Docker/Docker Compose como entregable obligatorio del cierre técnico. Su implementación y validación están planificadas para Sprint 9; la versión v0.1 se conserva como evidencia histórica.
+Preparación y comandos completos en [SETUP — Docker local](docs/development/SETUP.md#docker-local-para-capstone-fase-2). Requiere crear `docker/.env` desde su plantilla con secretos locales propios. Web: `http://127.0.0.1:8080`; API: `http://localhost:3000/health`. Ambos puertos son configurables y se publican sólo en loopback; PostgreSQL no se publica. La Web conserva `/api/v1` mediante proxy inverso del mismo origen, sin modificar CORS ni contratos.
+
+Las migraciones son una operación explícita del servicio `migrate`, con validación de destino, marcador de la base Docker e historial/checksums. El arranque API sólo comprueba el esquema en modo lectura y falla si faltan migraciones; nunca las aplica. No se utiliza la conexión de `apps/api/.env` ni se toca `citajusta_dev`. No se ejecutan bootstrap ni seeds automáticamente.
+
+Estado de esta entrega: configuración y pruebas estáticas/locales disponibles; **imágenes, Compose y persistencia todavía no validados**, porque Docker CLI/Desktop no está disponible en el entorno de ejecución. No acredita despliegue ni cumplimiento final. La decisión de Docker obligatorio del Stack v0.2 y la versión histórica v0.1 se conservan.
 
 ## Documentación
 

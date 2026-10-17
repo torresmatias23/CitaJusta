@@ -1,0 +1,36 @@
+.git
+.codegraph
+.codex
+.agents
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/.vite
+**/target
+**/gen
+**/src/generated
+**/.env
+**/.env.*
+**/*.log
+**/logs
+**/*.tmp
+**/*.temp
+**/*.dump
+**/*.sql.gz
+**/*.docx
+**/*.xlsx
+**/*.pdf
+Fase 1
+Fase 2
+Fase 3
+docs
+apps/api/test
+apps/web/test
+apps/desktop/src
+apps/desktop/src-tauri
+apps/desktop/public
+apps/desktop/test
+docker/test
+# Unversioned empty remnant of the withdrawn experimental migration, not part of the schema.
+apps/api/prisma/migrations/20261012193504_whatsapp_notifications_consent

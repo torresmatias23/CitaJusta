@@ -1,0 +1,105 @@
+name: citajusta-capstone
+
+x-database-environment: &database-environment
+  NODE_ENV: development
+  CITAJUSTA_DOCKER: development
+  DATABASE_URL: postgresql://citajusta:${DOCKER_DB_PASSWORD:?Completa DOCKER_DB_PASSWORD en docker/.env}@db:5432/citajusta_docker?schema=public
+  # Prisma config requires this variable, but deploy/generate do not use a shadow DB.
+  SHADOW_DATABASE_URL: postgresql://unused:unused@127.0.0.1:1/unused_shadow
+
+services:
+  db:
+    image: postgres:18-bookworm
+    environment:
+      POSTGRES_DB: citajusta_docker
+      POSTGRES_USER: citajusta
+      POSTGRES_PASSWORD: ${DOCKER_DB_PASSWORD:?Completa DOCKER_DB_PASSWORD en docker/.env}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./docker/postgres/001-identify.sql:/docker-entrypoint-initdb.d/001-identify.sql:ro
+    networks: [backend]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+      target: runtime
+    environment:
+      <<: *database-environment
+      PORT: "3000"
+      JWT_ACCESS_SECRET: ${DOCKER_JWT_ACCESS_SECRET:?Completa DOCKER_JWT_ACCESS_SECRET en docker/.env}
+      JWT_REFRESH_SECRET: ${DOCKER_JWT_REFRESH_SECRET:?Completa DOCKER_JWT_REFRESH_SECRET en docker/.env}
+      GOOGLE_AUTH_ENABLED: "false"
+      GOOGLE_CALENDAR_ENABLED: "false"
+      EMAIL_DELIVERY_ENABLED: "false"
+    ports:
+      - "127.0.0.1:${DOCKER_API_PORT:-3000}:3000"
+    networks: [backend]
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health').then(async r=>{if(!r.ok||(await r.json()).status!=='ok')process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    init: true
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+    ports:
+      - "127.0.0.1:${DOCKER_WEB_PORT:-8080}:8080"
+    networks: [backend]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:8080/index.html']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  # Explicit one-off operation; never executed by normal `up` or API startup.
+  migrate:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+      target: tooling
+    environment: *database-environment
+    networks: [backend]
+    depends_on:
+      db:
+        condition: service_healthy
+    init: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: "no"
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  postgres_data:

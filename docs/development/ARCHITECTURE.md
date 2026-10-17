@@ -19,7 +19,7 @@ Desktop Tauri 2/React --/
 
 ## Backend
 
-NestJS expone la API REST como monolito modular. El backend valida las entradas y es responsable de autenticación JWT, autorización RBAC, aislamiento institucional, reglas de agenda y lista de espera, auditoría y coordinación transaccional. Docker/Compose y la publicación OpenAPI siguen pendientes para Sprint 9. CORS es explícito y los endpoints sensibles aplican rate limiting.
+NestJS expone la API REST como monolito modular. El backend valida las entradas y es responsable de autenticación JWT, autorización RBAC, aislamiento institucional, reglas de agenda y lista de espera, auditoría y coordinación transaccional. Docker/Compose dispone de configuración local API/Web/PostgreSQL aislado, pendiente de validación con Docker Engine; OpenAPI sigue pendiente. La Web Docker usa proxy inverso del mismo origen sin modificar la configuración de CORS existente. Los endpoints sensibles conservan su rate limiting.
 
 ## Persistencia
 
