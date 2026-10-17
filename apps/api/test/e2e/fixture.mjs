@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import * as argon2 from 'argon2';
+import { assertE2EFixtureDatabase } from '../../scripts/e2e-docker-environment.mjs';
 
 export const FIXTURE_PREFIX = 'E2E_CHECKPOINT';
 export const FIXTURE_EMAIL_PREFIX = 'e2e_checkpoint+';
@@ -296,6 +297,7 @@ async function findFixtureUserIds(prisma) {
 }
 
 export async function cleanupCheckpointFixtures(prisma) {
+  await assertE2EFixtureDatabase(prisma);
   await assertFixtureOwnership(prisma);
 
   const appointments = await prisma.appointment.findMany({
@@ -429,6 +431,7 @@ function databaseTime(hour, minute = 0) {
 }
 
 export async function createCheckpointFixtures(prisma, registeredUserId) {
+  await assertE2EFixtureDatabase(prisma);
   const auxiliaryPasswordHash = await argon2.hash(randomUUID(), {
     type: argon2.argon2id,
     memoryCost: 19_456,
@@ -924,6 +927,7 @@ export async function createCheckpointFixtures(prisma, registeredUserId) {
 }
 
 export async function assertCheckpointIsClean(prisma) {
+  await assertE2EFixtureDatabase(prisma);
   for (const id of await findFixtureUserIds(prisma)) auditActorIds.add(id);
   const counts = await Promise.all([
     prisma.notification.count({ where: { OR: [{ institutionId: { in: institutionIds } }, { recipientUserId: { in: [...auditActorIds] } }] } }),

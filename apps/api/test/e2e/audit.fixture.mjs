@@ -64,10 +64,12 @@ export async function cleanupAuditFixtures(prisma) {
   await prisma.notification.deleteMany({ where: { OR: [{ institutionId: { in: institutions } }, { recipient: userScope }] } });
   await prisma.auditEvent.deleteMany({ where: { OR: [{ institutionId: { in: institutions } }, { actorUserId: { in: (await prisma.user.findMany({ where: userScope, select: { id: true } })).map((user) => user.id) } }] } });
   await prisma.authSession.deleteMany({ where: { user: userScope } });
+  await prisma.externalIdentity.deleteMany({ where: { user: userScope, provider: 'GOOGLE', providerSubject: { startsWith: FIXTURE_EMAIL_PREFIX } } });
   await prisma.user.deleteMany({ where: userScope });
 }
 
 export async function assertAuditClean(prisma) {
   assert.equal(await prisma.institution.count({ where: { id: { in: institutions } } }), 0);
   assert.equal(await prisma.user.count({ where: { email: { startsWith: FIXTURE_EMAIL_PREFIX } } }), 0);
+  assert.equal(await prisma.externalIdentity.count({ where: { provider: 'GOOGLE', providerSubject: { startsWith: FIXTURE_EMAIL_PREFIX } } }), 0);
 }

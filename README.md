@@ -419,13 +419,15 @@ Suite unitaria, aislada de PostgreSQL:
 npm run --workspace @citajusta/api test
 ```
 
-Checkpoint E2E real, separado de la suite unitaria:
+E2E PostgreSQL: usar exclusivamente el proyecto Docker `citajusta-e2e`, base `citajusta_e2e` en `127.0.0.1:15432`. Preparación y autorización de migraciones/bootstrap en [SETUP](docs/development/SETUP.md#postgresql-docker-exclusivo-para-e2e). Los 18 scripts `test:e2e:*` pasan por el runner seguro; no cargan `apps/api/.env` ni aceptan `citajusta_dev`/`citajusta_docker`. El arranque, migraciones y pruebas de escritura requieren ejecución explícita; no se han ejecutado al incorporar esta preparación.
+
+Checkpoint E2E real, separado de la suite unitaria, después de preparar esa base:
 
 ```powershell
 npm run --workspace @citajusta/api test:e2e:checkpoint
 ```
 
-El checkpoint E2E requiere PostgreSQL local accesible, esquema vigente y variables de entorno válidas. No usa mocks de Prisma ni de HTTP.
+El checkpoint E2E requiere identidad Docker verificada, esquema vigente y catálogos E2E. No usa mocks de Prisma ni de HTTP.
 
 E2E de HU-004, HU-005 y HU-006, después del bootstrap:
 
@@ -433,7 +435,7 @@ E2E de HU-004, HU-005 y HU-006, después del bootstrap:
 npm run --workspace @citajusta/api test:e2e:appointments
 ```
 
-Verifica reserva, concurrencia real y rollback mediante inyección controlada de fallo; también consulta propia, aislamiento por usuario, DTO público, ordenamiento, cancelación, historial, reintentos sin efectos y exclusión de cupos liberados de la disponibilidad pública. Ambos E2E comparten fixtures y deben ejecutarse secuencialmente sobre una base local permitida; limpian sus propios datos, incluidas cancelaciones, al finalizar.
+Verifica reserva, concurrencia real y rollback mediante inyección controlada de fallo; también consulta propia, aislamiento por usuario, DTO público, ordenamiento, cancelación, historial, reintentos sin efectos y exclusión de cupos liberados de la disponibilidad pública. Ambos E2E comparten fixtures y se ejecutan secuencialmente sobre la base Docker E2E verificada; limpian sus propios datos, incluidas cancelaciones, al finalizar.
 
 ## Integraciones externas — Sprint 8
 

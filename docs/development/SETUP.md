@@ -140,6 +140,81 @@ git diff --check
 Las pruebas de `docker/test` usan filesystem/mocks de cliente y proceso: **no prueban PostgreSQL o Compose reales**. No ejecutar E2E destructivos sobre desarrollo. Limitaciones: sin TLS/despliegue productivo, secretos sólo en archivo local ignorado, usuario DB técnico con privilegios de inicialización de la imagen oficial, imágenes PG/Nginx sin digest fijado y hardening/escaneo de vulnerabilidades pendiente. Node/npm se fijan al entorno acordado (24.11.0/11.6.1); revisar actualizaciones de seguridad en una tarea autorizada. Esta entrega aporta configuración al requisito Docker de Capstone, no acredita despliegue ni cumplimiento final.
 
 
+## PostgreSQL Docker exclusivo para E2E
+
+Preparación incorporada el 17-10-2026, **pendiente de autorización para arrancar PostgreSQL, aplicar migraciones/bootstrap y ejecutar E2E con escrituras**. Docker CLI 29.8.2 y Compose v5.6.0 están disponibles; `config --quiet` pasó sin iniciar servicios (con advertencia de acceso restringido a la configuración Docker del usuario). Las validaciones estáticas/mocks no acreditan todavía conectividad, migraciones ni limpieza reales.
+
+### Aislamiento y credenciales
+
+`docker/e2e/compose.yaml` es independiente del Compose de demostración: proyecto `citajusta-e2e`, PostgreSQL 18, usuario/base `citajusta_e2e`, red propia y volumen persistente `citajusta-e2e_postgres_data` montado en `/var/lib/postgresql`. Publica **sólo `127.0.0.1:15432`** hacia el puerto interno 5432. No comparte el volumen `citajusta-capstone_postgres_data`, no usa `citajusta_dev`, `citajusta_shadow` ni `citajusta_docker`. No alterar el nombre del proyecto, puerto o volumen mediante overrides.
+
+Desde la raíz, PowerShell:
+
+```powershell
+if (-not (Test-Path docker/e2e/.env)) { Copy-Item docker/e2e/.env.example docker/e2e/.env }
+```
+
+Completar localmente `E2E_DB_PASSWORD` con **64 caracteres hexadecimales aleatorios**, exclusivos para E2E. El archivo está ignorado; no copiar credenciales API/demo ni compartirlo en capturas. La plantilla no contiene una contraseña utilizable. El runner sólo lee esa clave de ese archivo, no hereda `DATABASE_URL`, `NODE_OPTIONS`, variables `PG*` ni credenciales de proveedores. Evitar overrides de `E2E_DB_PASSWORD` en la sesión de Compose. Cambiar el archivo después de inicializar el volumen no rota la contraseña: detenerse ante una discrepancia, no borrar el volumen.
+
+### Procedimiento Windows (sólo después de autorización)
+
+Los siguientes comandos **no forman parte de las validaciones sin base**. Iniciar únicamente el servicio dedicado:
+
+```powershell
+docker compose --project-name citajusta-e2e -f docker/e2e/compose.yaml --env-file docker/e2e/.env config --quiet
+docker compose --project-name citajusta-e2e -f docker/e2e/compose.yaml --env-file docker/e2e/.env up -d --wait db
+npm run e2e:docker -w @citajusta/api -- check
+```
+
+`check` sólo lee identidad e historial. Exige URL exacta `127.0.0.1:15432/citajusta_e2e?schema=public`, usuario E2E, `NODE_ENV=test`, PostgreSQL 18, puerto real del servidor 5432 y comentario **`citajusta-e2e-docker-v1`** obtenido mediante `shobj_description`. El comentario se crea exclusivamente al inicializar el volumen vacío. No marcar manualmente una base preexistente para eludir el guard. Un error de conexión, identidad o historial detiene la operación sin revelar la URL/contraseña.
+
+Revisar el destino y las pendientes informadas antes de autorizar cada operación de escritura:
+
+```powershell
+# Sólo migrate deploy; nunca migrate dev, reset o db push:
+npm run e2e:docker -w @citajusta/api -- migrate
+npm run e2e:docker -w @citajusta/api -- check
+# Estados de citas y Waitlist; sin instituciones, cuentas ni seed demo:
+npm run e2e:docker -w @citajusta/api -- bootstrap
+# Elegir una suite; los aliases históricos usan el mismo runner:
+npm run test:e2e:checkpoint -w @citajusta/api
+npm run test:e2e:appointments -w @citajusta/api
+npm run test:e2e:waitlist -w @citajusta/api
+# Todas las 18 suites backend, secuencialmente:
+npm run e2e:docker -w @citajusta/api -- test all
+```
+
+Suites disponibles: `checkpoint`, `agenda`, `reports`, `expiration`, `notifications`, `email-delivery`, `google`, `google-calendar`, `audit`, `attendance`, `catalog`, `professionals`, `availability-admin`, `appointments`, `waitlist`, `automatic-start`, `reassignments`, `reassignment-policy`.
+
+### Protecciones y responsabilidades
+
+- Antes de cualquier acción se verifica la identidad con consultas `READ ONLY`; el historial debe coincidir con nombres/checksums versionados, sin fallidas, revertidas, desconocidas ni huecos. Se rechaza un esquema no vacío sin historial. No es una certificación exhaustiva de ausencia de drift manual.
+- `migrate` aplica sólo las migraciones **ya versionadas y sin cambios respecto de HEAD**, con Prisma **7.10.0** instalado. Se copian a un directorio temporal propio junto al lockfile; el schema original no cambia. Así se excluye el directorio local vacío de WhatsApp sin borrarlo. La configuración temporal referencia la URL del entorno, no escribe credenciales ni carga dotenv. No se descarga otro CLI.
+- `bootstrap` reutiliza las funciones existentes de AppointmentStatus y Waitlist; prepara `AGENDADA`, `CANCELADA`, `ATENDIDA`, `INASISTENCIA`, `ACTIVE`, `WITHDRAWN`, `FULFILLED`. STANDARD sigue siendo institucional; los fixtures preparan sus propias instituciones/prioridades. No se ejecuta `seed:dev` ni se crean usuarios de desarrollo.
+- `bootstrap` y `test` requieren cero migraciones pendientes; generan Prisma y compilan API. Los procesos trabajan en un directorio temporal sin `.env`, con JWT efímeros diferentes. El helper E2E ya no carga `apps/api/.env`. Cada proceso de tests repite preflight antes de iniciar Nest; un cambio posterior de URL/modo se rechaza. Se mantienen intactos `assertSafeLocalDatabaseUrl()` y `assertFixtureOwnership()`; el fixture checkpoint verifica además la identidad del cliente Prisma recibido antes de crear/limpiar.
+- Los runners mantienen un advisory lock de sesión común durante migraciones/bootstrap/tests para evitar carreras entre ejecuciones que comparten fixtures. El cleanup conserva sus namespaces/IDs y verificaciones de residuos; no hay limpieza global. Ante un fallo de cleanup, detenerse y revisar sólo los IDs propios, nunca resetear.
+- Email, Google Auth/Calendar y expiración automática parten deshabilitados; no se heredan credenciales reales. Las suites específicas pueden activar configuración ficticia con transporte mock o controlar el runner de expiración como ya hacían. El preload bloquea `fetch` externo y redirects; las llamadas HTTP reales de pruebas sólo van a `127.0.0.1`. No equivale a un firewall de todos los sockets del host.
+- Sólo se muestran resúmenes PASS/FAIL, contadores TAP y diagnósticos acotados de fallo: índice/nivel, archivo conocido y ubicación, códigos permitidos y escalares expresamente allowlisted. No se imprimen títulos del TAP, mensajes libres, stacks, payloads ni stdout/stderr arbitrarios de Prisma/Nest. Un fallo requiere diagnóstico controlado dentro de E2E, no repetir contra desarrollo. Nunca publicar `.env`, URLs completas, tokens, passwords, `docker inspect` ni `compose config` sin `--quiet`.
+
+Para detener, conservando datos, usar únicamente:
+
+```powershell
+docker compose --project-name citajusta-e2e -f docker/e2e/compose.yaml --env-file docker/e2e/.env stop
+```
+
+No usar `down -v`, borrar volúmenes ni reutilizar el proyecto/volumen de demostración. El tooling E2E de desarrollo `reassignment-demo.e2e.test.mjs` no integra estas 18 suites: exige `development` y queda bloqueado antes de abrir su cliente, pendiente de una adaptación aislada compatible con `test`; no relajar sus guards. El E2E Web directo tampoco queda validado por esta preparación backend.
+
+### Validación sin PostgreSQL y evidencia Capstone
+
+```powershell
+node --test apps/api/test/docker-e2e-environment.test.mjs apps/api/test/docker-e2e-runner.test.mjs
+npm run build -w @citajusta/api
+npm run prisma:validate -w @citajusta/api
+git diff --check
+```
+
+Para `compose config --quiet` sin credenciales reales puede usarse una contraseña sintética sólo en el entorno del proceso, sin iniciar servicios ni crear `.env`. Mantener separados en la evidencia: validación estática, mocks, build/Prisma Validate y, **después de autorización**, salud Docker, resultado de `check`, migraciones aplicadas, contadores por suite y comprobaciones de cleanup. Registrar fecha, rama y comandos, sin secretos. No marcar E2E real ni cumplimiento Capstone final como PASS antes de ejecutarlos.
+
 ## Desktop
 
 La aplicación institucional reside en `apps/desktop`. Requiere Rust/Cargo y WebView2 además de Node/npm. Los módulos habilitados dependen del perfil, permisos y contexto autenticado; no se conectan directamente a PostgreSQL. Para validaciones manuales existen scripts de seed de desarrollo específicos (`seed:desktop-*`) que sólo deben utilizarse contra bases locales permitidas y con cuentas ACTIVE existentes cuando corresponda.
@@ -195,7 +270,7 @@ npm run dev -w @citajusta/web
 - **Bootstrap:** estados de citas; `bootstrap:waitlist` provisiona `ACTIVE`, `WITHDRAWN`, `FULFILLED` y `STANDARD` para instituciones activas existentes. Repetirlo después de añadir instituciones.
 - **Seed:** crea sólo Institución Demo CitaJusta, Sede Centro Demo, Atención General Demo (30 minutos, Waitlist habilitada), vínculo activo y reutiliza el bootstrap Waitlist para esa institución. Conserva IDs `d1000000-...-0001/0002/0003` y códigos `DEMO-CENTRO` / `DEMO-ATENCION`. No crea usuarios, roles ni agenda.
 - **Check:** transacción PostgreSQL `READ ONLY`; comprueba conexión, migraciones/checksums, catálogo demo, estados y STANDARD. Devuelve código 1 si falta preparación; no repara nada ni certifica ausencia completa de drift SQL.
-- **Fixtures E2E:** datos temporales identificados, con limpieza propia; no son seed. Actualmente usan `DATABASE_URL` y admiten bases locales dev/test/e2e. Ejecutar suites secuencialmente; la base E2E dedicada queda para fase 2.
+- **Fixtures E2E:** datos temporales identificados, con limpieza propia; no son seed. Las 18 suites backend usan exclusivamente el [runner Docker E2E verificado](#postgresql-docker-exclusivo-para-e2e), no la conexión del `.env` API. Ejecutar secuencialmente; nunca contra desarrollo/demo.
 
 Seed/check aceptan únicamente `NODE_ENV=development` (o ausente), host loopback y base `citajusta_dev` o `citajusta_dev_<sufijo alfanumérico>`. Rechazan producción, shadow y parámetros alternativos de conexión (sólo se admite `schema=public`). Verifican el nombre real de la base conectada.
 
@@ -253,7 +328,7 @@ npm run seed:reassignment-demo -w @citajusta/api -- --scenario=accept
 
 En `/ofertas`, aceptar **Atención Demo Reasignación ACCEPT** y comprobar su cita real en `/mis-citas`. El comando nunca responde automáticamente ninguna oferta. Si el TTL venció, no lo revive: detener la prueba y revisar antes de preparar otra iteración.
 
-Pruebas del tooling (secuenciales con otros E2E): `node --test apps/api/test/reassignment-demo.test.mjs` después del build, y `node --test --test-concurrency=1 apps/api/test/e2e/reassignment-demo.e2e.test.mjs`. El E2E usa una identidad temporal, elimina sólo sus dos escenarios/cuentas de test y conserva la fundación demo reutilizable. Nunca responde ofertas del usuario manual.
+Pruebas unitarias del tooling: `node --test apps/api/test/reassignment-demo.test.mjs` después del build. El E2E histórico `reassignment-demo.e2e.test.mjs` es específico de tooling `development`, fuera de las 18 suites backend del runner Docker: no ejecutarlo hasta adaptar su aislamiento en una tarea separada. No relajar sus guards ni usarlo contra la base manual.
 
 ## Validación del flujo
 

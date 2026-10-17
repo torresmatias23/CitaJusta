@@ -1,14 +1,10 @@
-import { loadEnvFile } from 'node:process';
-import { fileURLToPath } from 'node:url';
+import { assertVerifiedE2EProcess } from '../../scripts/e2e-docker-environment.mjs';
 
 export function loadApiEnvironment() {
-  try {
-    loadEnvFile(fileURLToPath(new URL('../../.env', import.meta.url)));
-  } catch (error) {
-    if (error?.code !== 'ENOENT' || !process.env.DATABASE_URL) {
-      throw new Error('E2E environment could not be loaded');
-    }
-  }
+  assertVerifiedE2EProcess();
+  // Never load apps/api/.env. Only the verified runner supplies the connection.
+  process.env.GOOGLE_AUTH_ENABLED = 'false';
+  process.env.GOOGLE_CALENDAR_ENABLED = 'false';
   // Historical suites explicitly control expired PENDING offers. Opt in after loading only in runner tests.
   process.env.OFFER_EXPIRATION_ENABLED = 'false';
   // Never call an external email provider from PostgreSQL fixtures.

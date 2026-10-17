@@ -1,0 +1,28 @@
+name: citajusta-e2e
+
+services:
+  db:
+    image: postgres:18-bookworm
+    environment:
+      POSTGRES_DB: citajusta_e2e
+      POSTGRES_USER: citajusta_e2e
+      POSTGRES_PASSWORD: ${E2E_DB_PASSWORD:?Configure docker/e2e/.env with an exclusive E2E password}
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./001-identify.sql:/docker-entrypoint-initdb.d/001-identify.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U citajusta_e2e -d citajusta_e2e"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks: [e2e]
+
+networks:
+  e2e:
+    driver: bridge
+
+volumes:
+  postgres_data:
