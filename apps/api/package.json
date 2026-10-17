@@ -7,6 +7,7 @@
     "build": "tsc -p tsconfig.build.json",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
+    "holidays:query": "npm run build && node scripts/query-chile-holidays.mjs",
     "bootstrap:appointment-status": "npm run build && node scripts/bootstrap-appointment-status.mjs",
     "bootstrap:waitlist": "npm run build && node scripts/bootstrap-waitlist.mjs",
     "seed:dev": "npm run build && node scripts/seed-development.mjs",
