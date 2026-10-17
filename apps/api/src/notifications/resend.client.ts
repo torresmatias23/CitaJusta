@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { isEmailSender } from '../config/environment.validation.js';
+import { emailLogoAttachmentSchema } from './email-logo.js';
 
 export const emailEligibleTypes = new Set([
   'APPOINTMENT_BOOKED', 'APPOINTMENT_CANCELLED', 'OFFER_CREATED',
@@ -11,6 +12,8 @@ export const emailPayloadSchema = z.object({
   to: z.tuple([z.email()]),
   subject: z.string().min(1).max(200),
   text: z.string().min(1).max(4000),
+  html: z.string().min(1).max(32_000).optional(),
+  attachments: z.array(emailLogoAttachmentSchema).length(1).optional(),
 }).strict();
 export type EmailPayload = z.infer<typeof emailPayloadSchema>;
 

@@ -3,7 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { z } from 'zod';
 import { PrismaService } from '../database/prisma.service.js';
-import { notificationContent, notificationContentSchema } from './notification-content.js';
+import { notificationContentSchema } from './notification-content.js';
+import { renderEmailContent } from './email-content.js';
 import { EmailProviderError, emailEligibleTypes, emailPayloadSchema, ResendClient, type EmailPayload } from './resend.client.js';
 
 @Injectable()
@@ -72,8 +73,8 @@ export class EmailDeliveryService {
       const institution = notification.institutionId ? await this.prisma.institution.findUnique({
         where: { id: notification.institutionId }, select: { timeZone: true },
       }) : null;
-      const rendered = notificationContent(content.data, institution?.timeZone ?? 'UTC');
-      const parsed = emailPayloadSchema.safeParse({ from: this.config.get<string>('RESEND_FROM'), to: [recipient.email], subject: rendered.title, text: rendered.message });
+      const rendered = renderEmailContent(content.data, institution?.timeZone ?? 'UTC');
+      const parsed = emailPayloadSchema.safeParse({ from: this.config.get<string>('RESEND_FROM'), to: [recipient.email], ...rendered });
       if (!parsed.success) { await finishFailure('EMAIL_CONFIGURATION_INVALID', false); return; }
       payload = parsed.data;
     }
