@@ -3,12 +3,15 @@ import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { ConfigService } from '@nestjs/config';
 import { developmentClient } from '../../scripts/development-runtime.mjs';
+import { assertVerifiedE2EProcess } from '../../scripts/e2e-docker-environment.mjs';
 import { reassignmentDemoDomain } from '../../scripts/seed-reassignment-demo.mjs';
 import { validateEnvironment } from '../../dist/config/environment.validation.js';
 import { prepareReassignmentDemo, reassignmentDemoIdentity } from '../../dist/database/reassignment-demo.js';
 import { demo } from '../../dist/database/development.js';
 
 test('local demo uses real services, isolates recipients/scenarios and resumes without duplicate effects', { timeout: 120_000 }, async (t) => {
+  // Fail closed until this development-only tooling suite has its own isolated adapter.
+  assertVerifiedE2EProcess();
   const prisma = developmentClient(); // Same local/development safeguards as CLI; never overrides NODE_ENV.
   const recipientId = randomUUID(); const foreignId = randomUUID();
   const email = `demo-tooling-test-${recipientId}@example.invalid`;

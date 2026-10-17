@@ -8,10 +8,16 @@ import { FIXTURE_EMAIL_PREFIX, ids, createAuditFixtures, cleanupAuditFixtures, a
 
 test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagination', { timeout: 120_000 }, async (t) => {
   loadApiEnvironment(); assertSafeLocalDatabaseUrl(process.env.DATABASE_URL); process.env.NODE_ENV = 'test';
-  const [{ AppModule }, { configureApplication }, { PrismaService }, { AuditService }, { actions }, { bootstrapAppointmentStatus }, { bootstrapWaitlist }] = await Promise.all([
+  // Calendar is exercised only through offline provider boundaries in the dedicated subtest.
+  const calendarOrigin = 'http://127.0.0.1:5173';
+  process.env.GOOGLE_CALENDAR_ENABLED = 'true'; process.env.GOOGLE_CLIENT_ID = 'audit-test.apps.googleusercontent.com';
+  process.env.GOOGLE_CALENDAR_CLIENT_SECRET = 'audit-test-not-a-real-secret'; process.env.GOOGLE_CALENDAR_REDIRECT_URI = calendarOrigin;
+  const [{ AppModule }, { configureApplication }, { PrismaService }, { AuditService }, { actions }, { bootstrapAppointmentStatus }, { bootstrapWaitlist },
+    { GoogleTokenVerifier }, { GoogleCalendarAdapter, GOOGLE_CALENDAR_SCOPE }] = await Promise.all([
     import('../../dist/app.module.js'), import('../../dist/app.configuration.js'), import('../../dist/database/prisma.service.js'),
     import('../../dist/audit/audit.service.js'), import('../../dist/audit/audit.schemas.js'),
     import('../../dist/database/appointment-status.bootstrap.js'), import('../../dist/database/waitlist.bootstrap.js'),
+    import('../../dist/auth/google-token.verifier.js'), import('../../dist/appointments/google-calendar.adapter.js'),
   ]);
   const app = await NestFactory.create(AppModule, { logger: false });
   let prisma;
@@ -221,6 +227,38 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
       const rows = await auditRows('OFFER_EXPIRED', offerId); assert.equal(rows.length, 1);
       assert.equal(rows[0].actorType, 'SYSTEM'); assert.equal(rows[0].actorUserId, null);
       assert.equal(rows[0].newState, 'EXPIRED'); assert.equal(rows[0].reasonCode, 'OFFER_TTL_ELAPSED');
+    });
+    await t.test('Google link and Calendar export emit real audit events with offline provider boundaries', async (t) => {
+      const credential = `audit-test-credential-${marker}`, code = `audit-test-code-${marker}`;
+      const accessToken = `audit-test-access-${marker}`, subject = `${FIXTURE_EMAIL_PREFIX}google`;
+      t.mock.method(app.get(GoogleTokenVerifier), 'verify', async (value) => {
+        assert.equal(value, credential);
+        return { subject, email: admin.credentials.email };
+      });
+      const calendar = app.get(GoogleCalendarAdapter), eventIds = new Set();
+      const exchange = t.mock.method(calendar, 'createOAuthClient', () => ({ getToken: async (input) => {
+        assert.equal(input.code, code); assert.equal(input.redirect_uri, calendarOrigin);
+        return { tokens: { access_token: accessToken, scope: GOOGLE_CALENDAR_SCOPE } };
+      } }));
+      const send = t.mock.method(calendar, 'sendEvent', async (event, token) => {
+        assert.equal(token, accessToken);
+        if (eventIds.has(event.id)) return new Response(null, { status: 409 });
+        eventIds.add(event.id); return new Response(null, { status: 201 });
+      });
+      for (let i = 0; i < 2; i++) assert.equal((await request('POST', '/auth/google/link', admin.token, { credential })).status, 204);
+      assert.equal((await auditRows('AUTH_GOOGLE_LINKED')).length, 1);
+      assert.equal(await prisma.externalIdentity.count({ where: { provider: 'GOOGLE', providerSubject: subject, userId: admin.id } }), 1);
+      const booking = await bookExtra(6);
+      for (const status of ['CREATED', 'ALREADY_EXISTS']) {
+        const result = await request('POST', `/appointments/${booking.appointmentId}/google-calendar`, source.token, { code },
+          { origin: calendarOrigin, 'x-requested-with': 'XmlHttpRequest' });
+        assert.equal(result.status, 200); assert.equal(result.body.data.status, status);
+      }
+      assert.equal(exchange.mock.calls.length, 2); assert.equal(send.mock.calls.length, 2); assert.equal(eventIds.size, 1);
+      const events = await auditRows('GOOGLE_CALENDAR_EVENT_CREATED', booking.appointmentId);
+      assert.equal(events.length, 1); assert.equal(events[0].actorUserId, source.id);
+      const rows = await prisma.auditEvent.findMany({ where: { actorUserId: { in: [admin.id, source.id] } } });
+      for (const secret of [credential, code, accessToken, subject, process.env.GOOGLE_CALENDAR_CLIENT_SECRET]) assert.ok(!JSON.stringify(rows).includes(secret));
     });
     await t.test('all specified action codes emitted with no private payloads', async () => {
       const rows = await prisma.auditEvent.findMany({ where: { OR: [{ institutionId: ids.institutionA }, { actorUserId: { in: users } }, { id: { in: anonymousEvents } }] } });
