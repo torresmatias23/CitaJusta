@@ -7,10 +7,12 @@ import { AuthorizationModule } from '../authorization/authorization.module.js';
 import { AvailabilityAdministrationController } from './availability-administration.controller.js';
 import { AvailabilityAdministrationService } from './availability-administration.service.js';
 import { AvailabilityAdministrationReadService } from './availability-administration-read.service.js';
+import { NagerDateHolidaysAdapter } from './nager-date-holidays.adapter.js';
 
 @Module({
   imports: [DatabaseModule, AuthModule, AuthorizationModule],
   controllers: [AvailabilityController, AvailabilityAdministrationController],
-  providers: [AgendaAvailabilityService, AvailabilityAdministrationService, AvailabilityAdministrationReadService],
+  providers: [AgendaAvailabilityService, AvailabilityAdministrationService, AvailabilityAdministrationReadService, NagerDateHolidaysAdapter],
+  exports: [NagerDateHolidaysAdapter],
 })
 export class AvailabilityModule {}

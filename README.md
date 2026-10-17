@@ -458,6 +458,28 @@ Cómo llegar utiliza [Google Maps URLs](https://developers.google.com/maps/docum
 Contratos aditivos: `GET /api/v1/institutions/:institutionId/branches` incorpora `latitude` y `longitude` como **number o null**, manteniendo dirección y filtros actuales. `GET /api/v1/appointments/me` amplía `branch` con `addressLine1`, `addressLine2`, `municipality`, `region`, `country`, `latitude`, `longitude`; el DTO compartido de cancelación incluye los mismos campos. Se preservan dueño autenticado, aislamiento y citas históricas. Campos de dirección ausentes se representan como null. No se cambia Prisma, endpoints, permisos, reserva/cancelación, OAuth ni Calendar.
 
 Procedimiento de comprobación manual de HU-042, ya cerrada según el estado confirmado del proyecto: iniciar API/Web, autenticar una cuenta, seleccionar una sede real y abrir Ver ubicación. Con coordenadas registradas comprobar marcador y que el parámetro `destination` de Cómo llegar coincide con ellas; sin coordenadas comprobar fallback de dirección y aviso. Desde Mis citas abrir el panel de la sede y confirmar que Google Calendar/cancelación siguen disponibles como antes. Usar una sede con datos reales previamente registrados: no inventar coordenadas ni modificar datos ajenos para demostrar la HU. En móvil comprobar ancho del mapa, teclado/foco, atribución y apertura segura; con país únicamente no debe aparecer mapa ni enlace de indicaciones.
+
+### Feriados de Chile: consulta Nager.Date
+
+Integración backend de sólo lectura mediante `NagerDateHolidaysAdapter`, disponible por DI desde `AvailabilityModule`. Usa la [API pública oficial v4](https://nagerholidays.com/api): `GET https://nagerholidays.com/api/v4/Holidays/CL/{year}` (país/año), sin credenciales ni servicio Pro. Consulta manual, sin iniciar NestJS ni conectar PostgreSQL:
+
+```powershell
+npm run holidays:query -w @citajusta/api -- 2026
+```
+
+Devuelve `{ data: [{ date, name, countryCode, nationalHoliday, subdivisionCodes, holidayTypes }] }`. `date` es una fecha civil `YYYY-MM-DD`, no un instante UTC. Conserva alcance nacional/regional y tipos `Public`, `Bank`, `School`, `Authorities`, `Optional` y `Observance`; ninguno se interpreta automáticamente como cierre. Los nombres provienen del proveedor, sin asumir `localName`. Orden determinista por fecha y contenido; elimina registros exactamente repetidos tras ordenar/deduplicar los arrays, sin fusionar eventos distintos del mismo día.
+
+Controles: año entero 1900–2100 (límite técnico, no garantía de cobertura), URL fija sin redirecciones, timeout total de 5 s, JSON de hasta 256 KiB y 1–500 registros. Valida fechas reales del año solicitado, país CL, campos obligatorios y coherencia nacional/subdivisiones; una fila inválida rechaza toda la consulta. El adaptador usa errores controlados `400` (año), `502` (rechazo HTTP/datos inválidos), `503` (red/timeout/408/429/5xx), sin exponer cuerpo externo ni stack. El comando termina con código 1 ante error. No hay reintentos automáticos, caché ni scheduler; un resultado estructuralmente válido no certifica que el proveedor publique todos los feriados legales.
+
+No agrega endpoints, permisos ni importación persistente. `Holiday` continúa siendo un bloqueo local por institución y sede opcional, aplicado al materializar disponibilidad; no reescribe cupos existentes. No se modifican feriados manuales, citas, historial, cupos `RESERVED`/`RELEASED` ni reglas de reserva, y las transacciones de agenda no llaman al proveedor. Pendiente antes de importar: aprobar tipos que cierran atención, alcance regional por sede, atribución externa/manual e idempotencia institucional (la clave actual contiene `branchId` nullable), y tratamiento autorizado de cupos ya materializados. No se decide esa política desde este adaptador ni se acredita cumplimiento de las cinco APIs.
+
+Pruebas HTTP simuladas y regresión de disponibilidad, sin PostgreSQL:
+
+```powershell
+npm run build -w @citajusta/api
+node --test apps/api/test/nager-date-holidays.test.mjs apps/api/test/availability-administration.test.mjs
+```
+
 ## Docker
 
 Dockerfile y Docker Compose son obligatorios para la entrega Capstone, pero todavía no existen. Su implementación y validación corresponden a una fase técnica posterior.

@@ -112,6 +112,18 @@ test('HU-014 new availability respects existing schedule blocks and holidays', a
   tx.holiday.findMany.mock.mockImplementation(async () => [{ blocksEntireDay: true }]);
   assert.ok((await service.create(input, context)).data.slots.every((slot) => slot.status === 'BLOCKED'));
 });
+test('manual partial holidays retain institution/branch scope and require no external provider', async (t) => {
+  const { service, tx, record } = fixture();
+  const fetch = t.mock.method(globalThis, 'fetch', () => assert.fail('Materialization must not call an external provider'));
+  tx.holiday.findMany.mock.mockImplementation(async () => [{ blocksEntireDay: false,
+    startTime: new Date('1970-01-01T12:30:00Z'), endTime: new Date('1970-01-01T13:00:00Z') }]);
+  assert.deepEqual((await service.create(input, context)).data.slots.map((slot) => slot.status), ['AVAILABLE', 'BLOCKED']);
+  assert.deepEqual(tx.holiday.findMany.mock.calls[0].arguments[0].where, {
+    institutionId: context.institutionId, date: record.date,
+    OR: [{ branchId: null }, { branchId: input.branchId }],
+  });
+  assert.equal(fetch.mock.callCount(), 0);
+});
 test('HU-014 update retires unused slots with optimistic concurrency and regenerates atomically', async () => {
   const { service, tx, record } = fixture();
   tx.agendaSlot.findMany.mock.mockImplementation(async () => [oldSlot]);
