@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "provision:institution-admin": "npm run build && node scripts/provision-institution-administrator.mjs",
+    "test:e2e:institutions": "node scripts/e2e-docker.mjs test institutions",
     "build": "tsc -p tsconfig.build.json",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",

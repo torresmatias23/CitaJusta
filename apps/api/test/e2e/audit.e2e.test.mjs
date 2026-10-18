@@ -23,6 +23,8 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
   let prisma;
   const users = []; const permissions = []; const appointmentStatusIds = []; const waitlistStatusIds = []; const anonymousEvents = [];
   const marker = randomUUID();
+  const rf005Institutions = [];
+  let rf005RoleId, rf005GrantId;
   try {
     configureApplication(app); await app.listen(getE2ePort(), '127.0.0.1'); prisma = app.get(PrismaService);
     const base = `http://127.0.0.1:${app.getHttpServer().address().port}/api/v1`;
@@ -260,6 +262,22 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
       const rows = await prisma.auditEvent.findMany({ where: { actorUserId: { in: [admin.id, source.id] } } });
       for (const secret of [credential, code, accessToken, subject, process.env.GOOGLE_CALENDAR_CLIENT_SECRET]) assert.ok(!JSON.stringify(rows).includes(secret));
     });
+    await t.test('RF005 institution creation/update and explicit GLOBAL provisioning emit real audit events', async () => {
+      const { institutionAdministratorRole, provisionInstitutionAdministrator } = await import('../../dist/database/institution-administrator.js');
+      assert.equal(await prisma.role.count({ where: { OR: [{ id: institutionAdministratorRole.id }, { code: institutionAdministratorRole.code }] } }), 0,
+        'RF005 dedicated role already exists; review fixture ownership');
+      const before = await prisma.permission.findMany({ where: { module: 'institutions' }, select: { id: true } });
+      const result = await prisma.$transaction(tx => provisionInstitutionAdministrator(tx, { userId: admin.id, email: admin.credentials.email }), { isolationLevel: 'Serializable' });
+      rf005RoleId = institutionAdministratorRole.id; rf005GrantId = result.grantId;
+      permissions.push(...(await prisma.permission.findMany({ where: { module: 'institutions' }, select: { id: true } })).filter(row => !before.some(old => old.id === row.id)).map(row => row.id));
+      const event = await prisma.auditEvent.findFirst({ where: { actionCode: 'INSTITUTION_ADMINISTRATOR_PROVISIONED', resourceId: result.grantId } });
+      assert.ok(event); anonymousEvents.push(event.id);
+      const created = await request('POST', '/institutions', admin.token, { name: `E2E Audit RF005 ${marker}` });
+      assert.equal(created.status, 201); rf005Institutions.push(created.body.data.id);
+      assert.equal((await request('PATCH', `/institutions/${created.body.data.id}`, admin.token, { legalName: 'Audit RF005' })).status, 200);
+      assert.equal((await auditRows('INSTITUTION_CREATED', created.body.data.id)).length, 1);
+      assert.equal((await auditRows('INSTITUTION_UPDATED', created.body.data.id)).length, 1);
+    });
     await t.test('all specified action codes emitted with no private payloads', async () => {
       const rows = await prisma.auditEvent.findMany({ where: { OR: [{ institutionId: ids.institutionA }, { actorUserId: { in: users } }, { id: { in: anonymousEvents } }] } });
       const emitted = new Set(rows.map((row) => row.actionCode));
@@ -282,7 +300,18 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
         await prisma.waitlistEntry.deleteMany({ where: entry });
         await prisma.priority.deleteMany({ where: { institutionId: ids.institutionA } });
         await prisma.auditEvent.deleteMany({ where: { OR: [{ id: { in: anonymousEvents } }, { resourceId: marker }] } });
+        if (rf005RoleId) {
+          const ownedRole = await prisma.role.findUnique({ where: { id: rf005RoleId } });
+          assert.equal(ownedRole.code, 'INSTITUTION_PLATFORM_ADMINISTRATOR');
+          const grants = await prisma.userRole.findMany({ where: { roleId: rf005RoleId } });
+          assert.ok(grants.every(row => row.id === rf005GrantId && row.userId === users[0]));
+          await prisma.userRole.deleteMany({ where: { id: rf005GrantId, roleId: rf005RoleId } });
+          await prisma.rolePermission.deleteMany({ where: { roleId: rf005RoleId } });
+          await prisma.role.delete({ where: { id: rf005RoleId } });
+        }
         await cleanupAuditFixtures(prisma);
+        await prisma.institution.deleteMany({ where: { id: { in: rf005Institutions }, name: `E2E Audit RF005 ${marker}` } });
+        assert.equal(await prisma.institution.count({ where: { id: { in: rf005Institutions } } }), 0);
         await prisma.permission.deleteMany({ where: { id: { in: permissions } } });
         await prisma.appointmentStatus.deleteMany({ where: { id: { in: appointmentStatusIds } } });
         await prisma.waitlistStatus.deleteMany({ where: { id: { in: waitlistStatusIds } } });

@@ -11,6 +11,7 @@ const root = fileURLToPath(new URL('../../../', import.meta.url));
 const api = join(root, 'apps/api');
 const prismaCli = join(root, 'node_modules/prisma/build/index.js');
 export const suites = Object.freeze({
+  institutions: 'institutions',
   checkpoint: 'backend-checkpoint', agenda: 'agenda', reports: 'reports', expiration: 'offer-expiration',
   notifications: 'notifications', 'email-delivery': 'email-delivery', google: 'google-auth',
   'google-calendar': 'google-calendar', audit: 'audit', attendance: 'attendance', catalog: 'catalog-administration',
