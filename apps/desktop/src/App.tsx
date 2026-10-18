@@ -9,6 +9,7 @@ import { AttendancePage } from "./attendance/attendance-page";
 import { ReassignmentPage } from './reassignments/reassignment-page';
 import { ReportsPage } from './reports/reports-page';
 import { AuditPage } from './audit/audit-page';
+import { InstitutionsPage } from './institutions/institutions-page';
 
 import { InstitutionalNavigation } from './components/institutional-navigation';
 import type { ModuleName } from './components/institutional-navigation';
@@ -48,11 +49,11 @@ function InstitutionalShell() {
         </div>
       </header>
       <div className="workspace">
-        <InstitutionalNavigation selected={selected} onSelect={setSelected} />
+        <InstitutionalNavigation selected={selected} onSelect={setSelected} canRequestInstitutions={auth.user?.permissions.includes('institutions.read')} />
         <main id="content" tabIndex={-1}>
           <p className="eyebrow">Gestión institucional</p>
           <h1>{selected}</h1>
-          {selected === 'Sedes y servicios' ? <CatalogPage /> : selected === 'Profesionales' ? <ProfessionalPage /> : selected === 'Agenda' ? <AgendaSection /> : selected === 'Asistencia' ? <AttendancePage /> : selected === 'Reasignaciones' ? <ReassignmentPage /> : selected === 'Reportes' ? <ReportsPage /> : selected === 'Auditoría' ? <AuditPage /> : selected === 'Inicio' ? <InstitutionalHome firstName={auth.user?.firstName} hasContext={Boolean(auth.user?.context.institutionId)} onSelect={setSelected} /> : <section className="welcome-card" aria-labelledby="welcome-title">
+          {selected === 'Instituciones' ? <InstitutionsPage /> : selected === 'Sedes y servicios' ? <CatalogPage /> : selected === 'Profesionales' ? <ProfessionalPage /> : selected === 'Agenda' ? <AgendaSection /> : selected === 'Asistencia' ? <AttendancePage /> : selected === 'Reasignaciones' ? <ReassignmentPage /> : selected === 'Reportes' ? <ReportsPage /> : selected === 'Auditoría' ? <AuditPage /> : selected === 'Inicio' ? <InstitutionalHome firstName={auth.user?.firstName} hasContext={Boolean(auth.user?.context.institutionId)} onSelect={setSelected} /> : <section className="welcome-card" aria-labelledby="welcome-title">
             <span className="stage">En preparación</span>
             <h2 id="welcome-title">Un espacio para la gestión de tu institución</h2>
             <p>Los módulos institucionales se incorporarán progresivamente.

@@ -4,10 +4,13 @@ export const navigation = [
   { label: 'Operación', items: ['Agenda', 'Asistencia', 'Reasignaciones'] },
   { label: 'Análisis', items: ['Reportes', 'Auditoría'] },
 ] as const;
-export type ModuleName = typeof navigation[number]['items'][number];
+export type ModuleName = typeof navigation[number]['items'][number] | 'Instituciones';
 
-export function InstitutionalNavigation({ selected, onSelect }: { selected: ModuleName; onSelect: (module: ModuleName) => void }) {
+export function InstitutionalNavigation({ selected, onSelect, canRequestInstitutions = false }: { selected: ModuleName; onSelect: (module: ModuleName) => void; canRequestInstitutions?: boolean }) {
   return <nav className="sidebar" aria-label="Módulos institucionales">
+    {canRequestInstitutions && <div className="nav-group"><p className="eyebrow">Administración general</p><ul><li>
+      <button type="button" aria-pressed={selected === 'Instituciones'} onClick={() => onSelect('Instituciones')}>Instituciones</button>
+    </li></ul></div>}
     {navigation.map(group => <div className="nav-group" key={group.label}>
       <p className="eyebrow">{group.label}</p>
       <ul>{group.items.map(module => <li key={module}>

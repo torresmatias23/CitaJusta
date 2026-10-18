@@ -1,5 +1,11 @@
 # CitaJusta Desktop
 
+## RF-005 — Administración general de instituciones
+
+Área separada **Administración general → Instituciones** para consultar, registrar y editar instituciones. La navegación requiere `institutions.read`; los formularios sólo se habilitan después de que `GET /api/v1/institutions/administration` verifica una asignación GLOBAL vigente y devuelve capacidades. POST/PATCH usan los permisos explícitos `institutions.create/update`, sin contexto de sede/institución y sin reenvío automático de escrituras tras refresh. La API revalida los grants en cada operación.
+
+No administra roles, no concede privilegios desde el cliente, no cambia estados institucionales ni zonas horarias existentes y no elimina datos. Los administradores institucionales conservan únicamente sus capacidades anteriores. El rol general no obtiene permisos de los demás módulos. Provisión persistente e instrucciones de autorización en [SETUP](../../docs/development/SETUP.md#administrador-general-de-instituciones-rf-005).
+
 ## HU-036 — Supervisión de reasignaciones
 
 Operación → Reasignaciones consulta exclusivamente `GET /api/v1/reassignments/:id`.

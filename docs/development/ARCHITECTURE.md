@@ -1,5 +1,15 @@
 # Arquitectura de CitaJusta
 
+## Administración general de instituciones (RF-005)
+
+El Administrador general de instituciones es una autoridad de plataforma limitada, no un superusuario. Su rol dedicado GLOBAL contiene únicamente `institutions.read/create/update`; no concede acceso implícito a catálogo institucional, citas, reportes o auditoría. La autoridad persiste mediante Role, Permission, RolePermission y UserRole. No se concede desde registro, login ni parámetros HTTP.
+
+Los nuevos endpoints administrativos reutilizan AccessTokenGuard, AuthorizationContextGuard y PermissionsGuard. El servicio revalida usuario ACTIVE, vigencia y permiso en asignaciones GLOBAL no contextualizadas; no combina permisos INSTITUTION/BRANCH con otro rol GLOBAL. Rechaza contexto institucional/sede en estas operaciones. El catálogo GET autenticado anterior permanece compatible.
+
+Alta/edición y auditoría se confirman en la misma transacción Serializable, con un reintento completo sólo ante conflictos reconocidos. Sin tablas, migraciones ni cambios en reasignación. Estados y zona horaria de instituciones existentes no se modifican; esa semántica queda fuera de este incremento. Desktop separa el área general y sólo muestra formularios tras verificar capacidades con la API.
+
+La provisión inicial es un procedimiento administrativo explícito (`provision:institution-admin`), nunca parte del startup ni de Docker: cuenta existente ACTIVE verificada por email/UUID y destino local confirmado. Conserva roles/grants ajenos, rechaza configuración incompatible y registra `INSTITUTION_ADMINISTRATOR_PROVISIONED` como SYSTEM con referencia a UserRole. El wrapper sólo admite desarrollo local; habilitar DEMO/producción requiere otro procedimiento de destino aprobado, sin relajar protecciones.
+
 ## Resumen técnico
 
 CitaJusta es un monorepo con npm workspaces. Web y Desktop consumen una única API REST. El backend es un monolito modular y concentra las reglas de negocio; PostgreSQL es la fuente persistente de verdad y Prisma la capa de acceso a datos.

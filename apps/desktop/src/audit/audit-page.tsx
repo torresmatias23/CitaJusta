@@ -11,6 +11,8 @@ import type { AuditState } from './audit-model';
 const actionLabels: Record<typeof auditActions[number], string> = {
   AUTH_LOGIN_SUCCESS: 'Inicio de sesión exitoso', AUTH_LOGIN_FAILURE: 'Inicio de sesión fallido', AUTH_LOGOUT: 'Cierre de sesión', AUTH_GOOGLE_LINKED: 'Cuenta Google vinculada',
   GOOGLE_CALENDAR_EVENT_CREATED: 'Cita agregada a Google Calendar',
+  INSTITUTION_CREATED: 'Institución registrada', INSTITUTION_UPDATED: 'Institución actualizada',
+  INSTITUTION_ADMINISTRATOR_PROVISIONED: 'Administrador general provisionado',
   APPOINTMENT_CREATED: 'Cita creada', APPOINTMENT_CANCELLED: 'Cita cancelada', ATTENDANCE_RECORDED: 'Asistencia registrada', NO_SHOW_RECORDED: 'Inasistencia registrada',
   OFFER_CREATED: 'Oferta creada', OFFER_ACCEPTED: 'Oferta aceptada', OFFER_REJECTED: 'Oferta rechazada', OFFER_EXPIRED: 'Oferta expirada',
   REASSIGNMENT_STARTED: 'Reasignación iniciada', REASSIGNMENT_COMPLETED: 'Reasignación completada', REASSIGNMENT_EXHAUSTED: 'Reasignación agotada',

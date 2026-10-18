@@ -44,6 +44,20 @@ Decisión de alcance del **15-10-2026**: HU-043 (WhatsApp Cloud API) fue descart
 
 ## Arquitectura resumida
 
+### RF-005: administración general de instituciones
+
+La administración de plataforma está separada del catálogo autenticado y de la administración institucional. El rol dedicado `INSTITUTION_PLATFORM_ADMINISTRATOR` tiene ámbito `GLOBAL` y sólo `institutions.read`, `institutions.create` e `institutions.update`. GLOBAL no implica acceso a otros módulos. Un permiso en un rol INSTITUTION/BRANCH no autoriza estas operaciones, ni puede combinarse con un rol GLOBAL sin ese permiso.
+
+- `GET /api/v1/institutions/administration`: requiere `institutions.read` en una asignación GLOBAL activa, sin institución/sede. Incluye instituciones no eliminadas y capacidades de creación/edición verificadas por backend.
+- `POST /api/v1/institutions`: requiere `institutions.create`; nombre obligatorio, razón social, identificador tributario único opcional, contacto y zona horaria IANA opcionales. Estado inicial interno ACTIVE; zona predeterminada America/Santiago.
+- `PATCH /api/v1/institutions/:institutionId`: requiere `institutions.update`; permite nombre, razón social, identificador tributario y contacto. No acepta estado, zona horaria, actor, grants ni privilegios. No elimina instituciones ni altera agendas existentes.
+- Las operaciones administrativas no envían contexto `x-institution-id`/`x-branch-id`; un contexto seleccionado en el request se rechaza. Los GET de catálogo existentes conservan sus contratos y autenticación.
+- Escrituras Serializable, un reintento sólo para conflicto transaccional reconocido, UNIQUE existente y auditoría atómica `INSTITUTION_CREATED`/`INSTITUTION_UPDATED`. Respuestas controladas: 201/200, 400, 401, 403, 404, 409 o 500 sanitizado.
+
+Desktop incorpora un área separada **Administración general → Instituciones**, con listado, registro y edición. El acceso de navegación requiere el permiso de lectura; los formularios sólo aparecen después de que la API verifica el ámbito GLOBAL y devuelve capacidades. No se conceden privilegios desde la interfaz.
+
+La provisión inicial es manual y persistente en PostgreSQL: `npm run provision:institution-admin -w @citajusta/api`. Exige una cuenta ACTIVE existente confirmada por email y UUID, destino local de desarrollo confirmado y configuración compatible. No crea cuentas ni modifica contraseñas, roles ajenos o grants existentes; no se ejecuta al arrancar API/Docker. Instrucciones y límites en [SETUP](docs/development/SETUP.md#administrador-general-de-instituciones-rf-005). No ejecutar en DEV/DEMO sin autorización explícita; no está habilitada para DEMO/producción. El E2E `test:e2e:institutions` utiliza exclusivamente el runner Docker aislado.
+
 ```text
 Web React/Vite ---------------------\
                                       > API REST NestJS -> Prisma 7.10.0 -> PostgreSQL
@@ -419,7 +433,7 @@ Suite unitaria, aislada de PostgreSQL:
 npm run --workspace @citajusta/api test
 ```
 
-E2E PostgreSQL: usar exclusivamente el proyecto Docker `citajusta-e2e`, base `citajusta_e2e` en `127.0.0.1:15432`. Preparación y autorización de migraciones/bootstrap en [SETUP](docs/development/SETUP.md#postgresql-docker-exclusivo-para-e2e). Los 18 scripts `test:e2e:*` pasan por el runner seguro; no cargan `apps/api/.env` ni aceptan `citajusta_dev`/`citajusta_docker`. El arranque, migraciones y pruebas de escritura requieren ejecución explícita; no se han ejecutado al incorporar esta preparación.
+E2E PostgreSQL: usar exclusivamente el proyecto Docker `citajusta-e2e`, base `citajusta_e2e` en `127.0.0.1:15432`. Preparación y autorización de migraciones/bootstrap en [SETUP](docs/development/SETUP.md#postgresql-docker-exclusivo-para-e2e). Los 19 scripts `test:e2e:*` (incluido RF-005 Institutions) pasan por el runner seguro; no cargan `apps/api/.env` ni aceptan `citajusta_dev`/`citajusta_docker`. El arranque, migraciones y pruebas de escritura requieren ejecución explícita; el antecedente de preparación sin ejecución se conserva como histórico.
 
 Checkpoint E2E real, separado de la suite unitaria, después de preparar esa base:
 

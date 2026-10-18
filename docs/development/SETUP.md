@@ -1,5 +1,28 @@
 # Entorno y preparación local
 
+## Administrador general de instituciones RF-005
+
+Procedimiento manual para una cuenta ACTIVE previamente registrada y no eliminada. No se crean cuentas ni se cambian contraseñas. Requiere autorización explícita del propietario de la base y acceso administrativo al entorno; no se ejecuta automáticamente ni se invoca desde HTTP.
+
+Este wrapper sólo acepta `NODE_ENV=development`, PostgreSQL 18 en loopback y base `citajusta_dev` o `citajusta_dev_<sufijo>`, según las protecciones existentes. Confirma el nombre real con una consulta antes de escribir. No admite `citajusta_docker`, E2E ni producción. Si desarrollo conserva la migración experimental retirada, **detenerse**: no usar este procedimiento para reconciliarla; revisar la decisión de reconciliación y preparar un destino limpio autorizado.
+
+Después de comprobar el destino e historial compatible, configurar en una sesión PowerShell privada (valores reales sólo locales):
+
+```powershell
+$env:NODE_ENV = 'development'
+# Configurar DATABASE_URL de la base local aprobada en esta sesión; no imprimirla.
+$env:INSTITUTION_ADMIN_CONFIRM_DATABASE = '<nombre exacto de la base aprobada>'
+$env:INSTITUTION_ADMIN_EMAIL = '<correo de la cuenta existente>'
+$env:INSTITUTION_ADMIN_USER_ID = '<UUID verificado de esa misma cuenta>'
+npm run provision:institution-admin -w @citajusta/api
+```
+
+El script exige DATABASE_URL y confirmación explícitas antes de abrir el cliente. El rol `INSTITUTION_PLATFORM_ADMINISTRATOR` es GLOBAL y contiene exactamente `institutions.read`, `institutions.create`, `institutions.update`; UserRole usa institutionId/branchId nulos. Reejecutar con configuración compatible no duplica filas, no cambia timestamps ni crea otro evento. Un registro incompatible se rechaza, no se repara ni reactiva. Una nueva asignación o reparación de enlaces ausentes se audita atómicamente como SYSTEM, referenciada por el UUID de la asignación mostrado en consola; puede verificarse mediante el mecanismo de auditoría con autorización independiente. No se imprimen credenciales.
+
+Cerrar esa sesión PowerShell al terminar. Iniciar sesión nuevamente en Desktop y abrir **Administración general → Instituciones**. El listado administrativo devuelve capacidades verificadas; registro y edición requieren GLOBAL más su permiso específico. No se requiere seleccionar institución/sede para esta área. No asignar el rol a cuentas públicas automáticamente.
+
+Validación automatizada aislada: `npm run e2e:docker -w @citajusta/api -- check` y después `npm run test:e2e:institutions -w @citajusta/api`. La suite verifica identidad Docker antes de crear fixtures y sólo limpia sus registros. No ejecutar este procedimiento de provisión sobre bases de uso normal como parte de las pruebas.
+
 ## Estado actual
 
 Al 04-10-2026, el MVP Web permanece funcional y `apps/desktop` está implementado con Tauri 2 + React/Vite/TypeScript hasta HU-038. Sprint 7 está cerrado. Sprint 8 corresponde a integraciones externas HU-039 a HU-043; Docker/Compose, OpenAPI y hardening siguen pendientes para Sprint 9.
@@ -180,7 +203,7 @@ npm run e2e:docker -w @citajusta/api -- bootstrap
 npm run test:e2e:checkpoint -w @citajusta/api
 npm run test:e2e:appointments -w @citajusta/api
 npm run test:e2e:waitlist -w @citajusta/api
-# Todas las 18 suites backend, secuencialmente:
+# Todas las 19 suites backend (incluido RF-005), secuencialmente:
 npm run e2e:docker -w @citajusta/api -- test all
 ```
 
@@ -202,7 +225,7 @@ Para detener, conservando datos, usar únicamente:
 docker compose --project-name citajusta-e2e -f docker/e2e/compose.yaml --env-file docker/e2e/.env stop
 ```
 
-No usar `down -v`, borrar volúmenes ni reutilizar el proyecto/volumen de demostración. El tooling E2E de desarrollo `reassignment-demo.e2e.test.mjs` no integra estas 18 suites: exige `development` y queda bloqueado antes de abrir su cliente, pendiente de una adaptación aislada compatible con `test`; no relajar sus guards. El E2E Web directo tampoco queda validado por esta preparación backend.
+No usar `down -v`, borrar volúmenes ni reutilizar el proyecto/volumen de demostración. El tooling E2E de desarrollo `reassignment-demo.e2e.test.mjs` no integra estas 19 suites: exige `development` y queda bloqueado antes de abrir su cliente, pendiente de una adaptación aislada compatible con `test`; no relajar sus guards. El E2E Web directo tampoco queda validado por esta preparación backend.
 
 ### Validación sin PostgreSQL y evidencia Capstone
 
@@ -270,7 +293,7 @@ npm run dev -w @citajusta/web
 - **Bootstrap:** estados de citas; `bootstrap:waitlist` provisiona `ACTIVE`, `WITHDRAWN`, `FULFILLED` y `STANDARD` para instituciones activas existentes. Repetirlo después de añadir instituciones.
 - **Seed:** crea sólo Institución Demo CitaJusta, Sede Centro Demo, Atención General Demo (30 minutos, Waitlist habilitada), vínculo activo y reutiliza el bootstrap Waitlist para esa institución. Conserva IDs `d1000000-...-0001/0002/0003` y códigos `DEMO-CENTRO` / `DEMO-ATENCION`. No crea usuarios, roles ni agenda.
 - **Check:** transacción PostgreSQL `READ ONLY`; comprueba conexión, migraciones/checksums, catálogo demo, estados y STANDARD. Devuelve código 1 si falta preparación; no repara nada ni certifica ausencia completa de drift SQL.
-- **Fixtures E2E:** datos temporales identificados, con limpieza propia; no son seed. Las 18 suites backend usan exclusivamente el [runner Docker E2E verificado](#postgresql-docker-exclusivo-para-e2e), no la conexión del `.env` API. Ejecutar secuencialmente; nunca contra desarrollo/demo.
+- **Fixtures E2E:** datos temporales identificados, con limpieza propia; no son seed. Las 19 suites backend usan exclusivamente el [runner Docker E2E verificado](#postgresql-docker-exclusivo-para-e2e), no la conexión del `.env` API. Ejecutar secuencialmente; nunca contra desarrollo/demo.
 
 Seed/check aceptan únicamente `NODE_ENV=development` (o ausente), host loopback y base `citajusta_dev` o `citajusta_dev_<sufijo alfanumérico>`. Rechazan producción, shadow y parámetros alternativos de conexión (sólo se admite `schema=public`). Verifican el nombre real de la base conectada.
 
@@ -328,7 +351,7 @@ npm run seed:reassignment-demo -w @citajusta/api -- --scenario=accept
 
 En `/ofertas`, aceptar **Atención Demo Reasignación ACCEPT** y comprobar su cita real en `/mis-citas`. El comando nunca responde automáticamente ninguna oferta. Si el TTL venció, no lo revive: detener la prueba y revisar antes de preparar otra iteración.
 
-Pruebas unitarias del tooling: `node --test apps/api/test/reassignment-demo.test.mjs` después del build. El E2E histórico `reassignment-demo.e2e.test.mjs` es específico de tooling `development`, fuera de las 18 suites backend del runner Docker: no ejecutarlo hasta adaptar su aislamiento en una tarea separada. No relajar sus guards ni usarlo contra la base manual.
+Pruebas unitarias del tooling: `node --test apps/api/test/reassignment-demo.test.mjs` después del build. El E2E histórico `reassignment-demo.e2e.test.mjs` es específico de tooling `development`, fuera de las 19 suites backend del runner Docker: no ejecutarlo hasta adaptar su aislamiento en una tarea separada. No relajar sus guards ni usarlo contra la base manual.
 
 ## Validación del flujo
 
