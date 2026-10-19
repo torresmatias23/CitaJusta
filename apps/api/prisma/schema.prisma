@@ -272,6 +272,7 @@ model User {
   reassignmentCandidates  ReassignmentCandidate[]
   respondedOffers         AppointmentOffer[]      @relation("AppointmentOfferRespondedByUser")
   authSessions            AuthSession[]
+  accountRecoveries       AccountRecovery[]
   externalIdentities      ExternalIdentity[]
   notifications           Notification[]
   createdReassignmentPolicies ReassignmentPolicy[]
@@ -279,6 +280,44 @@ model User {
   @@index([status])
   @@index([lastNames, firstNames])
   @@map("usuarios")
+}
+
+model AccountRecovery {
+  id                String @id @db.Uuid
+  userId            String @map("usuario_id") @db.Uuid
+  tokenHash         String @unique @map("token_hash") @db.VarChar(64)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(3)
+  expiresAt         DateTime @map("expira_at") @db.Timestamp(3)
+  consumedAt        DateTime? @map("consumida_at") @db.Timestamp(3)
+  invalidatedAt     DateTime? @map("invalidada_at") @db.Timestamp(3)
+  ciphertext        Bytes? @map("contenido_cifrado")
+  keyId             String? @map("clave_id") @db.VarChar(40)
+  nonce             Bytes? @map("nonce")
+  authTag           Bytes? @map("tag")
+  deliveryStatus    EmailDeliveryStatus @default(PENDING) @map("estado_entrega")
+  attemptCount      Int @default(0) @map("intentos")
+  nextAttemptAt     DateTime @default(now()) @map("proximo_intento_at") @db.Timestamp(3)
+  lockedUntil       DateTime? @map("bloqueada_hasta") @db.Timestamp(3)
+  claimToken        String? @map("token_reclamo") @db.Uuid
+  providerMessageId String? @map("proveedor_mensaje_id") @db.VarChar(100)
+  lastErrorCode     String? @map("ultimo_error_codigo") @db.VarChar(80)
+  user              User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId])
+  @@index([deliveryStatus, nextAttemptAt, id])
+  @@index([expiresAt])
+  @@map("recuperaciones_cuenta")
+}
+
+model AccountRecoveryLimit {
+  emailHmac       String @id @map("email_hmac") @db.VarChar(64)
+  windowStartedAt DateTime @map("ventana_inicio_at") @db.Timestamp(3)
+  requestCount    Int @map("solicitudes")
+  lastAcceptedAt  DateTime @map("ultima_admitida_at") @db.Timestamp(3)
+  expiresAt       DateTime @map("expira_at") @db.Timestamp(3)
+
+  @@index([expiresAt])
+  @@map("limites_recuperacion_cuenta")
 }
 
 model Role {

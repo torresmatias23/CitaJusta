@@ -12,6 +12,45 @@ La provisión inicial es un procedimiento administrativo explícito (`provision:
 
 ## Resumen técnico
 
+### Recuperación de cuenta (RF-003)
+
+Auth incorpora un módulo explícito de recuperación sin trasladar autoridad a los clientes.
+`recuperaciones_cuenta` contiene el hash SHA-256 de un token opaco aleatorio de 256 bits,
+vigencia, consumo e invalidación, y una entrega cifrada AES-256-GCM con nonce aleatorio,
+tag, key ID y AAD ligada al UUID. No utiliza los payloads JSON en claro de notificaciones.
+El hash único y un índice único parcial por usuario protegen una sola recuperación
+abierta; una solicitud admitida invalida la anterior en la misma transacción.
+`limites_recuperacion_cuenta` usa HMAC de correo normalizado, con ventana/contador e
+intervalo persistentes, también para cuentas inexistentes. No agrega datos de dominio.
+
+Solicitud y reset usan transacciones Serializable con hasta tres intentos sólo ante
+conflictos reconocidos. El reset consume condicionalmente, cambia Argon2id, invalida otras
+recuperaciones, revoca todas las sesiones previas y audita atómicamente. El login local
+revalida el hash verificado dentro de su transacción de creación de sesión; una verificación
+previa al reset no puede crear posteriormente una sesión con la contraseña antigua.
+AccessTokenGuard comprueba también propiedad, vigencia y revocación de `AuthSession.sid`.
+
+El ciclo de email existente procesa también esta entrega durable utilizando ResendClient:
+claim/lease y comprobación de vigencia antes del envío, HTTP fuera de transacción y
+payload cifrado congelado con clave de idempotencia estable por recuperación. Se elimina
+el material cifrado al enviar, consumir, invalidar, agotar reintentos o procesar su expiración.
+Reinicios retoman leases vencidos; una confirmación incierta reintenta el mismo contenido,
+nunca después del plazo del enlace ni de la ventana de idempotencia del proveedor.
+El mismo runner ejecuta limpieza acotada al arrancar y entre ciclos de
+`EMAIL_DELIVERY_INTERVAL_MS`, aunque recuperación o envío estén deshabilitados.
+Elimina material cifrado vencido y límites vencidos tras el cooldown, sin borrar las
+filas de recuperación ni su trazabilidad. No necesita claves criptográficas ni Resend.
+Ambas banderas deben estar activas para enviar; expiración y uso único del reset no cambian.
+
+La respuesta pública no distingue inexistencia, inactividad, identidad Google-only o límite.
+Sólo ACTIVE con credencial Argon2id local recuperable es elegible, incluso si está vinculada
+a Google. No se modifican identidades, roles ni grants. Auditoría registra únicamente códigos
+`ACCOUNT_RECOVERY_REQUESTED` / `ACCOUNT_PASSWORD_RESET` y referencias mínimas; Desktop
+reconoce esos códigos sin incorporar un flujo propio de recuperación.
+Web recibe el token por fragmento, lo retira con `replaceState` y lo mantiene sólo en memoria.
+Un email puede llegar después de un consumo/invalidez concurrente: el servidor rechaza
+ese enlace; no se promete atomicidad entre PostgreSQL y el proveedor externo.
+
 CitaJusta es un monorepo con npm workspaces. Web y Desktop consumen una única API REST. El backend es un monolito modular y concentra las reglas de negocio; PostgreSQL es la fuente persistente de verdad y Prisma la capa de acceso a datos.
 
 ```text

@@ -21,6 +21,7 @@ export function LoginPage() {
   const routeState: unknown = location.state;
   const returnTo = safeReturnTo(typeof routeState === 'object' && routeState !== null && 'returnTo' in routeState ? routeState.returnTo : undefined);
   const registered = typeof routeState === 'object' && routeState !== null && 'registered' in routeState && routeState.registered === true;
+  const passwordReset = typeof routeState === 'object' && routeState !== null && 'passwordReset' in routeState && routeState.passwordReset === true;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -53,12 +54,14 @@ export function LoginPage() {
         <h1 id="login-title">Inicia sesión en CitaJusta</h1>
         <p>Busca atenciones y administra tus citas en un solo lugar.</p>
         {registered && <p role="status" className="form-success">Tu cuenta fue creada. Ahora puedes iniciar sesión.</p>}
+        {passwordReset && <p role="status" className="form-success">Contraseña restablecida. Inicia sesión nuevamente.</p>}
         <form onSubmit={(event) => { void submit(event); }} aria-busy={pending}>
           <div className="form-field"><label htmlFor="login-email">Correo electrónico</label><input id="login-email" name="email" type="email" autoComplete="username" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} disabled={pending} /></div>
           <div className="form-field"><label htmlFor="login-password">Contraseña</label><input id="login-password" name="password" type="password" autoComplete="current-password" required maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} disabled={pending} /></div>
           {(error || sessionError) && <p role="alert" className="form-error">{error || sessionError}</p>}
           <Button type="submit" disabled={pending}>{pending ? 'Iniciando sesión…' : 'Iniciar sesión'}</Button>
         </form>
+        <p className="auth-switch"><Link to="/recuperar-cuenta">¿Olvidaste tu contraseña?</Link></p>
         <GoogleButton disabled={pending} onCredential={(credential) => { void googleSignIn(credential); }} />
         {status === 'error' && <Button variant="outline" onClick={() => { void retrySession(); }}>Reintentar sesión existente</Button>}
         <p className="auth-switch">¿Aún no tienes una cuenta? <Link to="/registro">Crear cuenta</Link></p>

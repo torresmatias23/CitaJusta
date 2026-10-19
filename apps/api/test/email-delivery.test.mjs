@@ -264,3 +264,13 @@ test('runner disabled does nothing; shutdown waits active work with no overlappi
   assert.equal(calls, 1); let closed = false; const closing = runner.onModuleDestroy().then(() => { closed = true; });
   await Promise.resolve(); assert.equal(closed, false); release(); await closing; assert.equal(closed, true); assert.equal(calls, 1);
 });
+
+test('shared runner drains recovery work even if the regular delivery cycle fails first', async () => {
+  let release;
+  const service = { processBatch: async () => { throw new Error('controlled fixture failure'); } };
+  const recovery = { cleanupExpiredBatch: async () => {}, processBatch: () => new Promise(resolve => { release = resolve; }) };
+  const runner = new EmailDeliveryRunner(service, config(), recovery); runner.onApplicationBootstrap();
+  let closed = false; const pending = runner.onModuleDestroy().then(() => { closed = true; });
+  await Promise.resolve(); await Promise.resolve(); assert.equal(closed, false);
+  release(); await pending; assert.equal(closed, true);
+});

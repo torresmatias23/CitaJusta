@@ -783,7 +783,7 @@ test(
       });
       expectStatus(
         accessAfterLogout,
-        200,
+        401,
         'Access token tras logout',
         '/api/v1/users/me',
       );

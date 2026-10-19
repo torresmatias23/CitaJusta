@@ -159,7 +159,26 @@ export class AuthService {
       throw this.invalidCredentials();
     }
 
-    return this.prisma.$transaction((transaction) => this.createSession(transaction, user.id));
+    const verifiedPasswordHash = user.passwordHash;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await this.prisma.$transaction(async transaction => {
+          const current = await transaction.user.findUnique({ where: { id: user.id },
+            select: { passwordHash: true, status: true, deletedAt: true } });
+          if (!current || current.passwordHash !== verifiedPasswordHash || current.status !== UserStatus.ACTIVE || current.deletedAt !== null) {
+            throw this.invalidCredentials();
+          }
+          return this.createSession(transaction, user.id);
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      } catch (error) {
+        if (isTransactionConflict(error)) {
+          if (attempt < 2) continue;
+          throw new ServiceUnavailableException('Authentication temporarily unavailable');
+        }
+        throw error;
+      }
+    }
+    throw new ServiceUnavailableException('Authentication temporarily unavailable');
   }
 
   private async createSession(transaction: Prisma.TransactionClient, userId: string): Promise<AuthTokenPair> {

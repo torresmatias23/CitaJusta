@@ -37,6 +37,15 @@ const environmentSchema = z
     EMAIL_DELIVERY_LEASE_MS: z.coerce.number().int().min(5000).max(300_000).default(60_000),
     RESEND_API_KEY: z.string().optional(),
     RESEND_FROM: z.string().optional(),
+    ACCOUNT_RECOVERY_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+    ACCOUNT_RECOVERY_WEB_ORIGIN: z.string().optional(),
+    ACCOUNT_RECOVERY_KEY_ID: z.string().optional(),
+    ACCOUNT_RECOVERY_ENCRYPTION_KEY: z.string().optional(),
+    ACCOUNT_RECOVERY_HMAC_KEY: z.string().optional(),
+    ACCOUNT_RECOVERY_TTL_MINUTES: z.coerce.number().int().min(1).max(60).default(30),
+    ACCOUNT_RECOVERY_WINDOW_MINUTES: z.coerce.number().int().min(1).max(1440).default(60),
+    ACCOUNT_RECOVERY_MAX_REQUESTS: z.coerce.number().int().min(1).max(10).default(3),
+    ACCOUNT_RECOVERY_MIN_INTERVAL_SECONDS: z.coerce.number().int().min(1).max(3600).default(60),
     DATABASE_URL: z.string().refine(isPostgresqlUrl, {
       message: 'must be a valid PostgreSQL URL',
     }),
@@ -54,6 +63,27 @@ const environmentSchema = z
       .default(2_592_000),
   })
   .superRefine((environment, context) => {
+    if (environment.ACCOUNT_RECOVERY_ENABLED) {
+      for (const key of ['ACCOUNT_RECOVERY_ENCRYPTION_KEY', 'ACCOUNT_RECOVERY_HMAC_KEY'] as const) {
+        if (!/^[a-fA-F0-9]{64}$/.test(environment[key] ?? '')) {
+          context.addIssue({ code: 'custom', path: [key], message: 'must be a dedicated 32-byte hexadecimal key' });
+        }
+      }
+      if (environment.ACCOUNT_RECOVERY_ENCRYPTION_KEY?.toLowerCase() === environment.ACCOUNT_RECOVERY_HMAC_KEY?.toLowerCase() ||
+        [environment.JWT_ACCESS_SECRET, environment.JWT_REFRESH_SECRET].some(secret =>
+          [environment.ACCOUNT_RECOVERY_ENCRYPTION_KEY, environment.ACCOUNT_RECOVERY_HMAC_KEY].includes(secret))) {
+        context.addIssue({ code: 'custom', path: ['ACCOUNT_RECOVERY_ENCRYPTION_KEY'], message: 'recovery keys must be independent from each other and JWT secrets' });
+      }
+      if (!/^[A-Za-z0-9_-]{1,40}$/.test(environment.ACCOUNT_RECOVERY_KEY_ID ?? '')) {
+        context.addIssue({ code: 'custom', path: ['ACCOUNT_RECOVERY_KEY_ID'], message: 'must identify the active encryption key' });
+      }
+      if (!isGoogleCalendarOrigin(environment.ACCOUNT_RECOVERY_WEB_ORIGIN ?? '')) {
+        context.addIssue({ code: 'custom', path: ['ACCOUNT_RECOVERY_WEB_ORIGIN'], message: 'must be an exact HTTPS Web origin (HTTP only on loopback)' });
+      }
+      if (!isEmailSender(environment.RESEND_FROM ?? '') || !/^re_[A-Za-z0-9_-]{10,200}$/.test(environment.RESEND_API_KEY ?? '')) {
+        context.addIssue({ code: 'custom', path: ['RESEND_FROM'], message: 'recovery requires configured Resend sender and key' });
+      }
+    }
     if (environment.GOOGLE_CALENDAR_ENABLED) {
       if (!/^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(environment.GOOGLE_CLIENT_ID ?? '')) {
         context.addIssue({ code: 'custom', path: ['GOOGLE_CLIENT_ID'], message: 'must be a Google Web client ID when Calendar is enabled' });

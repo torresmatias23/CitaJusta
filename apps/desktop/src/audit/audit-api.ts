@@ -4,6 +4,7 @@ import { record, uuid } from '../agenda/agenda-api.ts';
 import { uuidPattern } from '../catalog/catalog-api.ts';
 
 export const auditActions = [
+  'ACCOUNT_RECOVERY_REQUESTED', 'ACCOUNT_PASSWORD_RESET',
   'AUTH_LOGIN_SUCCESS', 'AUTH_LOGIN_FAILURE', 'AUTH_LOGOUT', 'AUTH_GOOGLE_LINKED',
   'GOOGLE_CALENDAR_EVENT_CREATED',
   'INSTITUTION_CREATED', 'INSTITUTION_UPDATED', 'INSTITUTION_ADMINISTRATOR_PROVISIONED',
