@@ -16,6 +16,11 @@ test('environment validation applies safe defaults', () => {
   assert.deepEqual(validateEnvironment(validEnvironment), {
     NODE_ENV: 'development',
     PORT: 3000,
+    ACCOUNT_RECOVERY_ENABLED: false,
+    ACCOUNT_RECOVERY_TTL_MINUTES: 30,
+    ACCOUNT_RECOVERY_WINDOW_MINUTES: 60,
+    ACCOUNT_RECOVERY_MAX_REQUESTS: 3,
+    ACCOUNT_RECOVERY_MIN_INTERVAL_SECONDS: 60,
     GOOGLE_AUTH_ENABLED: false,
     GOOGLE_CALENDAR_ENABLED: false,
     WAITLIST_OFFER_TTL_MINUTES: 10,
@@ -48,6 +53,11 @@ test('environment validation accepts and coerces valid values', () => {
     {
       NODE_ENV: 'test',
       PORT: 4100,
+      ACCOUNT_RECOVERY_ENABLED: false,
+      ACCOUNT_RECOVERY_TTL_MINUTES: 30,
+      ACCOUNT_RECOVERY_WINDOW_MINUTES: 60,
+      ACCOUNT_RECOVERY_MAX_REQUESTS: 3,
+      ACCOUNT_RECOVERY_MIN_INTERVAL_SECONDS: 60,
       GOOGLE_AUTH_ENABLED: false,
       GOOGLE_CALENDAR_ENABLED: false,
       WAITLIST_OFFER_TTL_MINUTES: 10,

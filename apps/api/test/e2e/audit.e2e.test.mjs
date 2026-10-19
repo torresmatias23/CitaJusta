@@ -1,6 +1,6 @@
 import { cancelWithBlockedSlot } from './manual-release.fixture.mjs';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { test, mock } from 'node:test';
 import { NestFactory } from '@nestjs/core';
 import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
@@ -8,6 +8,10 @@ import { FIXTURE_EMAIL_PREFIX, ids, createAuditFixtures, cleanupAuditFixtures, a
 
 test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagination', { timeout: 120_000 }, async (t) => {
   loadApiEnvironment(); assertSafeLocalDatabaseUrl(process.env.DATABASE_URL); process.env.NODE_ENV = 'test';
+  process.env.ACCOUNT_RECOVERY_ENABLED = 'true'; process.env.ACCOUNT_RECOVERY_WEB_ORIGIN = 'http://127.0.0.1:5173';
+  process.env.ACCOUNT_RECOVERY_KEY_ID = 'audit-e2e'; process.env.ACCOUNT_RECOVERY_ENCRYPTION_KEY = randomBytes(32).toString('hex');
+  process.env.ACCOUNT_RECOVERY_HMAC_KEY = randomBytes(32).toString('hex');
+  process.env.RESEND_FROM = 'CitaJusta <fixture@example.test>'; process.env.RESEND_API_KEY = 're_offline_test_only';
   // Calendar is exercised only through offline provider boundaries in the dedicated subtest.
   const calendarOrigin = 'http://127.0.0.1:5173';
   process.env.GOOGLE_CALENDAR_ENABLED = 'true'; process.env.GOOGLE_CLIENT_ID = 'audit-test.apps.googleusercontent.com';
@@ -24,6 +28,7 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
   const users = []; const permissions = []; const appointmentStatusIds = []; const waitlistStatusIds = []; const anonymousEvents = [];
   const marker = randomUUID();
   const rf005Institutions = [];
+  const recoveryHmacs = [];
   let rf005RoleId, rf005GrantId;
   try {
     configureApplication(app); await app.listen(getE2ePort(), '127.0.0.1'); prisma = app.get(PrismaService);
@@ -278,6 +283,22 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
       assert.equal((await auditRows('INSTITUTION_CREATED', created.body.data.id)).length, 1);
       assert.equal((await auditRows('INSTITUTION_UPDATED', created.body.data.id)).length, 1);
     });
+    await t.test('account recovery audits only stable codes and revokes existing sessions atomically', async () => {
+      const visitor = await register();
+      const { AccountRecoveryCrypto } = await import('../../dist/auth/account-recovery.crypto.js');
+      const crypto = app.get(AccountRecoveryCrypto); recoveryHmacs.push(crypto.emailHmac(visitor.credentials.email));
+      assert.equal((await request('POST', '/auth/forgot-password', null, { email: visitor.credentials.email })).status, 202);
+      const row = await prisma.accountRecovery.findFirstOrThrow({ where: { userId: visitor.id } });
+      const event = await prisma.auditEvent.findFirstOrThrow({ where: { actionCode: 'ACCOUNT_RECOVERY_REQUESTED', resourceId: visitor.id } });
+      anonymousEvents.push(event.id);
+      const payload = crypto.decrypt(row.id, row);
+      const token = new URLSearchParams(new URL(payload.text.split('\n')[1]).hash.slice(1)).get('token');
+      assert.equal((await request('POST', '/auth/reset-password', null, { token, password: `Reset-${randomUUID()}` })).status, 200);
+      assert.equal(await prisma.auditEvent.count({ where: { actionCode: 'ACCOUNT_PASSWORD_RESET', actorUserId: visitor.id } }), 1);
+      assert.equal((await request('GET', '/users/me', visitor.token)).status, 401);
+      const audits = await prisma.auditEvent.findMany({ where: { OR: [{ resourceId: visitor.id }, { actorUserId: visitor.id }] } });
+      assert.ok(!JSON.stringify(audits).includes(token));
+    });
     await t.test('all specified action codes emitted with no private payloads', async () => {
       const rows = await prisma.auditEvent.findMany({ where: { OR: [{ institutionId: ids.institutionA }, { actorUserId: { in: users } }, { id: { in: anonymousEvents } }] } });
       const emitted = new Set(rows.map((row) => row.actionCode));
@@ -300,6 +321,8 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
         await prisma.waitlistEntry.deleteMany({ where: entry });
         await prisma.priority.deleteMany({ where: { institutionId: ids.institutionA } });
         await prisma.auditEvent.deleteMany({ where: { OR: [{ id: { in: anonymousEvents } }, { resourceId: marker }] } });
+        await prisma.accountRecovery.deleteMany({ where: { userId: { in: users } } });
+        await prisma.accountRecoveryLimit.deleteMany({ where: { emailHmac: { in: recoveryHmacs } } });
         if (rf005RoleId) {
           const ownedRole = await prisma.role.findUnique({ where: { id: rf005RoleId } });
           assert.equal(ownedRole.code, 'INSTITUTION_PLATFORM_ADMINISTRATOR');

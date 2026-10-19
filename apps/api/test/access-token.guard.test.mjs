@@ -25,10 +25,11 @@ function hasStatus(status) {
     typeof error?.getStatus === 'function' && error.getStatus() === status;
 }
 
-function createGuard(user) {
+function createGuard(user, session = { userId, expiresAt: new Date(Date.now() + 60000), revokedAt: null }) {
   const jwtService = new JwtService();
   const findUnique = mock.fn(async () => user);
-  const prisma = { user: { findUnique } };
+  const findSession = mock.fn(async () => session);
+  const prisma = { user: { findUnique }, authSession: { findUnique: findSession } };
   const config = {
     getOrThrow: mock.fn((key) => {
       assert.equal(key, 'JWT_ACCESS_SECRET');
@@ -40,6 +41,7 @@ function createGuard(user) {
     guard: new AccessTokenGuard(jwtService, prisma, config),
     jwtService,
     findUnique,
+    findSession,
   };
 }
 
@@ -67,6 +69,16 @@ test('access token guard rejects a missing token before querying the user', asyn
   );
   assert.equal(findUnique.mock.callCount(), 0);
 });
+
+for (const [name, session] of Object.entries({ missing: null, revoked: { userId, expiresAt: new Date(Date.now() + 60000), revokedAt: new Date() },
+  expired: { userId, expiresAt: new Date(0), revokedAt: null }, foreign: { userId: randomUUID(), expiresAt: new Date(Date.now() + 60000), revokedAt: null } })) {
+  test(`access token rejects ${name} session despite valid JWT`, async () => {
+    const { guard, jwtService, findSession } = createGuard({ status: 'ACTIVE', deletedAt: null }, session);
+    const token = await signAccess(jwtService);
+    await assert.rejects(guard.canActivate(httpContext({ headers: { authorization: `Bearer ${token}` } })), hasStatus(401));
+    assert.deepEqual(findSession.mock.calls[0].arguments[0], { where: { id: sessionId }, select: { userId: true, expiresAt: true, revokedAt: true } });
+  });
+}
 
 test('access token guard rejects an invalid signature', async () => {
   const { guard, jwtService, findUnique } = createGuard({

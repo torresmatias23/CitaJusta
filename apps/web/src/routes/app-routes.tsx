@@ -4,6 +4,7 @@ import { AsyncState } from '../components/ui/async-state';
 import { AppointmentConfirmationPage } from '../features/appointments/appointment-confirmation-page';
 import { AppointmentsPage } from '../features/appointments/appointments-page';
 import { LoginPage } from '../features/auth/login-page';
+import { ForgotPasswordPage, ResetPasswordPage } from '../features/auth/account-recovery-pages';
 import { AccountPage } from '../features/auth/account-page';
 import { ProtectedRoute } from '../features/auth/protected-route';
 import { RegisterPage } from '../features/auth/register-page';
@@ -20,6 +21,8 @@ export function AppRoutes() {
         <Route index element={<HomePage />} />
 
         <Route path="login" element={<LoginPage />} />
+        <Route path="recuperar-cuenta" element={<ForgotPasswordPage />} />
+        <Route path="restablecer-contrasena" element={<ResetPasswordPage />} />
         <Route path="registro" element={<RegisterPage />} />
 
         <Route element={<ProtectedRoute />}>

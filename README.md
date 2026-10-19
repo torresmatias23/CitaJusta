@@ -18,6 +18,15 @@ Centralizar el catálogo y la disponibilidad, y realizar una reasignación segur
 
 ## Estado actual
 
+RF-003 (#188): recuperación de contraseña local mediante `POST /api/v1/auth/forgot-password`
+y `POST /api/v1/auth/reset-password`, con pantallas Web `/recuperar-cuenta` y
+`/restablecer-contrasena`. Solicitudes genéricas, límites persistentes, token de uso
+único y entrega Resend cifrada mientras está pendiente. El reset revoca sesiones
+access/refresh anteriores; Google-only no habilita contraseña local.
+Requiere la migración aditiva `20261018000000_account_recovery_foundation` y
+configuración explícita; deshabilitado por defecto. Ver [preparación segura](docs/development/SETUP.md#rf-003-recuperación-segura-de-cuenta).
+Este incremento se valida con proveedor simulado, no acredita entrega real de correos.
+
 Al **16-10-2026**, el MVP Web y Desktop institucional permanecen implementados. HU-039 a HU-042 están cerradas con PR fusionadas según el estado confirmado del proyecto: Resend, Google OAuth, Google Calendar y ubicación con OpenStreetMap/enlaces Google Maps. Resend V2 con logo está implementado localmente, conserva cambios sin commit y está pendiente de publicación; no se presenta como mejora ya fusionada. Docker/Compose, OpenAPI y hardening permanecen pendientes del cierre técnico.
 
 Decisión de alcance del **15-10-2026**: HU-043 (WhatsApp Cloud API) fue descartada definitivamente por restricciones empresariales de Meta para el contexto académico; ya no es un pendiente de implementación del entregable. Ver la decisión vigente y la advertencia de base local en la sección de integraciones. Avance general estimado 70% y técnico 80% según el equipo; no son mediciones definitivas ni acreditan cumplimiento completo de Fase 2.

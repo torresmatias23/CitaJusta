@@ -44,6 +44,12 @@ export class AccessTokenGuard implements CanActivate {
       throw this.unauthorized();
     }
 
+    const session = await this.prisma.authSession.findUnique({ where: { id: claims.sid },
+      select: { userId: true, expiresAt: true, revokedAt: true } });
+    if (!session || session.userId !== claims.sub || session.revokedAt !== null || session.expiresAt <= new Date()) {
+      throw this.unauthorized();
+    }
+
     request.principal = {
       userId: claims.sub,
       sessionId: claims.sid,

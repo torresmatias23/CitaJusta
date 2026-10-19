@@ -305,6 +305,34 @@ test('refresh rotates the token and preserves the absolute session expiry', asyn
   assert.ok(session.lastUsedAt instanceof Date);
 });
 
+test('login revalidates credential in Serializable session transaction after password reset', async () => {
+  const user = await activeUser();
+  const { service, prisma, users, sessions } = createService([user]);
+  prisma.$transaction.mock.mockImplementation(async (operation, options) => {
+    assert.equal(options.isolationLevel, 'Serializable');
+    users.set(user.id, { ...users.get(user.id), passwordHash: 'changed-by-reset' });
+    return operation(prisma);
+  });
+  await assert.rejects(service.login({ email: user.email, password }), error => error.status === 401);
+  assert.equal(sessions.size, 0);
+});
+
+test('login retries complete transaction only on recognized serialization conflicts', async () => {
+  const user = await activeUser();
+  const { service, prisma, sessions } = createService([user]);
+  let attempts = 0;
+  prisma.$transaction.mock.mockImplementation(async operation => {
+    if (++attempts === 1) throw { code: 'P2034' };
+    return operation(prisma);
+  });
+  await service.login({ email: user.email, password });
+  assert.equal(attempts, 2); assert.equal(sessions.size, 1);
+  prisma.$transaction.mock.mockImplementation(async () => { throw new TypeError('programming defect'); });
+  const before = prisma.$transaction.mock.callCount();
+  await assert.rejects(service.login({ email: user.email, password }), /programming defect/);
+  assert.equal(prisma.$transaction.mock.callCount() - before, 1);
+});
+
 test('the previous refresh token is invalid after rotation', async () => {
   const user = await activeUser();
   const { service } = createService([user]);

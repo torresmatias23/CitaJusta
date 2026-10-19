@@ -8,7 +8,7 @@ export const emailSchema = z
   .max(254)
   .transform((email) => email.toLowerCase());
 
-const passwordSchema = z.string().min(12).max(128);
+export const passwordSchema = z.string().min(12).max(128);
 
 const registerSchema = z
   .object({

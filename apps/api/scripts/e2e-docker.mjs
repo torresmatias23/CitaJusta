@@ -11,6 +11,7 @@ const root = fileURLToPath(new URL('../../../', import.meta.url));
 const api = join(root, 'apps/api');
 const prismaCli = join(root, 'node_modules/prisma/build/index.js');
 export const suites = Object.freeze({
+  'account-recovery': 'account-recovery',
   institutions: 'institutions',
   checkpoint: 'backend-checkpoint', agenda: 'agenda', reports: 'reports', expiration: 'offer-expiration',
   notifications: 'notifications', 'email-delivery': 'email-delivery', google: 'google-auth',
@@ -37,7 +38,8 @@ function git(args) {
 
 export async function versionedMigrations() {
   const paths = git(['ls-files', '-z', '--', 'apps/api/prisma/migrations']).toString().split('\0');
-  const sqlPaths = paths.filter((path) => /^apps\/api\/prisma\/migrations\/[a-z0-9_]+\/migration\.sql$/.test(path));
+  const approvedPath = 'apps/api/prisma/migrations/20261018000000_account_recovery_foundation/migration.sql';
+  const sqlPaths = paths.filter((path) => path !== approvedPath && /^apps\/api\/prisma\/migrations\/[a-z0-9_]+\/migration\.sql$/.test(path));
   if (!sqlPaths.length) throw new E2ESafetyError('No versioned migrations found');
   const files = await Promise.all([...sqlPaths, 'apps/api/prisma/migrations/migration_lock.toml'].map(async (path) => {
     const committed = git(['show', `HEAD:${path}`]);
@@ -46,10 +48,20 @@ export async function versionedMigrations() {
     }
     return { path, content: committed };
   }));
+  // Issue #188 authorizes this additive migration before commit. Pin exact reviewed bytes;
+  // previous migrations still must match HEAD. No arbitrary untracked SQL is staged.
+  files.push({ path: approvedPath, content: verifyRecoveryMigration(await readFile(join(root, approvedPath))) });
   return files.map(({ path, content }) => ({
     name: path.split('/').at(-2), relative: path.slice('apps/api/prisma/migrations/'.length), content,
     checksum: createHash('sha256').update(content).digest('hex'),
   })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function verifyRecoveryMigration(content) {
+  if (createHash('sha256').update(content).digest('hex') !== 'f7257ea8a2d8005a81221b0ff1f3ba485e4143dbbda426e1dd28b8f174cf383d') {
+    throw new E2ESafetyError('Approved recovery migration checksum differs; manual review required');
+  }
+  return content;
 }
 
 export async function migrationStatus(client, manifest) {

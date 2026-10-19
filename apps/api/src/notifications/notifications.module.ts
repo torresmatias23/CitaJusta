@@ -6,6 +6,7 @@ import { NotificationsService } from './notifications.service.js';
 import { ResendClient } from './resend.client.js';
 import { EmailDeliveryService } from './email-delivery.service.js';
 import { EmailDeliveryRunner } from './email-delivery.runner.js';
+import { AccountRecoveryModule } from '../auth/account-recovery.module.js';
 
-@Module({ imports: [AuthModule, DatabaseModule], controllers: [NotificationsController], providers: [NotificationsService, ResendClient, EmailDeliveryService, EmailDeliveryRunner] })
+@Module({ imports: [AuthModule, DatabaseModule, AccountRecoveryModule], controllers: [NotificationsController], providers: [NotificationsService, ResendClient, EmailDeliveryService, EmailDeliveryRunner] })
 export class NotificationsModule {}

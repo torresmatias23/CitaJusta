@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:e2e:account-recovery": "node scripts/e2e-docker.mjs test account-recovery",
     "provision:institution-admin": "npm run build && node scripts/provision-institution-administrator.mjs",
     "test:e2e:institutions": "node scripts/e2e-docker.mjs test institutions",
     "build": "tsc -p tsconfig.build.json",
