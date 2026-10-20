@@ -5,6 +5,7 @@ import { PrismaService } from '../database/prisma.service.js';
 import type { AuthenticatedPrincipal } from '../auth/types/authenticated-principal.js';
 import { notificationContent } from './notification-content.js';
 import { emailEligibleTypes } from './resend.client.js';
+import { emailPreferenceDisabled, emailPreferenceKey } from './email-preferences.js';
 import {
   decodeNotificationCursor,
   encodeNotificationCursor,
@@ -30,12 +31,18 @@ export class NotificationsService {
       skipDuplicates: true,
     });
     if (emailEligibleTypes.has(data.type)) {
+      // Producers supply their Serializable transaction; never read preferences outside it.
+      const recipient = await tx.user.findUniqueOrThrow({ where: { id: data.recipientUserId },
+        select: { appointmentEmailsEnabled: true, offerEmailsEnabled: true } });
+      const key = emailPreferenceKey(data.type);
+      const enabled = key !== undefined && recipient[key];
       const notification = await tx.notification.findUniqueOrThrow({
         where: { recipientUserId_dedupeKey: { recipientUserId: data.recipientUserId, dedupeKey: data.dedupeKey } },
         select: { id: true },
       });
       await tx.notificationEmailDelivery.createMany({
-        data: [{ id: randomUUID(), notificationId: notification.id }],
+        data: [{ id: randomUUID(), notificationId: notification.id,
+          ...(!enabled ? { status: 'FAILED', lastErrorCode: emailPreferenceDisabled } as const : {}) }],
         skipDuplicates: true,
       });
     }

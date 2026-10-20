@@ -38,6 +38,7 @@ function fixture() {
     const working = structuredClone(state);
     const tx = {
     notification: { createMany: async () => ({ count: 1 }), findUniqueOrThrow: async () => ({ id: randomUUID() }) },
+    user: { findUniqueOrThrow: async () => ({ appointmentEmailsEnabled: true, offerEmailsEnabled: true }) },
     notificationEmailDelivery: { createMany: async () => ({ count: 1 }) },
       appointmentOffer: {
         findUnique: async () => ({ ...structuredClone(working.offer), reassignment: structuredClone(working.process) }),

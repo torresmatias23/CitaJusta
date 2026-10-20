@@ -34,7 +34,8 @@ function setup(options = {}) {
     notification: { createMany: async () => ({ count: 1 }), findUniqueOrThrow: async () => ({ id: randomUUID() }) },
     notificationEmailDelivery: { createMany: async () => ({ count: 1 }) },
     auditEvent: { create: mock.fn(async ({ data }) => { working.audit.push(data); return { id: data.id }; }) },
-    user: { findFirst: mock.fn(async () => options.userMissing ? null : { id: principal.userId }) },
+    user: { findFirst: mock.fn(async () => options.userMissing ? null : { id: principal.userId }),
+      findUniqueOrThrow: async () => ({ appointmentEmailsEnabled: true, offerEmailsEnabled: true }) },
     agendaSlot: {
       findUnique: mock.fn(async () => options.slotMissing ? null : structuredClone(working.slot)),
       findFirst: mock.fn(async () => options.invalidContext ? null : { id: initial.id }),

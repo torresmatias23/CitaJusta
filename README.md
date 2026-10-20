@@ -18,6 +18,17 @@ Centralizar el catálogo y la disponibilidad, y realizar una reasignación segur
 
 ## Estado actual
 
+RF-004 (#191): `/cuenta` permite editar nombres, apellidos y teléfono opcional, y guardar
+preferencias globales de correos de citas/ofertas. `GET /api/v1/users/me` mantiene su
+contrato previo y añade `phone` y `notificationPreferences`; `PATCH /users/me` y
+`PUT /users/me/notification-preferences` sólo actúan sobre el usuario autenticado.
+Ambas preferencias tienen default `true`. Las notificaciones internas y la recuperación
+de contraseña permanecen independientes. Desactivar suprime terminalmente los correos
+pendientes de la categoría (`FAILED / EMAIL_PREFERENCE_DISABLED`); reactivar no los reenvía.
+Requiere la migración aditiva `20261019000000_user_profile_notification_preferences`:
+su aplicación en este incremento se limita a E2E verificado, no DEV/DEMO.
+Ver [contrato, concurrencia y validación](docs/development/SETUP.md#rf-004-perfil-y-preferencias-de-correo).
+
 RF-003 (#188): recuperación de contraseña local mediante `POST /api/v1/auth/forgot-password`
 y `POST /api/v1/auth/reset-password`, con pantallas Web `/recuperar-cuenta` y
 `/restablecer-contrasena`. Solicitudes genéricas, límites persistentes, token de uso

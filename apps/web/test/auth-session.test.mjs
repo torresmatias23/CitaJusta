@@ -30,6 +30,31 @@ test('escritura waitlist renueva sesión tras 401 sin reenviar automáticamente 
   assert.equal(session.getSnapshot().status, 'authenticated');
 });
 const profile = { id: 'person-id', email: credentials.email, firstName: 'Ana', lastName: 'Pérez', status: 'ACTIVE', context: {}, roles: [], permissions: [] };
+
+test('refreshProfile publishes changed names without rotating tokens or replacing session storage', async () => {
+  let changed = false;
+  const { session, calls, saved } = setup(path => path === 'users/me' && changed ? { data: { ...profile, firstName: 'Nueva' } } : undefined);
+  await session.login(credentials); const stored = saved(); changed = true;
+  await session.refreshProfile();
+  assert.equal(session.getSnapshot().user.firstName, 'Nueva'); assert.deepEqual(saved(), stored);
+  assert.equal(calls.filter(call => call.path === 'auth/refresh').length, 0);
+});
+test('refreshProfile ignores late profile after logout and never restores the user', async () => {
+  const pending = deferred(); let block = false;
+  const { session } = setup(path => path === 'users/me' && block ? pending.promise : undefined);
+  await session.login(credentials); block = true; const refresh = session.refreshProfile();
+  await session.logout(); pending.resolve({ data: profile });
+  await assert.rejects(refresh, error => error.status === 401);
+  assert.equal(session.getSnapshot().status, 'anonymous'); assert.equal(session.getSnapshot().user, null);
+});
+test('refreshProfile refuses another identity and invalid response without replacing current user', async () => {
+  let response;
+  const { session } = setup(path => path === 'users/me' ? response : undefined);
+  await session.login(credentials);
+  for (response of [{ data: { ...profile, id: 'other' } }, { data: { ...profile, status: 'DISABLED' } }, { data: null }]) {
+    await assert.rejects(session.refreshProfile()); assert.equal(session.getSnapshot().user.id, profile.id);
+  }
+});
 const tokens = (suffix = '1') => ({ accessToken: `access-${suffix}`, refreshToken: `refresh-${suffix}`, tokenType: 'Bearer' });
 
 function deferred() {

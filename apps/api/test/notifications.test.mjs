@@ -63,6 +63,7 @@ test('eight typed events create only controlled data through the supplied transa
 
     await NotificationsService.create(
       {
+        user: { findUniqueOrThrow: async () => ({ appointmentEmailsEnabled: true, offerEmailsEnabled: true }) },
         notification: {
           createMany: async (args) => {
             write = args;
@@ -156,6 +157,7 @@ test('helper rejects unknown/private content, incoherent keys and resources befo
 test('replays do not perform updates and non-duplicate storage failures propagate', async () => {
   await NotificationsService.create(
     {
+      user: { findUniqueOrThrow: async () => ({ appointmentEmailsEnabled: true, offerEmailsEnabled: true }) },
       notification: {
         createMany: async () => ({ count: 0 }),
         findUniqueOrThrow: async () => ({ id: randomUUID() }),

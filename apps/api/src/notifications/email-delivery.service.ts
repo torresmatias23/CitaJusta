@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { z } from 'zod';
+import { Prisma } from '../generated/prisma/client.js';
+import { emailPreferenceDisabled, emailPreferenceKey } from './email-preferences.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { notificationContentSchema } from './notification-content.js';
 import { renderEmailContent } from './email-content.js';
@@ -38,7 +40,7 @@ export class EmailDeliveryService {
     if (claim.count !== 1) return;
     const ownership = { id, status: 'PROCESSING' as const, claimToken };
     const row = await this.prisma.notificationEmailDelivery.findUniqueOrThrow({
-      where: { id }, include: { notification: { include: { recipient: { select: { email: true, status: true, deletedAt: true } } } } },
+      where: { id }, include: { notification: { include: { recipient: { select: { email: true, status: true, deletedAt: true, appointmentEmailsEnabled: true, offerEmailsEnabled: true } } } } },
     });
     // A resumed worker must never use another worker's claim/payload.
     if (row.claimToken !== claimToken) return;
@@ -61,6 +63,11 @@ export class EmailDeliveryService {
       await finishFailure('EMAIL_RECIPIENT_INVALID', false); return;
     }
     if (!emailEligibleTypes.has(notification.type)) { await finishFailure('EMAIL_EVENT_INELIGIBLE', false); return; }
+    const preference = emailPreferenceKey(notification.type);
+    if (!preference) { await finishFailure('EMAIL_EVENT_INELIGIBLE', false); return; }
+    const suppress = () => this.prisma.notificationEmailDelivery.updateMany({ where: ownership,
+      data: { status: 'FAILED', lastErrorCode: emailPreferenceDisabled, payload: Prisma.DbNull, claimToken: null, lockedUntil: null } });
+    if (!recipient[preference]) { await suppress(); return; }
     let payload: EmailPayload;
     if (row.payload !== null) {
       const parsed = emailPayloadSchema.safeParse(row.payload);
@@ -80,11 +87,17 @@ export class EmailDeliveryService {
     }
     // Freeze and renew in one guarded DB operation; HTTP is not inside a transaction.
     const prepared = await this.prisma.notificationEmailDelivery.updateMany({
-      where: { ...ownership, lockedUntil: { gt: new Date() } },
+      where: { ...ownership, lockedUntil: { gt: new Date() }, notification: { recipient: { [preference]: true } } },
       data: { payload, firstAttemptAt: row.firstAttemptAt ?? new Date(),
         lockedUntil: new Date(Date.now() + this.config.getOrThrow<number>('EMAIL_DELIVERY_LEASE_MS')) },
     });
-    if (prepared.count !== 1) return;
+    if (prepared.count !== 1) {
+      // A preference may have changed since the claimed snapshot was read.
+      await this.prisma.notificationEmailDelivery.updateMany({ where: { ...ownership,
+        notification: { recipient: { [preference]: false } } },
+        data: { status: 'FAILED', lastErrorCode: emailPreferenceDisabled, payload: Prisma.DbNull, claimToken: null, lockedUntil: null } });
+      return;
+    }
     let providerMessageId: string;
     try {
       providerMessageId = await this.resend.send(notification.id, payload,

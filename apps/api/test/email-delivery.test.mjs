@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
+import { Prisma } from '../dist/generated/prisma/client.js';
 import { randomUUID } from 'node:crypto';
 import { mock, test } from 'node:test';
 import { validateEnvironment } from '../dist/config/environment.validation.js';
@@ -109,7 +110,7 @@ function fixture(overrides = {}, configOverrides = {}, send = async () => random
   const row = { id: randomUUID(), notificationId: randomUUID(), status: 'PENDING', attemptCount: 0,
     nextAttemptAt: new Date(0), lockedUntil: null, claimToken: null, firstAttemptAt: null, payload: null,
     notification: { id: randomUUID(), type: 'APPOINTMENT_BOOKED', institutionId: randomUUID(),
-      data: { startsAt: '2030-01-01T12:00:00.000Z' }, recipient: { email: payload.to[0], status: 'ACTIVE', deletedAt: null } }, ...overrides };
+      data: { startsAt: '2030-01-01T12:00:00.000Z' }, recipient: { email: payload.to[0], status: 'ACTIVE', deletedAt: null, appointmentEmailsEnabled: true, offerEmailsEnabled: true } }, ...overrides };
   const writes = [], finds = [];
   const eligible = (condition) => (!condition.status || condition.status === row.status) &&
     (!condition.nextAttemptAt || row.nextAttemptAt <= condition.nextAttemptAt.lte) &&
@@ -120,8 +121,10 @@ function fixture(overrides = {}, configOverrides = {}, send = async () => random
     updateMany: async ({ where, data }) => {
       if (where.id !== row.id || (where.claimToken && where.claimToken !== row.claimToken) ||
         (where.OR ? !where.OR.some(eligible) : !eligible(where))) return { count: 0 };
+      if (where.notification?.recipient && Object.entries(where.notification.recipient).some(([key, value]) => row.notification.recipient[key] !== value)) return { count: 0 };
       writes.push(structuredClone(data));
       Object.assign(row, data, { attemptCount: typeof data.attemptCount === 'object' ? row.attemptCount + data.attemptCount.increment : row.attemptCount });
+      if (data.payload === Prisma.DbNull) row.payload = null;
       return { count: 1 };
     },
   }, institution: { findUnique: async () => ({ timeZone: 'America/Santiago' }) } };
@@ -147,6 +150,32 @@ test('two services use atomic DB claims and only one sends', async () => {
   const f = fixture(), second = new EmailDeliveryService(f.prisma, config(), f.adapter);
   await Promise.all([f.service.processBatch(), second.processBatch()]);
   assert.equal(f.adapter.send.mock.callCount(), 1); assert.equal(f.row.attemptCount, 1); assert.equal(f.row.status, 'SENT');
+});
+
+test('disabled category after claim retires payload/lease without HTTP; reactivation cannot revive it', async () => {
+  for (const [type, key] of [['APPOINTMENT_BOOKED', 'appointmentEmailsEnabled'], ['OFFER_CREATED', 'offerEmailsEnabled']]) {
+    const f = fixture(); f.row.notification.type = type; f.row.notification.recipient[key] = false;
+    await f.service.processBatch();
+    assert.equal(f.row.status, 'FAILED'); assert.equal(f.row.lastErrorCode, 'EMAIL_PREFERENCE_DISABLED');
+    assert.equal(f.row.claimToken, null); assert.equal(f.row.lockedUntil, null); assert.equal(f.row.payload, null);
+    assert.equal(f.adapter.send.mock.callCount(), 0);
+    f.row.notification.recipient[key] = true; await f.service.processBatch();
+    assert.equal(f.adapter.send.mock.callCount(), 0); assert.equal(f.row.status, 'FAILED');
+  }
+});
+
+test('final conditional check observes preference disabled while rendering; ownership loss never sends', async () => {
+  for (const revokeClaim of [false, true]) {
+    const f = fixture();
+    f.prisma.institution.findUnique = async () => {
+      f.row.notification.recipient.appointmentEmailsEnabled = false;
+      if (revokeClaim) { f.row.status = 'FAILED'; f.row.claimToken = null; f.row.lockedUntil = null; }
+      return { timeZone: 'America/Santiago' };
+    };
+    await f.service.processBatch();
+    assert.equal(f.adapter.send.mock.callCount(), 0); assert.equal(f.row.status, 'FAILED');
+    assert.equal(f.row.payload, null); assert.equal(f.row.claimToken, null);
+  }
 });
 test('expired lease recovers, future lease is not claimed, stale ownership cannot complete', async () => {
   const expired = fixture({ status: 'PROCESSING', lockedUntil: new Date(0), claimToken: randomUUID(), attemptCount: 1 });

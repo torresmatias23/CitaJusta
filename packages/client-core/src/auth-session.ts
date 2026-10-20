@@ -237,6 +237,15 @@ export function createAuthSession({ publicApi, authenticatedApi, storage }: {
     getSnapshot: () => snapshot,
     restore,
     retrySession: () => restore(true),
+    async refreshProfile(): Promise<void> {
+      const expected = generation, revision = contextGeneration, userId = snapshot.user?.id;
+      if (snapshot.status !== 'authenticated' || !userId) throw new ApiError(401);
+      const user = parseUser(await api.request('users/me', institutionContext ? { institutionContext } : {}));
+      assertCurrent(expected);
+      if (revision !== contextGeneration) return;
+      if (user.id !== userId) throw new ApiError(401);
+      update({ status: 'authenticated', user, error: null });
+    },
     async selectContext(context: NonNullable<RequestOptions['institutionContext']>) {
       const expected = generation;
       const revision = ++contextGeneration;

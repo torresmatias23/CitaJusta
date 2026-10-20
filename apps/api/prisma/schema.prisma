@@ -249,6 +249,8 @@ model User {
   firstNames              String      @map("nombres") @db.VarChar(120)
   lastNames               String      @map("apellidos") @db.VarChar(120)
   phone                   String?     @map("telefono") @db.VarChar(30)
+  appointmentEmailsEnabled Boolean    @default(true) @map("emails_citas_habilitados")
+  offerEmailsEnabled       Boolean    @default(true) @map("emails_ofertas_habilitados")
   nationalIdentifier      String?     @unique @map("rut") @db.VarChar(20)
   status                  UserStatus  @default(PENDING) @map("estado")
   emailVerifiedAt         DateTime?   @map("email_verificado_at") @db.Timestamp(6)

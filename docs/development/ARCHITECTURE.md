@@ -1,5 +1,32 @@
 # Arquitectura de CitaJusta
 
+## Perfil y preferencias globales (RF-004)
+
+Users conserva la autoridad de identidad: las escrituras propias reutilizan principal,
+AuthorizationContext y los tres guards existentes, sin aceptar UUID/roles del cliente.
+El DTO GET es aditivo; PATCH construye explícitamente los campos personales permitidos.
+Las dos preferencias booleanas residen en User, no en tenant ni WaitlistPreference.
+Auditoría mínima `ACCOUNT_PROFILE_UPDATED` / `ACCOUNT_EMAIL_PREFERENCES_UPDATED` contiene
+actor, recurso AUTH/UUID y resultado, nunca valores personales ni payloads.
+
+Los productores crean siempre Notification dentro de su transacción Serializable y leen
+allí las preferencias. Un evento elegible deshabilitado crea una entrega FAILED con
+`EMAIL_PREFERENCE_DISABLED`: es una supresión intencional terminal, no un fallo Resend.
+El tombstone y la unicidad de entrega por notificación impiden replay tras reactivación.
+La desactivación actualiza User y suprime PENDING/PROCESSING por usuario/categoría,
+retirando payload/claim/lease y auditando atómicamente. El predicado se ejecuta incluso
+sin filas pendientes; las dependencias de lectura/escritura Serializable y retries
+acotados de conflictos reconocidos cubren productores concurrentes entre instancias.
+
+El worker comprueba preferencias después del claim y en la actualización condicional
+final de payload/lease inmediatamente previa al HTTP. Conserva ownership, payload
+congelado y clave Resend. No mantiene una transacción durante HTTP. Existe una ventana
+inevitable entre esa autorización y una llamada externa iniciada/aceptada: desactivar
+no puede retirar retroactivamente un correo aceptado por Resend. Una completion tardía
+sin ownership no puede resucitar una entrega suprimida. RF-003 usa su outbox cifrado
+independiente y no consulta estas preferencias. Web refresca el perfil compartido sin
+rotar tokens por guardar nombres; respuestas tardías de logout/contexto no lo reemplazan.
+
 ## Administración general de instituciones (RF-005)
 
 El Administrador general de instituciones es una autoridad de plataforma limitada, no un superusuario. Su rol dedicado GLOBAL contiene únicamente `institutions.read/create/update`; no concede acceso implícito a catálogo institucional, citas, reportes o auditoría. La autoridad persiste mediante Role, Permission, RolePermission y UserRole. No se concede desde registro, login ni parámetros HTTP.
