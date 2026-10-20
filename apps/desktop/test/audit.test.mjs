@@ -25,7 +25,7 @@ test('HU038 validates UUIDs, unknown query including institution/user/offset/pag
   for (const key of ['institutionId', 'userId', 'offset', 'page', 'body', 'limit', 'unknown', 'cursor']) assert.throws(() => auditQuery({ [key]: '50' }), status(400));
 });
 test('HU038 closed action/resource enums sent unchanged; invalid values rejected', () => {
-  assert.equal(auditActions.length, 31); assert.equal(auditResources.length, 12);
+  assert.equal(auditActions.length, 33); assert.equal(auditResources.length, 12);
   for (const action of auditActions) assert.equal(auditQuery({ action }).action, action);
   for (const resourceType of auditResources) assert.equal(auditQuery({ resourceType }).resourceType, resourceType);
   for (const filters of [{ action: 'DELETE_ALL' }, { resourceType: 'USER' }, { action: null }]) assert.throws(() => auditQuery(filters), status(400));

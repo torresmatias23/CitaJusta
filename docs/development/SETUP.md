@@ -1,5 +1,61 @@
 # Entorno y preparación local
 
+## RF-004: perfil y preferencias de correo
+
+Prisma permanece en 7.10.0. La migración
+`20261019000000_user_profile_notification_preferences` agrega sólo dos booleanos NOT NULL
+con DEFAULT true en `usuarios`, preservando las trece migraciones históricas y los datos.
+No crea tablas, enums ni índices. No aplicar a DEV/DEMO en este incremento; esas bases
+requieren revisión y autorización aparte. No usar reset, `db push` ni seeds para migrar.
+
+Procedimiento exclusivamente sobre `citajusta_e2e` verificado (Docker Linux disponible):
+
+```powershell
+npm run e2e:docker -w @citajusta/api -- check
+# Comprueba identidad, historial/checksums y sólo la migración aditiva aprobada:
+npm run e2e:docker -w @citajusta/api -- migrate
+npm run test:e2e:profile-notifications -w @citajusta/api
+# Regresión una vez, después de las pruebas específicas:
+npm run e2e:docker -w @citajusta/api -- test all
+```
+
+No se carga `.env` API, no se heredan secretos externos y Resend se simula. Si falla la
+identidad/aislamiento, detenerse: no sustituir la conexión por DEV/DEMO. La migración
+pendiente autorizada está fijada por checksum exacto antes del commit; las trece previas
+deben coincidir con HEAD. `check` no demuestra por sí solo ausencia de drift manual.
+
+Contrato autenticado bajo `/api/v1` (query adicional rechazada en escrituras):
+
+- `GET /users/me`: campos existentes más `phone: string|null` y
+  `notificationPreferences: { appointmentEmailsEnabled, offerEmailsEnabled }`.
+- `PATCH /users/me`: objeto parcial no vacío con `firstName`, `lastName` (trim, 1–120)
+  y/o `phone` (trim, 1–30 o null para eliminar). Respuesta
+  `{ data: { firstName, lastName, phone } }`.
+- `PUT /users/me/notification-preferences`: exactamente los dos booleanos obligatorios;
+  respuesta `{ data: { appointmentEmailsEnabled, offerEmailsEnabled } }`.
+
+No admite email, RUT, password, identidad, roles/permisos, estado ni tenant. Principal y
+contexto deben coincidir y la cuenta continuar ACTIVE/no eliminada. Errores: 400 formato,
+401 sesión/usuario, 409 conflicto reconocido persistente, 503 almacenamiento indisponible,
+500 error inesperado sanitizado. Auditoría sólo ante cambio efectivo, sin datos personales.
+
+`appointmentEmailsEnabled` controla APPOINTMENT_BOOKED/CANCELLED;
+`offerEmailsEnabled` controla OFFER_CREATED/ACCEPTED/REJECTED/EXPIRED. Ambos parten true.
+WAITLIST_ENTERED/WITHDRAWN siguen sólo internos. Notification siempre persiste; una
+categoría apagada genera tombstone `FAILED / EMAIL_PREFERENCE_DISABLED`. Desactivar
+retira payload, claim y lease de entregas PENDING/PROCESSING propias de esa categoría;
+SENT e historia permanecen. Reactivar habilita sólo eventos nuevos, nunca replay antiguo.
+Recuperación de cuenta no se desactiva aquí. El worker revalida antes de HTTP, sin
+transacción abierta durante la red; no puede cancelar retroactivamente un correo que
+Resend ya aceptó o una llamada iniciada después de la última autorización efectiva.
+
+Web `/cuenta` carga datos reales y separa guardado personal/preferencias con loading,
+errores y bloqueo de doble envío. Teléfono vacío se envía como null; correo es readonly.
+El nombre guardado refresca el perfil compartido sin restaurar la sesión ni forzar
+rotación de refresh token. La vinculación Google conserva su comportamiento; no se
+infiere un estado de vinculación no confirmado. Validación manual pendiente por entorno:
+móvil/teclado, cambios de nombre en header/Home y enlace Google con configuración real.
+
 ## RF-003: recuperación segura de cuenta
 
 Requiere la migración aditiva `20261018000000_account_recovery_foundation` (dos tablas,
@@ -14,8 +70,8 @@ npm run e2e:docker -w @citajusta/api -- migrate
 npm run test:e2e:account-recovery -w @citajusta/api
 ```
 
-El runner mantiene checksums HEAD para migraciones previas y fija el checksum exacto de
-la nueva migración aprobada antes del commit. No admite SQL local arbitrario. Sus pruebas
+El runner mantiene checksums HEAD para migraciones previas; RF-004 fija el checksum exacto de
+su nueva migración aprobada antes del commit. No admite SQL local arbitrario. Sus pruebas
 generan claves efímeras, simulan Resend y limpian exclusivamente sus usuarios/filas propias.
 
 Copiar las variables de `apps/api/.env.example` a la configuración privada del entorno,
@@ -282,16 +338,16 @@ npm run e2e:docker -w @citajusta/api -- bootstrap
 npm run test:e2e:checkpoint -w @citajusta/api
 npm run test:e2e:appointments -w @citajusta/api
 npm run test:e2e:waitlist -w @citajusta/api
-# Todas las 20 suites backend (incluidos RF-005 y RF-003), secuencialmente:
+# Todas las 21 suites backend (incluidos RF-005, RF-003 y RF-004), secuencialmente:
 npm run e2e:docker -w @citajusta/api -- test all
 ```
 
-Suites disponibles: `account-recovery`, `institutions`, `checkpoint`, `agenda`, `reports`, `expiration`, `notifications`, `email-delivery`, `google`, `google-calendar`, `audit`, `attendance`, `catalog`, `professionals`, `availability-admin`, `appointments`, `waitlist`, `automatic-start`, `reassignments`, `reassignment-policy`.
+Suites disponibles: `profile-notifications`, `account-recovery`, `institutions`, `checkpoint`, `agenda`, `reports`, `expiration`, `notifications`, `email-delivery`, `google`, `google-calendar`, `audit`, `attendance`, `catalog`, `professionals`, `availability-admin`, `appointments`, `waitlist`, `automatic-start`, `reassignments`, `reassignment-policy`.
 
 ### Protecciones y responsabilidades
 
 - Antes de cualquier acción se verifica la identidad con consultas `READ ONLY`; el historial debe coincidir con nombres/checksums versionados, sin fallidas, revertidas, desconocidas ni huecos. Se rechaza un esquema no vacío sin historial. No es una certificación exhaustiva de ausencia de drift manual.
-- `migrate` exige migraciones previas **versionadas y sin cambios respecto de HEAD**, con Prisma **7.10.0** instalado; RF-003 permite además únicamente los bytes de la nueva migración aprobada, fijados por checksum antes de commit. Se copian a un directorio temporal propio junto al lockfile; el schema original no cambia. Así se excluye el directorio local vacío de WhatsApp sin borrarlo. La configuración temporal referencia la URL del entorno, no escribe credenciales ni carga dotenv. No se descarga otro CLI.
+- `migrate` exige migraciones previas **versionadas y sin cambios respecto de HEAD**, con Prisma **7.10.0** instalado; RF-004 permite además únicamente los bytes de la nueva migración aprobada, fijados por checksum antes de commit. Se copian a un directorio temporal propio junto al lockfile; el schema original no cambia. Así se excluye el directorio local vacío de WhatsApp sin borrarlo. La configuración temporal referencia la URL del entorno, no escribe credenciales ni carga dotenv. No se descarga otro CLI.
 - `bootstrap` reutiliza las funciones existentes de AppointmentStatus y Waitlist; prepara `AGENDADA`, `CANCELADA`, `ATENDIDA`, `INASISTENCIA`, `ACTIVE`, `WITHDRAWN`, `FULFILLED`. STANDARD sigue siendo institucional; los fixtures preparan sus propias instituciones/prioridades. No se ejecuta `seed:dev` ni se crean usuarios de desarrollo.
 - `bootstrap` y `test` requieren cero migraciones pendientes; generan Prisma y compilan API. Los procesos trabajan en un directorio temporal sin `.env`, con JWT efímeros diferentes. El helper E2E ya no carga `apps/api/.env`. Cada proceso de tests repite preflight antes de iniciar Nest; un cambio posterior de URL/modo se rechaza. Se mantienen intactos `assertSafeLocalDatabaseUrl()` y `assertFixtureOwnership()`; el fixture checkpoint verifica además la identidad del cliente Prisma recibido antes de crear/limpiar.
 - Los runners mantienen un advisory lock de sesión común durante migraciones/bootstrap/tests para evitar carreras entre ejecuciones que comparten fixtures. El cleanup conserva sus namespaces/IDs y verificaciones de residuos; no hay limpieza global. Ante un fallo de cleanup, detenerse y revisar sólo los IDs propios, nunca resetear.
@@ -304,7 +360,7 @@ Para detener, conservando datos, usar únicamente:
 docker compose --project-name citajusta-e2e -f docker/e2e/compose.yaml --env-file docker/e2e/.env stop
 ```
 
-No usar `down -v`, borrar volúmenes ni reutilizar el proyecto/volumen de demostración. El tooling E2E de desarrollo `reassignment-demo.e2e.test.mjs` no integra estas 20 suites: exige `development` y queda bloqueado antes de abrir su cliente, pendiente de una adaptación aislada compatible con `test`; no relajar sus guards. El E2E Web directo tampoco queda validado por esta preparación backend.
+No usar `down -v`, borrar volúmenes ni reutilizar el proyecto/volumen de demostración. El tooling E2E de desarrollo `reassignment-demo.e2e.test.mjs` no integra estas 21 suites: exige `development` y queda bloqueado antes de abrir su cliente, pendiente de una adaptación aislada compatible con `test`; no relajar sus guards. El E2E Web directo tampoco queda validado por esta preparación backend.
 
 ### Validación sin PostgreSQL y evidencia Capstone
 
@@ -372,7 +428,7 @@ npm run dev -w @citajusta/web
 - **Bootstrap:** estados de citas; `bootstrap:waitlist` provisiona `ACTIVE`, `WITHDRAWN`, `FULFILLED` y `STANDARD` para instituciones activas existentes. Repetirlo después de añadir instituciones.
 - **Seed:** crea sólo Institución Demo CitaJusta, Sede Centro Demo, Atención General Demo (30 minutos, Waitlist habilitada), vínculo activo y reutiliza el bootstrap Waitlist para esa institución. Conserva IDs `d1000000-...-0001/0002/0003` y códigos `DEMO-CENTRO` / `DEMO-ATENCION`. No crea usuarios, roles ni agenda.
 - **Check:** transacción PostgreSQL `READ ONLY`; comprueba conexión, migraciones/checksums, catálogo demo, estados y STANDARD. Devuelve código 1 si falta preparación; no repara nada ni certifica ausencia completa de drift SQL.
-- **Fixtures E2E:** datos temporales identificados, con limpieza propia; no son seed. Las 20 suites backend usan exclusivamente el [runner Docker E2E verificado](#postgresql-docker-exclusivo-para-e2e), no la conexión del `.env` API. Ejecutar secuencialmente; nunca contra desarrollo/demo.
+- **Fixtures E2E:** datos temporales identificados, con limpieza propia; no son seed. Las 21 suites backend usan exclusivamente el [runner Docker E2E verificado](#postgresql-docker-exclusivo-para-e2e), no la conexión del `.env` API. Ejecutar secuencialmente; nunca contra desarrollo/demo.
 
 Seed/check aceptan únicamente `NODE_ENV=development` (o ausente), host loopback y base `citajusta_dev` o `citajusta_dev_<sufijo alfanumérico>`. Rechazan producción, shadow y parámetros alternativos de conexión (sólo se admite `schema=public`). Verifican el nombre real de la base conectada.
 
@@ -430,7 +486,7 @@ npm run seed:reassignment-demo -w @citajusta/api -- --scenario=accept
 
 En `/ofertas`, aceptar **Atención Demo Reasignación ACCEPT** y comprobar su cita real en `/mis-citas`. El comando nunca responde automáticamente ninguna oferta. Si el TTL venció, no lo revive: detener la prueba y revisar antes de preparar otra iteración.
 
-Pruebas unitarias del tooling: `node --test apps/api/test/reassignment-demo.test.mjs` después del build. El E2E histórico `reassignment-demo.e2e.test.mjs` es específico de tooling `development`, fuera de las 20 suites backend del runner Docker: no ejecutarlo hasta adaptar su aislamiento en una tarea separada. No relajar sus guards ni usarlo contra la base manual.
+Pruebas unitarias del tooling: `node --test apps/api/test/reassignment-demo.test.mjs` después del build. El E2E histórico `reassignment-demo.e2e.test.mjs` es específico de tooling `development`, fuera de las 21 suites backend del runner Docker: no ejecutarlo hasta adaptar su aislamiento en una tarea separada. No relajar sus guards ni usarlo contra la base manual.
 
 ## Validación del flujo
 

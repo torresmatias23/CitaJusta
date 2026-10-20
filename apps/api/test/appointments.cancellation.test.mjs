@@ -58,7 +58,8 @@ function setup(options = {}) {
     }, findUniqueOrThrow: async ({ where }) => ({ id: working.notifications.find((row) => row.recipientUserId === where.recipientUserId_dedupeKey.recipientUserId && row.dedupeKey === where.recipientUserId_dedupeKey.dedupeKey).id }) },
     notificationEmailDelivery: { createMany: async () => ({ count: 1 }) },
     auditEvent: { create: mock.fn(async ({ data }) => { working.audit.push(data); return { id: data.id }; }) },
-    user: { findFirst: mock.fn(async () => options.userMissing ? null : { id: principal.userId }) },
+    user: { findFirst: mock.fn(async () => options.userMissing ? null : { id: principal.userId }),
+      findUniqueOrThrow: async () => ({ appointmentEmailsEnabled: true, offerEmailsEnabled: true }) },
     userRole: { count: async () => options.noGrant ? 0 : 1 },
     availability: { count: async () => options.unavailable ? 0 : 1 },
     waitlistEntry: { findMany: async () => {

@@ -3,7 +3,7 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { executeE2EAction, migrationStatus, parseArguments, runNode, stagePrismaConfiguration, suites, summarizeTapFailures, versionedMigrations, verifyRecoveryMigration } from '../scripts/e2e-docker.mjs';
+import { executeE2EAction, migrationStatus, parseArguments, runNode, stagePrismaConfiguration, suites, summarizeTapFailures, versionedMigrations, verifyProfilePreferencesMigration } from '../scripts/e2e-docker.mjs';
 
 const manifest = [{ name: '001_first', relative: '001_first/migration.sql', checksum: 'checksum' }];
 const applied = { migration_name: '001_first', checksum: 'checksum', finished_at: new Date(), rolled_back_at: null };
@@ -31,7 +31,7 @@ test('runner arguments are explicit, allowlisted and never accept arbitrary file
   for (const args of [['reset'], ['db', 'push'], ['test'], ['test', '../unsafe'], ['migrate', '--force'], ['test', 'reassignment-demo']]) {
     assert.throws(() => parseArguments(args), /Usage/);
   }
-  assert.equal(Object.keys(suites).length, 20);
+  assert.equal(Object.keys(suites).length, 21);
 });
 
 test('every backend E2E npm entry point uses the verified runner and an existing suite', async () => {
@@ -40,7 +40,7 @@ test('every backend E2E npm entry point uses the verified runner and an existing
     assert.equal(scripts[`test:e2e:${name}`], `node scripts/e2e-docker.mjs test ${name}`);
     assert.ok((await readFile(new URL(`e2e/${file}.e2e.test.mjs`, import.meta.url), 'utf8')).includes('loadApiEnvironment('));
   }
-  assert.equal(Object.keys(scripts).filter((name) => name.startsWith('test:e2e:')).length, 20);
+  assert.equal(Object.keys(scripts).filter((name) => name.startsWith('test:e2e:')).length, 21);
   assert.equal(devDependencies.prisma, '7.10.0'); assert.equal(dependencies['@prisma/client'], '7.10.0');
   assert.equal(dependencies['@prisma/adapter-pg'], '7.10.0');
 });
@@ -54,16 +54,16 @@ test('legacy development tooling E2E fails closed before opening its development
 
 test('manifest contains HEAD migrations plus exact approved additive migration, excluding retired local directories', async () => {
   const files = await versionedMigrations();
-  assert.equal(files.filter((file) => file.relative.endsWith('/migration.sql')).length, 13);
+  assert.equal(files.filter((file) => file.relative.endsWith('/migration.sql')).length, 14);
   assert.ok(files.some((file) => file.relative === 'migration_lock.toml'));
   assert.ok(files.every((file) => !file.relative.includes('whatsapp')));
   assert.ok(files.every((file) => file.content instanceof Buffer));
 });
 
-test('uncommitted recovery migration is accepted only with its reviewed checksum', async () => {
-  const bytes = await readFile(new URL('../prisma/migrations/20261018000000_account_recovery_foundation/migration.sql', import.meta.url));
-  assert.equal(verifyRecoveryMigration(bytes), bytes);
-  assert.throws(() => verifyRecoveryMigration(Buffer.concat([bytes, Buffer.from('SELECT 1;')])) , /checksum differs/);
+test('uncommitted profile preferences migration is accepted only with its reviewed checksum', async () => {
+  const bytes = await readFile(new URL('../prisma/migrations/20261019000000_user_profile_notification_preferences/migration.sql', import.meta.url));
+  assert.equal(verifyProfilePreferencesMigration(bytes), bytes);
+  assert.throws(() => verifyProfilePreferencesMigration(Buffer.concat([bytes, Buffer.from('SELECT 1;')])) , /checksum differs/);
 });
 
 test('temporary Prisma config preserves versioned SQL, uses original schema and stores no credentials/dotenv', async () => {
@@ -146,11 +146,11 @@ test('bootstrap runs only existing compiled catalog helpers after generation/bui
   assert.match(commands[2].args[0], /e2e-docker-bootstrap\.mjs$/);
 });
 
-test('all 20 suites run sequentially with per-process preflight, isolated cwd and controlled env', async () => {
+test('all 21 suites run sequentially with per-process preflight, isolated cwd and controlled env', async () => {
   const deps = dependencies(), env = { controlled: 'environment' };
   await executeE2EAction(parseArguments(['test', 'all']), env, deps);
   const commands = deps.calls.filter((call) => typeof call === 'object').slice(2);
-  assert.equal(commands.length, 20);
+  assert.equal(commands.length, 21);
   assert.deepEqual(commands.map(({ label }) => label), Object.keys(suites).map((name) => `E2E ${name}`));
   for (const command of commands) {
     assert.equal(command.args[0], '--import'); assert.match(command.args[1], /docker-preflight\.mjs$/);

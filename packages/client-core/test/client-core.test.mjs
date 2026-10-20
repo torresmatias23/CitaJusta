@@ -83,3 +83,23 @@ test('selectContext accepts only server profile/context and rejects stale accoun
   await assert.rejects(late);
   assert.equal(session.getSnapshot().status, 'anonymous');
 });
+
+test('refreshProfile cannot overwrite a newer institutional context or its permissions', async () => {
+  const profile = { id: 'user', firstName: 'Ana', lastName: 'Test', email: 'test@example.invalid', status: 'ACTIVE', roles: [], permissions: [], context: {} };
+  let resolveOld, hold = false;
+  const session = createAuthSession({
+    publicApi: { request: async () => ({ accessToken: 'test-access', refreshToken: 'test-refresh', tokenType: 'Bearer' }) },
+    authenticatedApi: () => ({ request: async (_path, options) => {
+      if (options.institutionContext) return { data: { ...profile, context: options.institutionContext, permissions: ['services.read'] } };
+      if (hold) return new Promise(resolve => { resolveOld = resolve; });
+      return { data: profile };
+    } }), storage: { read() {}, write() {}, clear() {} },
+  });
+  await session.login({ email: profile.email, password: 'test-only' }); hold = true;
+  const old = session.refreshProfile();
+  const context = { institutionId: '10000000-0000-4000-8000-000000000001' };
+  await session.selectContext(context); resolveOld({ data: { ...profile, firstName: 'Obsoleto' } }); await old;
+  assert.equal(session.getSnapshot().user.firstName, 'Ana');
+  assert.deepEqual(session.getSnapshot().user.context, context);
+  assert.deepEqual(session.getSnapshot().user.permissions, ['services.read']);
+});

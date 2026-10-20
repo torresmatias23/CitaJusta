@@ -13,6 +13,7 @@ test('/api/v1/users/me returns a controlled profile without sensitive fields', a
     firstNames: 'Person',
     lastNames: 'Example',
     status: 'ACTIVE',
+    phone: null, appointmentEmailsEnabled: true, offerEmailsEnabled: true,
     passwordHash: 'must-not-leak',
     deletedAt: new Date(),
     authSessions: [{ refreshTokenHash: 'must-not-leak' }],
@@ -33,6 +34,7 @@ test('/api/v1/users/me returns a controlled profile without sensitive fields', a
       firstName: 'Person',
       lastName: 'Example',
       status: 'ACTIVE',
+      phone: null, notificationPreferences: { appointmentEmailsEnabled: true, offerEmailsEnabled: true },
       context: {},
       roles: ['global-reader'],
       permissions: ['profile.read'],
@@ -46,6 +48,7 @@ test('/api/v1/users/me returns a controlled profile without sensitive fields', a
       firstNames: true,
       lastNames: true,
       status: true,
+      phone: true, appointmentEmailsEnabled: true, offerEmailsEnabled: true,
     },
   });
   const serialized = JSON.stringify(result);

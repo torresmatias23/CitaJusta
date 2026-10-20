@@ -299,6 +299,13 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
       const audits = await prisma.auditEvent.findMany({ where: { OR: [{ resourceId: visitor.id }, { actorUserId: visitor.id }] } });
       assert.ok(!JSON.stringify(audits).includes(token));
     });
+    await t.test('RF-004 profile and preference changes emit only minimal account events', async () => {
+      const visitor = await register();
+      assert.equal((await request('PATCH', '/users/me', visitor.token, { firstName: 'Account fixture' })).status, 200);
+      assert.equal((await request('PUT', '/users/me/notification-preferences', visitor.token, { appointmentEmailsEnabled: false, offerEmailsEnabled: false })).status, 200);
+      const rows = await prisma.auditEvent.findMany({ where: { actorUserId: visitor.id, actionCode: { in: ['ACCOUNT_PROFILE_UPDATED', 'ACCOUNT_EMAIL_PREFERENCES_UPDATED'] } } });
+      assert.equal(rows.length, 2); assert.ok(!JSON.stringify(rows).includes('Account fixture'));
+    });
     await t.test('all specified action codes emitted with no private payloads', async () => {
       const rows = await prisma.auditEvent.findMany({ where: { OR: [{ institutionId: ids.institutionA }, { actorUserId: { in: users } }, { id: { in: anonymousEvents } }] } });
       const emitted = new Set(rows.map((row) => row.actionCode));
