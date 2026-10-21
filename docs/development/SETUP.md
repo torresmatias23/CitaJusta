@@ -1,5 +1,66 @@
 # Entorno y preparación local
 
+## RF-016: confirmación anticipada de asistencia
+
+Sin migraciones, nuevas tablas ni dependencias; Prisma 7.10.0. Reutiliza `confirmaciones`.
+La reserva/comprobante no confirma asistencia. HU-017 registra posteriormente atención
+efectiva/inasistencia; RF-016 no cambia estados, libera cupos ni inicia reasignaciones.
+
+- `POST /api/v1/appointments/:appointmentId/confirm-attendance`: sesión válida, contexto
+  coherente y cita propia; sin body funcional ni query. 200 devuelve
+  `{ data: { appointmentId, confirmed: true, confirmedAt: ISO_UTC } }`.
+- `GET /api/v1/appointments/me` conserva los campos previos y añade
+  `attendanceConfirmation: { required, confirmed, confirmedAt: ISO_UTC|null, canConfirm }`.
+  Históricos propios siguen visibles aunque catálogos se inactiven; no se habilitan acciones.
+- Exige `Service.requiresConfirmation=true`, estado activo/no final con
+  `allowsConfirmation=true`, inicio futuro y relaciones activas/coherentes del slot RESERVED.
+  CANCELADA/ATENDIDA/INASISTENCIA nunca permiten confirmar. No hay otra ventana horaria.
+- Errores: 400 input/contexto inválido según guards; 401 sesión/cuenta no válida;
+  404 cita inexistente, eliminada, ajena o fuera del contexto seleccionado; 409 no elegible,
+  inicio alcanzado o conflicto reconocido persistente; 503 infraestructura y 500 inesperado,
+  con mensajes sanitizados. No recibe userId, actor, institución, canal ni fecha del cliente.
+- Repetir mientras la cita siga elegible devuelve el primer positivo del período sin
+  nueva fila/auditoría. Después de inicio/cierre/cambio de política, responde 409 y conserva
+  el registro histórico. No se implementa respuesta negativa, penalización ni recordatorio.
+
+### Preparación de catálogos — requiere autorización por entorno
+
+El default Prisma de allowsConfirmation sigue siendo false. Antes de RF-016 el bootstrap
+omitía ese campo para AGENDADA. Desde RF-016 sólo una AGENDADA **inexistente** se provisiona
+con true; `skipDuplicates` conserva IDs, nombres y toda configuración ya registrada.
+Reejecutar el bootstrap no habilita una AGENDADA histórica con false.
+
+Para una instalación existente, el procedimiento propuesto (no ejecutado en DEV/DEMO) es:
+
+1. Solicitar autorización explícita sobre el destino y la fila AGENDADA. Verificar identidad
+   de PostgreSQL, guardar evidencia de ID/flags previos y revisar que esté activa/no final.
+2. En una transacción administrativa controlada, cambiar exclusivamente allowsConfirmation
+   de false a true mediante comparación del ID y valores revisados. Verificar una sola
+   fila y conservar la evidencia; ante discrepancia, rollback y revisión, no reparación automática.
+3. Habilitar requiresConfirmation sólo en los servicios que lo requieran, mediante la
+   administración existente. No habilitar otros estados ni modificar citas/historiales.
+4. Validar con una cita propia futura, su confirmación repetida y HU-017 por separado.
+
+DEMO necesita además catálogo/agenda preparados mediante procedimientos autorizados;
+este trabajo no ejecuta bootstrap/seed ni cambia datos allí. No presentar RF-016 como
+habilitado si ambas políticas no están configuradas. Antes de ejecutar esa preparación,
+pedir autorización; no sustituirla por actualizaciones automáticas al arrancar la API.
+
+### Pruebas aisladas y Web
+
+```powershell
+npm run e2e:docker -w @citajusta/api -- check
+npm run test:e2e:attendance-confirmation -w @citajusta/api
+```
+
+El fixture crea sólo sus propios catálogos habilitados, no cambia AGENDADA global.
+Incluye concurrencia, rollback, A→B→A y compatibilidad HU-017; la suite reassignments
+verifica además que una aceptación real no hereda la confirmación del titular anterior.
+Cleanup por IDs/namespace con verificación de identidad; no se usan DEV/DEMO ni correos reales.
+Mis citas muestra la acción según canConfirm, carga/error/éxito, bloqueo de doble envío
+y refetch tras guardar. La respuesta tardía de un componente desmontado no se aplica.
+Validación manual pendiente: móvil/teclado y persistencia visible con otra sesión real.
+
 ## RF-004: perfil y preferencias de correo
 
 Prisma permanece en 7.10.0. La migración
@@ -338,11 +399,11 @@ npm run e2e:docker -w @citajusta/api -- bootstrap
 npm run test:e2e:checkpoint -w @citajusta/api
 npm run test:e2e:appointments -w @citajusta/api
 npm run test:e2e:waitlist -w @citajusta/api
-# Todas las 21 suites backend (incluidos RF-005, RF-003 y RF-004), secuencialmente:
+# Todas las 22 suites backend (incluidos RF-005, RF-003, RF-004 y RF-016), secuencialmente:
 npm run e2e:docker -w @citajusta/api -- test all
 ```
 
-Suites disponibles: `profile-notifications`, `account-recovery`, `institutions`, `checkpoint`, `agenda`, `reports`, `expiration`, `notifications`, `email-delivery`, `google`, `google-calendar`, `audit`, `attendance`, `catalog`, `professionals`, `availability-admin`, `appointments`, `waitlist`, `automatic-start`, `reassignments`, `reassignment-policy`.
+Suites disponibles: `attendance-confirmation`, `profile-notifications`, `account-recovery`, `institutions`, `checkpoint`, `agenda`, `reports`, `expiration`, `notifications`, `email-delivery`, `google`, `google-calendar`, `audit`, `attendance`, `catalog`, `professionals`, `availability-admin`, `appointments`, `waitlist`, `automatic-start`, `reassignments`, `reassignment-policy`.
 
 ### Protecciones y responsabilidades
 
@@ -360,7 +421,7 @@ Para detener, conservando datos, usar únicamente:
 docker compose --project-name citajusta-e2e -f docker/e2e/compose.yaml --env-file docker/e2e/.env stop
 ```
 
-No usar `down -v`, borrar volúmenes ni reutilizar el proyecto/volumen de demostración. El tooling E2E de desarrollo `reassignment-demo.e2e.test.mjs` no integra estas 21 suites: exige `development` y queda bloqueado antes de abrir su cliente, pendiente de una adaptación aislada compatible con `test`; no relajar sus guards. El E2E Web directo tampoco queda validado por esta preparación backend.
+No usar `down -v`, borrar volúmenes ni reutilizar el proyecto/volumen de demostración. El tooling E2E de desarrollo `reassignment-demo.e2e.test.mjs` no integra estas 22 suites: exige `development` y queda bloqueado antes de abrir su cliente, pendiente de una adaptación aislada compatible con `test`; no relajar sus guards. El E2E Web directo tampoco queda validado por esta preparación backend.
 
 ### Validación sin PostgreSQL y evidencia Capstone
 
@@ -428,7 +489,7 @@ npm run dev -w @citajusta/web
 - **Bootstrap:** estados de citas; `bootstrap:waitlist` provisiona `ACTIVE`, `WITHDRAWN`, `FULFILLED` y `STANDARD` para instituciones activas existentes. Repetirlo después de añadir instituciones.
 - **Seed:** crea sólo Institución Demo CitaJusta, Sede Centro Demo, Atención General Demo (30 minutos, Waitlist habilitada), vínculo activo y reutiliza el bootstrap Waitlist para esa institución. Conserva IDs `d1000000-...-0001/0002/0003` y códigos `DEMO-CENTRO` / `DEMO-ATENCION`. No crea usuarios, roles ni agenda.
 - **Check:** transacción PostgreSQL `READ ONLY`; comprueba conexión, migraciones/checksums, catálogo demo, estados y STANDARD. Devuelve código 1 si falta preparación; no repara nada ni certifica ausencia completa de drift SQL.
-- **Fixtures E2E:** datos temporales identificados, con limpieza propia; no son seed. Las 21 suites backend usan exclusivamente el [runner Docker E2E verificado](#postgresql-docker-exclusivo-para-e2e), no la conexión del `.env` API. Ejecutar secuencialmente; nunca contra desarrollo/demo.
+- **Fixtures E2E:** datos temporales identificados, con limpieza propia; no son seed. Las 22 suites backend usan exclusivamente el [runner Docker E2E verificado](#postgresql-docker-exclusivo-para-e2e), no la conexión del `.env` API. Ejecutar secuencialmente; nunca contra desarrollo/demo.
 
 Seed/check aceptan únicamente `NODE_ENV=development` (o ausente), host loopback y base `citajusta_dev` o `citajusta_dev_<sufijo alfanumérico>`. Rechazan producción, shadow y parámetros alternativos de conexión (sólo se admite `schema=public`). Verifican el nombre real de la base conectada.
 
@@ -486,7 +547,7 @@ npm run seed:reassignment-demo -w @citajusta/api -- --scenario=accept
 
 En `/ofertas`, aceptar **Atención Demo Reasignación ACCEPT** y comprobar su cita real en `/mis-citas`. El comando nunca responde automáticamente ninguna oferta. Si el TTL venció, no lo revive: detener la prueba y revisar antes de preparar otra iteración.
 
-Pruebas unitarias del tooling: `node --test apps/api/test/reassignment-demo.test.mjs` después del build. El E2E histórico `reassignment-demo.e2e.test.mjs` es específico de tooling `development`, fuera de las 21 suites backend del runner Docker: no ejecutarlo hasta adaptar su aislamiento en una tarea separada. No relajar sus guards ni usarlo contra la base manual.
+Pruebas unitarias del tooling: `node --test apps/api/test/reassignment-demo.test.mjs` después del build. El E2E histórico `reassignment-demo.e2e.test.mjs` es específico de tooling `development`, fuera de las 22 suites backend del runner Docker: no ejecutarlo hasta adaptar su aislamiento en una tarea separada. No relajar sus guards ni usarlo contra la base manual.
 
 ## Validación del flujo
 

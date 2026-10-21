@@ -19,7 +19,7 @@ function database(existing) {
   return { appointmentStatus, stored: (code = 'AGENDADA') => stored.get(code) };
 }
 
-test('appointment status bootstrap is idempotent and delegates allowsConfirmation to the model default', async () => {
+test('new AGENDADA enables RF-016 confirmation idempotently without changing the schema default', async () => {
   const db = database();
   await bootstrapAppointmentStatus(db);
   const first = structuredClone(db.stored());
@@ -28,9 +28,15 @@ test('appointment status bootstrap is idempotent and delegates allowsConfirmatio
   const { id, ...configuration } = first;
   assert.match(id, /^[0-9a-f-]{36}$/);
   assert.deepEqual(configuration, {
-    code: 'AGENDADA', name: 'Agendada', isFinal: false, allowsCancellation: true, active: true,
+    code: 'AGENDADA', name: 'Agendada', isFinal: false, allowsCancellation: true, allowsConfirmation: true, active: true,
   });
-  assert.equal(Object.hasOwn(first, 'allowsConfirmation'), false);
+  assert.equal(first.allowsConfirmation, true);
+});
+
+test('existing AGENDADA with confirmation disabled is preserved and requires authorized provisioning', async () => {
+  const existing = { id: 'existing', code: 'AGENDADA', active: true, isFinal: false, allowsConfirmation: false, allowsCancellation: true };
+  const db = database(existing); await bootstrapAppointmentStatus(db); await bootstrapAppointmentStatus(db);
+  assert.deepEqual(db.stored(), existing);
 });
 
 test('appointment status bootstrap preserves existing identifiers and custom configuration', async () => {

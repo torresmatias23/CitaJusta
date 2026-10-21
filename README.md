@@ -18,6 +18,17 @@ Centralizar el catálogo y la disponibilidad, y realizar una reasignación segur
 
 ## Estado actual
 
+RF-016 (#194): Mis citas permite confirmar anticipadamente asistencia cuando el backend
+verifica servicio `requiresConfirmation`, estado activo/no final con `allowsConfirmation`,
+cita propia futura y cupo/contexto coherente. `POST /api/v1/appointments/:appointmentId/confirm-attendance`
+no recibe body funcional y devuelve confirmación/fecha controladas; repetir dentro del
+período elegible conserva el mismo resultado sin otro evento. `GET /appointments/me`
+añade `attendanceConfirmation: { required, confirmed, confirmedAt, canConfirm }`.
+No cambia el estado de la cita ni el slot, y no equivale a la asistencia efectiva HU-017.
+Las confirmaciones de titulares/períodos anteriores se conservan sin heredarlas.
+No requiere migración. La habilitación de AGENDADA existente exige autorización aparte;
+ver [configuración y límites](docs/development/SETUP.md#rf-016-confirmación-anticipada-de-asistencia).
+
 RF-004 (#191): `/cuenta` permite editar nombres, apellidos y teléfono opcional, y guardar
 preferencias globales de correos de citas/ofertas. `GET /api/v1/users/me` mantiene su
 contrato previo y añade `phone` y `notificationPreferences`; `PATCH /users/me` y
@@ -199,7 +210,7 @@ Con las migraciones aplicadas y `DATABASE_URL` configurada, provisionar el estad
 npm run --workspace @citajusta/api bootstrap:appointment-status
 ```
 
-El bootstrap es idempotente por códigos `AGENDADA` y `CANCELADA` y conserva toda configuración existente. Para `AGENDADA` omite `allowsConfirmation`, cuyo default del modelo es `false`; `CANCELADA` se crea activa y final, con `allowsCancellation` y `allowsConfirmation` en `false`. Los endpoints no ejecutan el bootstrap: la reserva responde `503` si `AGENDADA` falta, está inactiva o es final; la cancelación responde `503` si `CANCELADA` falta, está inactiva, no es final o permite cancelar/confirmar.
+El bootstrap es idempotente por códigos `AGENDADA` y `CANCELADA` y conserva toda configuración existente. Desde RF-016, una AGENDADA **nueva** se crea con `allowsConfirmation=true`; una existente, incluso con false, no se modifica. La decisión inicial de HU-004 delegaba ese valor al default false del modelo, que permanece intacto. Su habilitación posterior requiere el procedimiento autorizado de SETUP. `CANCELADA` se crea activa y final, con `allowsCancellation` y `allowsConfirmation` en false. Los endpoints no ejecutan el bootstrap: la reserva responde 503 si AGENDADA falta, está inactiva o es final; la cancelación responde 503 si CANCELADA falta, está inactiva, no es final o permite cancelar/confirmar.
 
 ### HU-007: ingreso y consulta de lista de espera
 

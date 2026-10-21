@@ -12,6 +12,7 @@ export async function bootstrapAppointmentStatus(
       name: 'Agendada',
       isFinal: false,
       allowsCancellation: true,
+      allowsConfirmation: true,
       active: true,
     }, {
       id: randomUUID(),

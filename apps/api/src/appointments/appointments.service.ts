@@ -24,6 +24,7 @@ import {
 } from '../generated/prisma/client.js';
 
 import { branchLocationSelect, branchLocation } from '../institutions/branch-location.js';
+import { confirmationSelect, confirmationStates, publicConfirmation } from './attendance-confirmation.policy.js';
 
 const appointmentSummarySelect = {
   id: true,
@@ -68,23 +69,24 @@ export class AppointmentsService {
   constructor(private readonly prisma: PrismaService, private readonly config: ConfigService) {}
 
   async findMine(principal: AuthenticatedPrincipal) {
-    const appointments = await this.prisma.appointment.findMany({
-      where: { userId: principal.userId, deletedAt: null },
-      orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
-      select: appointmentSummarySelect,
-    });
-
-    return {
-      data: appointments
+    return this.prisma.$transaction(async tx => {
+      const appointments = await tx.appointment.findMany({
+        where: { userId: principal.userId, deletedAt: null },
+        orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+        select: { ...appointmentSummarySelect, ...confirmationSelect },
+      });
+      const visible = appointments
         // Historical appointments remain visible when catalogs become inactive.
         // Inconsistent tenant relations must never expose another tenant's data.
         .filter((appointment) =>
           appointment.branch.institutionId === appointment.institutionId &&
           appointment.service.institutionId === appointment.institutionId &&
           appointment.professional.institutionId === appointment.institutionId,
-        )
-        .map(mapAppointmentSummary),
-    };
+        );
+      const states = await confirmationStates(tx, principal.userId, visible);
+      return { data: visible.map(appointment => ({ ...mapAppointmentSummary(appointment),
+        attendanceConfirmation: publicConfirmation(states.get(appointment.id)!) })) };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
   async cancel(appointmentId: string, principal: AuthenticatedPrincipal) {

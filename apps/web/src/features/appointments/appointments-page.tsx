@@ -9,10 +9,11 @@ import { CancelAppointmentDialog } from './cancel-appointment-dialog';
 import { useAppointments } from './use-appointments';
 import { GoogleCalendarButton } from './google-calendar-button';
 import { BranchLocationPanel } from '../locations/branch-location-panel';
+import { AttendanceConfirmationAction } from './attendance-confirmation-action';
 
 export function AppointmentsPage() {
   const appointments = useAppointments();
-  const { user } = useAuth();
+  const { user, api } = useAuth();
   const [selected, setSelected] = useState<{ owner: string; appointment: AppointmentSummary } | null>(null);
   const [notice, setNotice] = useState('');
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -36,6 +37,11 @@ export function AppointmentsPage() {
               <AppointmentDetails appointment={appointment} />
               <BranchLocationPanel branch={appointment.branch} />
               <GoogleCalendarButton key={`${user?.id}:${appointment.id}`} appointment={appointment} />
+              <AttendanceConfirmationAction key={`confirmation:${user?.id}:${appointment.id}`} appointmentId={appointment.id}
+                confirmation={appointment.attendanceConfirmation} api={api} onRefresh={appointments.refresh} onConfirmed={() => {
+                  setNotice('Tu confirmación anticipada quedó registrada. No cambia el estado agendado ni registra asistencia efectiva.');
+                  appointments.refresh();
+                }} />
               {appointment.status === 'AGENDADA' && <div className="mt-5 flex justify-end"><Button variant="danger" onClick={(event) => {
                 if (!user) return;
                 returnFocus.current = event.currentTarget;

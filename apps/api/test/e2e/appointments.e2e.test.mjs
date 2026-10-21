@@ -317,8 +317,9 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
       for (const [index, item] of response.body.data.entries()) {
         assert.deepEqual(Object.keys(item).sort(), [
           'id', 'institutionId', 'status', 'startsAt', 'endsAt', 'origin',
-          'branch', 'service', 'professional',
+          'branch', 'service', 'professional', 'attendanceConfirmation',
         ].sort());
+        assert.deepEqual(Object.keys(item.attendanceConfirmation).sort(), ['required', 'confirmed', 'confirmedAt', 'canConfirm'].sort());
         assert.deepEqual(Object.keys(item.branch).sort(), ['addressLine1', 'addressLine2', 'country', 'id', 'latitude', 'longitude', 'municipality', 'name', 'region']);
         assert.deepEqual(Object.keys(item.service).sort(), ['id', 'name']);
         assert.deepEqual(Object.keys(item.professional).sort(), ['firstNames', 'id', 'lastNames']);
@@ -568,7 +569,10 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
       assert.equal(after.cancellations[0].comment, null);
       const mine = await getMine(listingUser.token);
       assert.equal(mine.status, 200);
-      assert.deepEqual(response.body.data, mine.body.data.find(({ id }) => id === tied.id));
+      const { attendanceConfirmation, ...listedAppointment } = mine.body.data.find(({ id }) => id === tied.id);
+      assert.deepEqual(response.body.data, listedAppointment);
+      assert.equal(attendanceConfirmation.confirmed, false); assert.equal(attendanceConfirmation.confirmedAt, null);
+      assert.equal(attendanceConfirmation.canConfirm, false);
       assert.deepEqual(await cancel(tied.id), response);
       assert.deepEqual(await cancellationSnapshot(tied.id), after);
       assert.equal((await getMine(first.token)).body.data.some(({ id }) => id === tied.id), false);

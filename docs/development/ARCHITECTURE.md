@@ -1,5 +1,27 @@
 # Arquitectura de CitaJusta
 
+## Confirmación anticipada de asistencia (RF-016)
+
+Appointments reutiliza Confirmation sin migración: intención positiva del usuario,
+channel INTERNAL y fecha del servidor, no resultado de atención. El endpoint valida
+principal/contexto, titular actual, servicio/estado, fecha futura y política compartida
+de disponibilidad para el cupo RESERVED. No modifica Appointment, AgendaSlot, historial
+de estados ni reasignación. HU-017 conserva su operación institucional independiente.
+
+Cada confirmación bloquea la fila de cita con FOR UPDATE en una transacción Serializable,
+lee el predicado de confirmaciones y audita atómicamente. Las solicitudes duplicadas
+reintentan como máximo una vez ante conflicto reconocido y leen el resultado ya guardado.
+Para SQL raw se reconoce únicamente el envelope Prisma P2010 con el mismo adapter
+TransactionWriteConflict/40001/40P01, sin reclasificar constraints o errores arbitrarios.
+La inserción comprueba el inicio con clock_timestamp, no el now del comienzo transaccional.
+
+La vigencia se determina por appointmentId, userId y el último cambio de titular en
+AppointmentHistory; los timestamps se comparan en PostgreSQL con microsegundos. Sin
+historial se usa createdAt. Se conserva el primer positivo de ese período. Ni otro titular
+ni un retorno A→B→A heredan la intención anterior. Las consultas propias agregan el DTO
+attendanceConfirmation en una lectura RepeatableRead con consultas por lote, sin N+1.
+La Web sólo presenta canConfirm y vuelve a consultar tras guardar; no decide elegibilidad.
+
 ## Perfil y preferencias globales (RF-004)
 
 Users conserva la autoridad de identidad: las escrituras propias reutilizan principal,

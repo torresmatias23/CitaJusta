@@ -46,6 +46,7 @@ export async function cleanupAuditFixtures(prisma) {
   await prisma.institution.updateMany({ where: { id: { in: institutions } }, data: { currentReassignmentPolicyId: null } });
   await prisma.reassignmentPolicy.deleteMany({ where: { institutionId: { in: institutions } } });
   await prisma.appointmentHistory.deleteMany({ where: { appointment: appointmentScope } });
+  await prisma.confirmation.deleteMany({ where: { appointment: appointmentScope } });
   await prisma.cancellation.deleteMany({ where: { appointment: appointmentScope } });
   await prisma.appointment.deleteMany({ where: appointmentScope });
   await prisma.agendaSlot.deleteMany({ where: { availability: { branch: { institutionId: { in: institutions } } } } });

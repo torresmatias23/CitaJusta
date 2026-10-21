@@ -16,13 +16,14 @@ function appointment(overrides = {}) {
   return {
     id: randomUUID(),
     userId: principal.userId,
+    agendaSlotId: randomUUID(), branchId: randomUUID(), serviceId: randomUUID(), professionalId: randomUUID(),
     institutionId,
     startsAt: new Date('2026-01-01T10:00:00.000Z'),
     endsAt: new Date('2026-01-01T10:30:00.000Z'),
     origin: 'WEB',
-    status: { code: 'AGENDADA', allowsCancellation: true },
+    status: { code: 'AGENDADA', allowsCancellation: true, active: true, isFinal: false, allowsConfirmation: false },
     branch: { id: randomUUID(), institutionId, name: 'Branch', email: 'private@example.com' },
-    service: { id: randomUUID(), institutionId, name: 'Service', active: false },
+    service: { id: randomUUID(), institutionId, name: 'Service', active: false, requiresConfirmation: false },
     professional: {
       id: randomUUID(), institutionId, internalCode: 'private',
       user: { firstNames: 'Ana', lastNames: 'Perez', email: 'private@example.com' },
@@ -36,7 +37,10 @@ function appointment(overrides = {}) {
 
 function setup(rows = []) {
   const findMany = mock.fn(async () => rows);
-  return { service: new AppointmentsService({ appointment: { findMany } }), findMany };
+  const tx = { appointment: { findMany }, $queryRaw: async () => rows.map(row => ({ id: row.id, confirmedAt: null, ownershipValid: true })) };
+  return { service: new AppointmentsService({ $transaction: async (operation, options) => {
+    assert.equal(options.isolationLevel, 'RepeatableRead'); return operation(tx);
+  } }), findMany };
 }
 
 test('my appointments route requires AccessTokenGuard and delegates only the principal', async () => {
@@ -93,14 +97,16 @@ test('my appointments selects and maps only the defined public fields', async ()
         municipality: null, region: null, country: null, latitude: null, longitude: null },
       service: { id: row.service.id, name: row.service.name },
       professional: { id: row.professional.id, firstNames: 'Ana', lastNames: 'Perez' },
+      attendanceConfirmation: { required: false, confirmed: false, confirmedAt: null, canConfirm: false },
     }],
   });
   assert.deepEqual(findMany.mock.calls[0].arguments[0].select, {
     id: true, institutionId: true, startsAt: true, endsAt: true, origin: true,
-    status: { select: { code: true } },
+    status: { select: { code: true, active: true, isFinal: true, allowsConfirmation: true } },
+    agendaSlotId: true, branchId: true, serviceId: true, professionalId: true,
     branch: { select: { id: true, institutionId: true, name: true, addressLine1: true, addressLine2: true,
       municipality: true, region: true, country: true, latitude: true, longitude: true } },
-    service: { select: { id: true, institutionId: true, name: true } },
+    service: { select: { id: true, institutionId: true, name: true, requiresConfirmation: true } },
     professional: {
       select: {
         id: true, institutionId: true,
