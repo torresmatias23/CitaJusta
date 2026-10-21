@@ -24,9 +24,11 @@ test('catalog returns geo fields without weakening active institution/branch ten
 test('own historical appointments include controlled geography, retain owner filter and hide inconsistent tenants', async () => {
   const institutionId = randomUUID(), userId = randomUUID(); let query;
   const row = { id: randomUUID(), institutionId, startsAt: new Date(0), endsAt: new Date(60000), origin: 'WEB', status: { code: 'CANCELADA' },
-    branch: { id: randomUUID(), institutionId, name: 'Centro', ...geo }, service: { id: randomUUID(), institutionId, name: 'Atención' },
+    branch: { id: randomUUID(), institutionId, name: 'Centro', ...geo }, service: { id: randomUUID(), institutionId, name: 'Atención', requiresConfirmation: false },
     professional: { id: randomUUID(), institutionId, user: { firstNames: 'Ana', lastNames: 'Pérez', passwordHash: 'private' } } };
-  const result = await new AppointmentsService({ appointment: { findMany: async (args) => { query = args; return [row, { ...row, branch: { ...row.branch, institutionId: randomUUID() } }]; } } }).findMine({ userId });
+  const tx = { appointment: { findMany: async (args) => { query = args; return [row, { ...row, branch: { ...row.branch, institutionId: randomUUID() } }]; } },
+    $queryRaw: async () => [{ id: row.id, confirmedAt: null, ownershipValid: true }] };
+  const result = await new AppointmentsService({ $transaction: async operation => operation(tx) }).findMine({ userId });
   assert.deepEqual(query.where, { userId, deletedAt: null }); assert.equal(result.data.length, 1); assert.equal(result.data[0].branch.latitude, -33.45);
   assert.doesNotMatch(JSON.stringify(result), /passwordHash|private/);
 });

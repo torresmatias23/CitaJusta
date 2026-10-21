@@ -306,6 +306,20 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
       const rows = await prisma.auditEvent.findMany({ where: { actorUserId: visitor.id, actionCode: { in: ['ACCOUNT_PROFILE_UPDATED', 'ACCOUNT_EMAIL_PREFERENCES_UPDATED'] } } });
       assert.equal(rows.length, 2); assert.ok(!JSON.stringify(rows).includes('Account fixture'));
     });
+    await t.test('RF016 real positive attendance confirmation emits one minimal event without status transition', async () => {
+      const visitor = await register();
+      const status = await prisma.appointmentStatus.create({ data: { id: randomUUID(), code: `RF016_AUDIT_${marker}`, name: 'Audit fixture', allowsConfirmation: true } });
+      appointmentStatusIds.push(status.id);
+      await prisma.service.update({ where: { id: ids.serviceA }, data: { requiresConfirmation: true } });
+      const initial = await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable } });
+      const startsAt = new Date(+initial.startsAt + 4.5 * 3600000), endsAt = new Date(+startsAt + 1800000);
+      const slot = await prisma.agendaSlot.create({ data: { id: randomUUID(), availabilityId: ids.availabilityMain, startsAt, endsAt, status: 'RESERVED' } });
+      const row = await prisma.appointment.create({ data: { id: randomUUID(), institutionId: ids.institutionA, branchId: ids.branchA1,
+        serviceId: ids.serviceA, professionalId: ids.professionalA, agendaSlotId: slot.id, userId: visitor.id, statusId: status.id, origin: 'WEB', startsAt, endsAt } });
+      assert.equal((await request('POST', `/appointments/${row.id}/confirm-attendance`, visitor.token)).status, 200);
+      assert.equal((await request('POST', `/appointments/${row.id}/confirm-attendance`, visitor.token)).status, 200);
+      assert.equal(await prisma.auditEvent.count({ where: { resourceId: row.id, actionCode: 'APPOINTMENT_ATTENDANCE_CONFIRMED' } }), 1);
+    });
     await t.test('all specified action codes emitted with no private payloads', async () => {
       const rows = await prisma.auditEvent.findMany({ where: { OR: [{ institutionId: ids.institutionA }, { actorUserId: { in: users } }, { id: { in: anonymousEvents } }] } });
       const emitted = new Set(rows.map((row) => row.actionCode));

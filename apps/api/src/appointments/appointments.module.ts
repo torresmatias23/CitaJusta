@@ -8,10 +8,11 @@ import { AttendanceController } from './attendance.controller.js';
 import { AttendanceService } from './attendance.service.js';
 import { AppointmentCalendarService } from './appointment-calendar.service.js';
 import { GoogleCalendarAdapter } from './google-calendar.adapter.js';
+import { AttendanceConfirmationService } from './attendance-confirmation.service.js';
 
 @Module({
   imports: [DatabaseModule, AuthModule, AuthorizationModule],
   controllers: [AppointmentsController, AttendanceController],
-  providers: [AppointmentsService, AttendanceService, AppointmentCalendarService, GoogleCalendarAdapter],
+  providers: [AppointmentsService, AttendanceService, AppointmentCalendarService, GoogleCalendarAdapter, AttendanceConfirmationService],
 })
 export class AppointmentsModule {}

@@ -104,6 +104,8 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
     const booking = await request('POST', '/api/v1/appointments', source.token, { agendaSlotId: ids.slotAvailable });
     assert.equal(booking.status, 201);
     const appointmentId = booking.body.data.id;
+    // Owned historical fixture: actual offer acceptance below must not transfer this intent.
+    const previousConfirmation = await prisma.confirmation.create({ data: { id: randomUUID(), appointmentId, userId: source.id, confirmed: true } });
     assert.equal((await cancelWithBlockedSlot(prisma, appointmentId, () => request('POST', `/api/v1/appointments/${appointmentId}/cancel`, source.token))).status, 200);
     const appointmentBefore = await prisma.appointment.findUniqueOrThrow({ where: { id: appointmentId }, include: { historyEntries: true, cancellations: true } });
     const slotBefore = await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable } });
@@ -443,6 +445,9 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
       const transferHistory = currentAppointment.historyEntries.filter((history) => history.reason === 'REASSIGNMENT_ACCEPTED');
       assert.equal(transferHistory.length, 1);
       assert.equal(transferHistory[0].previousUserId, source.id); assert.equal(transferHistory[0].newUserId, acceptanceUser.id);
+      const own = await request('GET', '/api/v1/appointments/me', acceptanceUser.token);
+      assert.equal(own.status, 200); assert.equal(own.body.data.find(row => row.id === appointmentId).attendanceConfirmation.confirmed, false);
+      assert.deepEqual(await prisma.confirmation.findUniqueOrThrow({ where: { id: previousConfirmation.id } }), previousConfirmation);
     });
     await t.test('HU-016 supervision reconstructs rejection then acceptance with deterministic order and zero writes', async () => {
       const snapshot = async () => ({

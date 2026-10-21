@@ -9,6 +9,7 @@ import { createAuditModel } from './audit-model';
 import type { AuditState } from './audit-model';
 
 const actionLabels: Record<typeof auditActions[number], string> = {
+  APPOINTMENT_ATTENDANCE_CONFIRMED: 'Asistencia anticipada confirmada',
   ACCOUNT_PROFILE_UPDATED: 'Perfil actualizado', ACCOUNT_EMAIL_PREFERENCES_UPDATED: 'Preferencias de correo actualizadas',
   ACCOUNT_RECOVERY_REQUESTED: 'Recuperación de cuenta solicitada', ACCOUNT_PASSWORD_RESET: 'Contraseña restablecida',
   AUTH_LOGIN_SUCCESS: 'Inicio de sesión exitoso', AUTH_LOGIN_FAILURE: 'Inicio de sesión fallido', AUTH_LOGOUT: 'Cierre de sesión', AUTH_GOOGLE_LINKED: 'Cuenta Google vinculada',

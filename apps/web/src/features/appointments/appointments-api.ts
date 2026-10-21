@@ -11,7 +11,20 @@ export type AppointmentSummary = {
   branch: { id: string; name: string } & BranchLocation;
   service: { id: string; name: string };
   professional: { id: string; firstNames: string; lastNames: string };
+  attendanceConfirmation?: AttendanceConfirmation;
 };
+
+export type AttendanceConfirmation = { required: boolean; confirmed: boolean; confirmedAt: string | null; canConfirm: boolean };
+export type AttendanceConfirmationResult = { appointmentId: string; confirmed: true; confirmedAt: string };
+
+function parseAttendanceConfirmation(value: unknown): AttendanceConfirmation {
+  const row = record(value);
+  if (typeof row.required !== 'boolean' || typeof row.confirmed !== 'boolean' || typeof row.canConfirm !== 'boolean' ||
+    (row.confirmedAt !== null && typeof row.confirmedAt !== 'string') || row.confirmed !== (row.confirmedAt !== null) ||
+    (row.canConfirm && (!row.required || row.confirmed))) return invalidResponse();
+  return { required: row.required, confirmed: row.confirmed, canConfirm: row.canConfirm,
+    confirmedAt: row.confirmedAt === null ? null : date(row.confirmedAt) };
+}
 
 export type BookingResponse = {
   id: string;
@@ -64,6 +77,7 @@ export function parseAppointment(value: unknown): AppointmentSummary {
     branch: { id: id(branch.id), name: text(branch.name), ...parseBranchLocation(branch) },
     service: { id: id(service.id), name: text(service.name) },
     professional: { id: id(professional.id), firstNames: text(professional.firstNames), lastNames: text(professional.lastNames) },
+    ...(item.attendanceConfirmation !== undefined ? { attendanceConfirmation: parseAttendanceConfirmation(item.attendanceConfirmation) } : {}),
   };
 }
 
@@ -78,6 +92,15 @@ function parseBooking(value: unknown): BookingResponse {
 
 export function createAppointmentsApi(client: ApiClient) {
   return {
+    async confirmAttendance(appointmentId: string, signal?: AbortSignal): Promise<AttendanceConfirmationResult> {
+      if (!isAppointmentId(appointmentId)) throw new Error('Identificador de cita inválido.');
+      const response = record(await client.request(`appointments/${appointmentId}/confirm-attendance`, {
+        method: 'POST', retryAfterRefresh: false, ...(signal ? { signal } : {}),
+      }));
+      const result = record(response.data);
+      if (result.appointmentId !== appointmentId || result.confirmed !== true) return invalidResponse();
+      return { appointmentId, confirmed: true, confirmedAt: date(result.confirmedAt) };
+    },
     async exportCalendar(appointmentId: string, code: string, signal?: AbortSignal) {
       if (!isAppointmentId(appointmentId) || !/^\S{1,4096}$/.test(code)) throw new Error('Solicitud de Google Calendar inválida.');
       const response = record(await client.request(`appointments/${appointmentId}/google-calendar`, {
@@ -112,12 +135,13 @@ export function createAppointmentsApi(client: ApiClient) {
   };
 }
 
-export function appointmentErrorMessage(error: unknown, action: 'list' | 'reserve' | 'cancel'): string {
+export function appointmentErrorMessage(error: unknown, action: 'list' | 'reserve' | 'cancel' | 'confirm'): string {
   if (error instanceof ApiError) {
     if (error.status === 400) return 'Revisa los datos de la solicitud y vuelve a intentarlo.';
     if (error.status === 401) return 'Tu sesión terminó. Vuelve a iniciar sesión.';
     if (error.status === 403) return 'No tienes acceso a esta atención.';
     if (error.status === 404) return action === 'reserve' ? 'Este cupo ya no está disponible.' : 'La cita no está disponible para tu cuenta.';
+    if (error.status === 409 && action === 'confirm') return 'La cita ya no permite confirmar asistencia. Actualiza Mis citas para consultar su estado.';
     if (error.status === 409) return action === 'reserve'
       ? 'El cupo cambió o ya fue reservado. Actualiza los resultados para elegir otra hora.'
       : 'La cita cambió y no se pudo cancelar. Actualiza tus citas para consultar su estado.';

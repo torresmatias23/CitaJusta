@@ -27,6 +27,15 @@ export function parseCancellationInput(params: unknown, query: unknown, body: un
   return result.data;
 }
 
+export function parseAttendanceConfirmationInput(params: unknown, query: unknown, body: unknown) {
+  const result = cancellationParamsSchema.safeParse(params);
+  if (!result.success || !emptyCancellationInputSchema.safeParse(query).success ||
+    !emptyCancellationInputSchema.optional().safeParse(body).success) {
+    throw new BadRequestException('Invalid attendance confirmation input');
+  }
+  return result.data;
+}
+
 export function parseMyAppointmentsInput(query: unknown, body: unknown) {
   if (
     !myAppointmentsInputSchema.safeParse(query).success ||
