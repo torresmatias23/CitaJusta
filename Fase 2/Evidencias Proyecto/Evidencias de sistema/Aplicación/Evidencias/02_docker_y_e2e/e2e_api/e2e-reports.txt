@@ -1,0 +1,35 @@
+# 2026-10-17 15:08:14 npm run test:e2e:reports -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:reports
+> npm run build && node --test --test-concurrency=1 test/e2e/reports.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+▶ HU-019 reports: real PostgreSQL aggregates, authorization, isolation and no writes
+  ✔ auth, permission and context required; empty report and strict inputs (164.9336ms)
+  ✔ all metrics and ratio from persisted rows; completed process with three offers counted once (37.2278ms)
+  ✔ same branch, service and professional filters apply to every indicator (93.8328ms)
+  ✔ branch scope cannot escape and cross-tenant filters reveal no data (81.6949ms)
+  ✔ institutional midnight is inclusive and next midnight exclusive (70.2686ms)
+  ✔ noShows follows transition time, deduplicates history and preserves scope (192.8482ms)
+  ✔ GLOBAL permissions still require a selected institution for institutional reports (110.1722ms)
+  ✔ event dates differ from appointment date and expiration is operational, independent of resolution lag (54.2803ms)
+  ✔ inconsistent FKs cannot import another tenant through appointments or reassignments (63.5909ms)
+  ✔ cancellation and recovery use their own event dates, not appointment start or offer count (68.2569ms)
+  ✔ inactive catalogs preserve historical indicators (23.7784ms)
+  ✔ GET changes no persisted business rows, including overdue PENDING offers (61.2433ms)
+(node:23204) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  ✔ real HU-017 timestamp counts an older appointment and repeated attendance is idempotent (109.9786ms)
+  ✔ compatible with real booking, cancellation, offer generation, rejection and acceptance (585.3618ms)
+✔ HU-019 reports: real PostgreSQL aggregates, authorization, isolation and no writes (3133.0172ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3550.7391

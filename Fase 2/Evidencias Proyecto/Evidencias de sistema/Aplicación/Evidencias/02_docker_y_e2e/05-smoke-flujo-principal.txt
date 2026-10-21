@@ -1,0 +1,45 @@
+# Prueba de flujo CitaJusta · 2026-10-17T18:04:42.210Z · base http://localhost:8080
+PASS | Salud API (directo, puerto 3000) | GET http://localhost:3000/health | HTTP 200 | 53 ms
+    /health -> {"status":"ok"}
+PASS | Web SPA sirve index.html | GET / | HTTP 200 | 4 ms
+PASS | Fallback SPA en ruta profunda | GET /mis-citas | HTTP 200 | 3 ms
+    cabeceras web: x-content-type-options=nosniff, x-frame-options=DENY
+PASS | Acceso sin token rechazado | GET /appointments/me | HTTP 401 | 2 ms
+PASS | Registro con contraseña corta rechazado | POST /auth/register | HTTP 400 | 4 ms
+PASS | Campo no permitido rechazado (.strict) | POST /auth/register | HTTP 400 | 3 ms
+PASS | Registro Usuarioa | POST /auth/register | HTTP 201 | 28 ms
+PASS | Registro Usuariob | POST /auth/register | HTTP 201 | 28 ms
+PASS | Registro Usuarioc | POST /auth/register | HTTP 201 | 26 ms
+PASS | Login con contraseña incorrecta | POST /auth/login | HTTP 401 | 27 ms
+PASS | Login Usuarioa | POST /auth/login | HTTP 200 | 31 ms
+PASS | Login Usuariob | POST /auth/login | HTTP 200 | 30 ms
+PASS | Login Usuarioc | POST /auth/login | HTTP 200 | 30 ms
+PASS | Catálogo de instituciones | GET /institutions | HTTP 200 | 4 ms
+    instituciones: Institución Demo CitaJusta
+PASS | Disponibilidad próximos 30 días | GET /branches/d1000000-0000-4000-8000-000000000002/services/d1000000-0000-4000-8000-000000000003/availability?from=2026-10-17T18%3A04%3A42.492Z&to=2026-11-16T18%3A04%3A42.492Z | HTTP 200 | 35 ms
+    cupos disponibles: 2 (primero 2026-10-18T17:00:00.000Z)
+PASS | Reserva concurrente (A) | POST /appointments | HTTP 201 | 46 ms
+PASS | Reserva concurrente (C) | POST /appointments | HTTP 409 | 47 ms
+PASS | Integridad: exactamente una reserva confirmada (A=201, C=409)
+PASS | Segunda reserva del mismo cupo (secuencial) rechazada | POST /appointments | HTTP 409 | 11 ms
+PASS | B ingresa a lista de espera | POST /waitlist | HTTP 201 | 19 ms
+PASS | B define preferencias (día/rango/sede) | PUT /waitlist/727bfda9-f1ee-4977-b6be-92d8a0d5b00c/preferences | HTTP 200 | 21 ms
+PASS | Lista de espera duplicada rechazada | POST /waitlist | HTTP 409 | 8 ms
+PASS | Cancelación por el titular (A) | POST /appointments/732ca9be-6fe2-4eee-8b28-78d4da13480e/cancel | HTTP 200 | 48 ms
+PASS | Cancelación repetida es idempotente | POST /appointments/732ca9be-6fe2-4eee-8b28-78d4da13480e/cancel | HTTP 200 | 8 ms
+PASS | Otro usuario no puede cancelar cita ajena | POST /appointments/732ca9be-6fe2-4eee-8b28-78d4da13480e/cancel | HTTP 404 | 8 ms
+PASS | B consulta sus ofertas (reasignación automática) | GET /reassignments/offers/me | HTTP 200 | 7 ms
+    oferta: PENDING, expira 2026-10-17T18:14:42.688Z
+PASS | Usuario sin oferta no puede aceptarla | POST /reassignments/offers/106c7c14-c65d-4c18-97f8-c48d025efb3c/accept | HTTP 404 | 10 ms
+PASS | B acepta la oferta | POST /reassignments/offers/106c7c14-c65d-4c18-97f8-c48d025efb3c/accept | HTTP 200 | 34 ms
+PASS | Aceptación repetida no duplica | POST /reassignments/offers/106c7c14-c65d-4c18-97f8-c48d025efb3c/accept | HTTP 200 | 8 ms
+PASS | B ve la cita reasignada en Mis citas | GET /appointments/me | HTTP 200 | 5 ms
+    cita de B: 732ca9be-6fe2-4eee-8b28-78d4da13480e estado AGENDADA (misma Appointment transferida: true)
+PASS | Notificaciones internas de B | GET /notifications/me | HTTP 200 | 6 ms
+    notificaciones B: OFFER_ACCEPTED, OFFER_CREATED, WAITLIST_ENTERED
+PASS | Refresh rota el token (A) | POST /auth/refresh | HTTP 200 | 6 ms
+PASS | Refresh anterior reutilizado es rechazado | POST /auth/refresh | HTTP 401 | 4 ms
+PASS | Logout A revoca la sesión | POST /auth/logout | HTTP 204 | 6 ms
+PASS | Refresh tras logout es rechazado | POST /auth/refresh | HTTP 401 | 3 ms
+
+Resumen: 35 verificaciones, fallos: 0. Latencia HTTP mediana 10 ms, p95 48 ms, máx 53 ms.

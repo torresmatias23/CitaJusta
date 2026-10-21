@@ -1,0 +1,30 @@
+# 2026-10-17 15:08:36 npm run test:e2e:google -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:google
+> npm run build && node --test --test-concurrency=1 test/e2e/google-auth.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+▶ HU-040 real PostgreSQL/HTTP Google authentication with injected offline verifier
+  ✔ additive migration is applied and password hash is nullable (168.291ms)
+  ✔ first login creates one User, one ExternalIdentity, one normal AuthSession and minimal audit (150.306ms)
+  ✔ repeat uses stable sub, retains local identity and creates another ordinary session (88.5973ms)
+  ✔ Google-only password login stays sanitized and creates no session (41.8202ms)
+  ✔ existing local email returns LINK_REQUIRED without auto-link or extra disclosure (94.3256ms)
+  ✔ link requires authenticated owner, strict body, matching email and is idempotent without session (139.3445ms)
+  ✔ Google login/link never create or broaden existing tenant roles and permissions (123.2471ms)
+  ✔ concurrent first logins create exactly one User/identity with independent normal sessions (54.6512ms)
+  ✔ concurrent explicit link is idempotent and subject already owned elsewhere cannot be reassigned (181.2553ms)
+  ✔ inactive/deleted linked users and invalid credentials are denied; body cannot supply grants (60.3206ms)
+  ✔ audit failure rolls back real PostgreSQL first-login transaction (21.2988ms)
+✔ HU-040 real PostgreSQL/HTTP Google authentication with injected offline verifier (1756.6024ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2177.3922

@@ -1,0 +1,17 @@
+# date: 2026-10-17T14:50:00-03:00
+# cwd: C:\dev\startups\CitaJusta
+# git HEAD: 865a7d0 (Merge pull request #174 from torresmatias23/feat/nager-date-holidays)
+# command: npm run --workspace @citajusta/api prisma:validate
+# node v25.5.0 / npm 11.8.0
+# process env (dummy): DATABASE_URL=postgresql://user:pass@localhost:5432/none, SHADOW_DATABASE_URL=..._shadow, JWT_*_SECRET=<dummy 40+ chars>, OFFER_EXPIRATION_ENABLED=false, EMAIL_DELIVERY_ENABLED=false
+
+
+> @citajusta/api@0.1.0 prisma:validate
+> prisma validate
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+The schema at prisma\schema.prisma is valid 🚀
+
+# exit code: 0 ; wall-clock duration: 1s

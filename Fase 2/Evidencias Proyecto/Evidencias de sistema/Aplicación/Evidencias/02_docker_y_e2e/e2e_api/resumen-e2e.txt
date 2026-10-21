@@ -1,0 +1,25 @@
+# Resumen E2E API · 2026-10-17 15:05–15:09 · HEAD 865a7d0 · base aislada citajusta_e2e en PostgreSQL 18 (Docker), 12 migraciones
+# Comando por suite: npm run test:e2e:<suite> -w @citajusta/api (NODE_ENV=test, ejecución secuencial)
+Suite                   Tests   Pass   Fail  Duración
+agenda                     11     11      0      2.2 s
+appointments               23     23      0      3.2 s
+attendance                 14     14      0      2.7 s
+audit                      11      9      2      4.2 s
+automatic-start             8      8      0      3.3 s
+availability-admin         17     17      0      3.3 s
+catalog                    15     15      0      2.8 s
+checkpoint                  1      1      0      2.5 s
+email-delivery              9      9      0      1.7 s
+expiration                 10     10      0      5.0 s
+google-calendar            10     10      0      1.9 s
+google                     12     12      0      2.2 s
+notifications               8      8      0      3.6 s
+professionals              15     15      0      3.0 s
+reassignment-policy        13     13      0      3.1 s
+reassignments              20     20      0      4.3 s
+reports                    15     15      0      3.6 s
+waitlist                   24     24      0      3.1 s
+TOTAL                     236    234      2
+
+Falla única: audit › 'all specified action codes emitted with no private payloads' -> AssertionError AUTH_GOOGLE_LINKED.
+Causa: el código AUTH_GOOGLE_LINKED se agregó al catálogo de auditoría con HU-040 (commit 4438795, 06-10-2026); la suite HU-020 exige todos los códigos pero no ejecuta una vinculación Google. La suite google (12/12 PASS) sí verifica que AUTH_GOOGLE_LINKED se emite. Es una expectativa de prueba desactualizada, no un defecto funcional.

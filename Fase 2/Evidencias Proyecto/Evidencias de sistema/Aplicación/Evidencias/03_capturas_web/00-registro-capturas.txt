@@ -1,0 +1,25 @@
+# Capturas Web · 2026-10-17T18:18:26.533Z · http://localhost:8080 · Edge headless (Playwright)
+# Usuarios ficticios: Camila Rojas y Tomás Fuentes (dominio example.test)
+captura 01-inicio-publico.png · /
+captura 02-ruta-protegida-redirige-login.png · /login
+captura 03-registro-formulario.png · /registro
+captura 04-login-credenciales-invalidas.png · /login
+captura 05-login-formulario.png · /login
+captura 06-inicio-autenticado.png · /
+captura 07-busqueda-flexible-y-ubicacion.png · /
+captura 08-resultados-cupos-disponibles.png · /resultados?institutionId=d1000000-0000-4000-8000-000000000001&branchId=d1000000-0000-4000-8000-000000000002&serviceId=d1000000-0000-4000-8000-000000000003&from=2026-10-17T18%3A18%3A10.223Z&to=2026-11-16T18%3A18%3A10.223Z
+cupos visibles en resultados: 2
+captura 09-confirmacion-reserva.png · /citas/3edb83fe-1a58-485a-9600-5380e92edafd/confirmacion
+captura 10-mis-citas-agendada.png · /mis-citas
+captura 11-lista-espera-ingreso.png · /lista-de-espera
+captura 12-lista-espera-preferencias-guardadas.png · /lista-de-espera
+captura 13-cancelacion-dialogo-confirmacion.png · /mis-citas
+captura 14-mis-citas-cancelada.png · /mis-citas
+captura 15-oferta-disponible-con-plazo.png · /ofertas
+captura 16-oferta-aceptada.png · /ofertas
+captura 17-mis-citas-cita-reasignada.png · /mis-citas
+captura 18-notificaciones.png · /notificaciones
+captura 19-mi-cuenta.png · /cuenta
+captura 20-movil-inicio.png · /
+captura 21-movil-mis-citas.png · /mis-citas
+captura 22-movil-ofertas.png · /ofertas

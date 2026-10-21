@@ -1,0 +1,57 @@
+# 2026-10-17 15:08:24 npm run test:e2e:audit -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:audit
+> npm run build && node --test --test-concurrency=1 test/e2e/audit.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+▶ HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagination
+  ✔ login success, safe failure, logout and logout replay (112.0762ms)
+  ✔ read auth, permission and strict query (130.2609ms)
+  ✔ institution/branch/global isolation, null events, filters and controlled DTO (176.9968ms)
+  ✔ default 50/max 100, exact tie ordering and cursor pages without duplicates or gaps; read-only (87.2989ms)
+  ✔ real branch/service/professional/availability/block writes and policy version idempotence (448.6692ms)
+  ✔ real domain rollback after audit insert leaves neither branch nor SUCCESS event (23.3229ms)
+(node:23208) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  ✔ appointment creation/cancellation, attendance/no-show and replay do not duplicate events (199.4369ms)
+  ✔ offers and reassignment started/completed/exhausted audit all real paths and idempotent replays (931.1873ms)
+  ✔ automatic expiration emits one SYSTEM event and replay is read-only (354.3601ms)
+  ✖ all specified action codes emitted with no private payloads (3.8364ms)
+✖ HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagination (3866.4198ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 9
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4242.7259
+
+✖ failing tests:
+
+test at test\e2e\audit.e2e.test.mjs:225:13
+✖ all specified action codes emitted with no private payloads (3.8364ms)
+  AssertionError [ERR_ASSERTION]: AUTH_GOOGLE_LINKED
+      at TestContext.<anonymous> (file:///C:/dev/startups/CitaJusta/apps/api/test/e2e/audit.e2e.test.mjs:228:44)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1116:7)
+      at async TestContext.<anonymous> (file:///C:/dev/startups/CitaJusta/apps/api/test/e2e/audit.e2e.test.mjs:225:5)
+      at async Test.run (node:internal/test_runner/test:1116:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+npm error Lifecycle script `test:e2e:audit` failed with error:
+npm error code 1
+npm error path C:\dev\startups\CitaJusta\apps\api
+npm error workspace @citajusta/api@0.1.0
+npm error location C:\dev\startups\CitaJusta\apps\api
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c npm run build && node --test --test-concurrency=1 test/e2e/audit.e2e.test.mjs

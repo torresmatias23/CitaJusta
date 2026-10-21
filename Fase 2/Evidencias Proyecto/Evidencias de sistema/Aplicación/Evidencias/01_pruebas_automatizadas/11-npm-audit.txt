@@ -1,0 +1,74 @@
+# date: 2026-10-17T14:50:38-03:00
+# cwd: C:\dev\startups\CitaJusta
+# git HEAD: 865a7d0 (Merge pull request #174 from torresmatias23/feat/nager-date-holidays)
+# command: npm audit --omit=dev
+# node v25.5.0 / npm 11.8.0
+# process env (dummy): DATABASE_URL=postgresql://user:pass@localhost:5432/none, SHADOW_DATABASE_URL=..._shadow, JWT_*_SECRET=<dummy 40+ chars>, OFFER_EXPIRATION_ENABLED=false, EMAIL_DELIVERY_ENABLED=false
+
+# npm audit report
+
+deepmerge-ts  <8.0.0
+Severity: high
+DeepmergeTS has stack exhaustion when merging recursive object graphs - https://github.com/advisories/GHSA-ggr8-5vv4-36mx
+fix available via `npm audit fix --force`
+Will install prisma@7.10.1, which is outside the stated dependency range
+node_modules/deepmerge-ts
+  @prisma/config  6.13.0-dev.1 - 7.10.0 || 8.1.0-dev.1 - 8.1.0-dev.4
+  Depends on vulnerable versions of deepmerge-ts
+  node_modules/@prisma/config
+    prisma  6.13.0-dev.1 - 7.10.0 || 8.0.0-rc.3 - 8.1.0-dev.6
+    Depends on vulnerable versions of @prisma/config
+    Depends on vulnerable versions of mysql2
+    node_modules/prisma
+
+fast-uri  3.0.0 - 3.1.7
+Severity: high
+fast-uri vulnerable to authority injection via an unvalidated port in serialize - https://github.com/advisories/GHSA-qw65-cvwx-89v3
+fast-uri vulnerable to host confusion via an unclosed bracket in the URI authority - https://github.com/advisories/GHSA-58mr-gqgx-xq4g
+fast-uri vulnerable to inconsistent host case normalization via percent-encoded octets - https://github.com/advisories/GHSA-hrr3-gc8f-f4qj
+fix available via `npm audit fix`
+node_modules/fast-uri
+
+multer  <=2.3.0
+Severity: high
+multer vulnerable to Denial of Service via crafted multipart field names - https://github.com/advisories/GHSA-wc9g-mqfw-jrwm
+multer vulnerable to Denial of Service via file descriptor leak on aborted uploads - https://github.com/advisories/GHSA-qfvm-cv95-jqjf
+multer vulnerable to file size limit bypass via async fileFilter race condition - https://github.com/advisories/GHSA-qvfw-j98x-7q72
+multer vulnerable to Denial of Service via oversized array index in field names - https://github.com/advisories/GHSA-535w-7cp7-47q4
+multer vulnerable to Denial of Service via orphaned disk writes on aborted uploads - https://github.com/advisories/GHSA-3pph-fpjx-jg34
+fix available via `npm audit fix`
+node_modules/multer
+  @nestjs/platform-express  <=11.2.5 || 12.0.0-alpha.0 - 12.0.1
+  Depends on vulnerable versions of multer
+  node_modules/@nestjs/platform-express
+
+mysql2  <=3.23.0
+Severity: high
+MySQL2: Auth Plugin Downgrade to mysql_clear_password Leaks Plaintext Credentials - https://github.com/advisories/GHSA-3f6p-5ww8-9rcr
+MySQL2: Unbounded zlib inflate in compressed MySQL protocol handler allows decompression-bomb DoS - https://github.com/advisories/GHSA-rgwj-5xj2-c3m3
+fix available via `npm audit fix --force`
+Will install prisma@7.10.1, which is outside the stated dependency range
+node_modules/mysql2
+
+proxy-addr  1.1.0 - 2.0.7
+Severity: critical
+proxy-addr vulnerable to IP spoofing via IPv4-mapped IPv6 trust subnet - https://github.com/advisories/GHSA-jqcg-44mw-7w3h
+fix available via `npm audit fix`
+node_modules/proxy-addr
+
+qs  2.2.5 - 6.15.3
+Severity: moderate
+qs array-limit bypass via bracket-key comma parsing - https://github.com/advisories/GHSA-x5fp-wj9c-mxmx
+qs: Denial of Service via Attacker Controlled isBuffer - https://github.com/advisories/GHSA-4mjr-xmp4-gh2g
+fix available via `npm audit fix`
+node_modules/qs
+
+9 vulnerabilities (1 moderate, 7 high, 1 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues, run:
+  npm audit fix --force
+
+# exit code: 1 ; wall-clock duration: 5s

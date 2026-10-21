@@ -1,0 +1,169 @@
+# 2026-10-17 15:01:07 HEAD 865a7d0
+# docker compose build && docker compose up -d
+#32 [api build 1/4] RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+#32 [api build 1/4] RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+#32 2.997   libssl3 openssl
+#32 3.252 Get:2 http://deb.debian.org/debian-security bookworm-security/main amd64 openssl amd64 3.0.22-1~deb12u1 [1442 kB]
+#32 3.706 Selecting previously unselected package openssl.
+#32 3.707 Preparing to unpack .../openssl_3.0.22-1~deb12u1_amd64.deb ...
+#32 3.710 Unpacking openssl (3.0.22-1~deb12u1) ...
+#32 3.843 Setting up openssl (3.0.22-1~deb12u1) ...
+#32 [migrate build 1/4] RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+#41 [api build 1/4] RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+ Image citajusta-api:local Built 
+ Image citajusta-api-tools:local Built 
+ Image citajusta-web:local Built 
+ Image postgres:18-alpine Pulling 
+ 5ef7ae0adbc8 Pulling fs layer 0B
+ 23ebd6772525 Pulling fs layer 0B
+ 176ab66edd39 Pulling fs layer 0B
+ e5545be08ab6 Pulling fs layer 0B
+ d8f47ca787e9 Pulling fs layer 0B
+ 30b4807a96db Pulling fs layer 0B
+ a7fe94998417 Pulling fs layer 0B
+ 976cd45ecd0f Pulling fs layer 0B
+ 5ef7ae0adbc8 Download complete 0B
+ d8f47ca787e9 Download complete 0B
+ 176ab66edd39 Downloading 6.109kB
+ 30b4807a96db Downloading 116B
+ a7fe94998417 Downloading 128B
+ 976cd45ecd0f Download complete 0B
+ 176ab66edd39 Download complete 0B
+ e5545be08ab6 Download complete 0B
+ 23ebd6772525 Downloading 1.049MB
+ 976cd45ecd0f Extracting 1B
+ 23ebd6772525 Downloading 2.097MB
+ 30b4807a96db Download complete 0B
+ a7fe94998417 Download complete 0B
+ 976cd45ecd0f Pull complete 0B
+ 23ebd6772525 Downloading 4.194MB
+ d8f47ca787e9 Pull complete 0B
+ 30b4807a96db Pull complete 0B
+ 23ebd6772525 Downloading 6.291MB
+ 41433c2899da Download complete 0B
+ 23ebd6772525 Downloading 8.389MB
+ 26b9f17ac0bd Download complete 0B
+ 23ebd6772525 Downloading 9.437MB
+ 23ebd6772525 Downloading 11.53MB
+ 23ebd6772525 Downloading 13.63MB
+ 23ebd6772525 Downloading 15.73MB
+ 23ebd6772525 Downloading 17.83MB
+ 23ebd6772525 Downloading 18.87MB
+ 23ebd6772525 Downloading 20.97MB
+ 23ebd6772525 Downloading 22.02MB
+ 23ebd6772525 Downloading 23.07MB
+ 23ebd6772525 Downloading 25.17MB
+ 23ebd6772525 Downloading 26.21MB
+ 23ebd6772525 Downloading 27.26MB
+ 23ebd6772525 Downloading 29.36MB
+ 23ebd6772525 Downloading 30.41MB
+ 23ebd6772525 Downloading 32.51MB
+ 23ebd6772525 Downloading 33.55MB
+ 23ebd6772525 Downloading 35.65MB
+ 23ebd6772525 Downloading 37.75MB
+ 23ebd6772525 Downloading 39.85MB
+ 23ebd6772525 Downloading 40.89MB
+ 23ebd6772525 Downloading 42.99MB
+ 23ebd6772525 Downloading 46.14MB
+ 23ebd6772525 Downloading 47.19MB
+ 23ebd6772525 Downloading 48.23MB
+ 23ebd6772525 Downloading 49.28MB
+ 23ebd6772525 Downloading 51.38MB
+ 23ebd6772525 Downloading 52.43MB
+ 23ebd6772525 Downloading 53.48MB
+ 23ebd6772525 Downloading 55.57MB
+ 23ebd6772525 Downloading 56.62MB
+ 23ebd6772525 Downloading 58.72MB
+ 23ebd6772525 Downloading 59.77MB
+ 23ebd6772525 Downloading 60.82MB
+ 23ebd6772525 Downloading 62.1MB
+ 23ebd6772525 Downloading 63.96MB
+ 23ebd6772525 Downloading 65.01MB
+ 23ebd6772525 Downloading 66.06MB
+ 23ebd6772525 Downloading 68.16MB
+ 23ebd6772525 Downloading 70.25MB
+ 23ebd6772525 Downloading 72.35MB
+ 23ebd6772525 Downloading 73.4MB
+ 23ebd6772525 Downloading 75.5MB
+ 23ebd6772525 Downloading 76.55MB
+ 23ebd6772525 Downloading 77.59MB
+ 23ebd6772525 Downloading 79.69MB
+ 23ebd6772525 Downloading 80.74MB
+ 23ebd6772525 Downloading 81.79MB
+ 23ebd6772525 Downloading 82.84MB
+ 23ebd6772525 Downloading 84.93MB
+ 23ebd6772525 Downloading 85.98MB
+ 23ebd6772525 Downloading 89.13MB
+ 23ebd6772525 Downloading 90.18MB
+ 23ebd6772525 Downloading 92.27MB
+ 23ebd6772525 Downloading 95.42MB
+ 23ebd6772525 Downloading 96.47MB
+ 23ebd6772525 Downloading 98.57MB
+ 23ebd6772525 Downloading 100.7MB
+ 23ebd6772525 Downloading 101.7MB
+ 23ebd6772525 Downloading 102.8MB
+ 23ebd6772525 Downloading 104.9MB
+ 23ebd6772525 Downloading 105.9MB
+ 23ebd6772525 Downloading 107MB
+ 23ebd6772525 Downloading 110.1MB
+ 23ebd6772525 Downloading 112.2MB
+ 23ebd6772525 Downloading 113.2MB
+ 23ebd6772525 Downloading 115.3MB
+ 23ebd6772525 Download complete 0B
+ 23ebd6772525 Extracting 1B
+ 23ebd6772525 Extracting 1B
+ 23ebd6772525 Extracting 1B
+ 23ebd6772525 Extracting 1B
+ 23ebd6772525 Extracting 1B
+ 23ebd6772525 Extracting 1B
+ 23ebd6772525 Extracting 1B
+ 23ebd6772525 Extracting 1B
+ 23ebd6772525 Extracting 1B
+ 23ebd6772525 Extracting 1B
+ 23ebd6772525 Extracting 1B
+ 23ebd6772525 Extracting 2B
+ 23ebd6772525 Extracting 2B
+ 23ebd6772525 Extracting 2B
+ 23ebd6772525 Extracting 2B
+ 23ebd6772525 Extracting 2B
+ 5ef7ae0adbc8 Pull complete 0B
+ 176ab66edd39 Pull complete 0B
+ e5545be08ab6 Pull complete 0B
+ a7fe94998417 Pull complete 0B
+ 23ebd6772525 Pull complete 0B
+ Image postgres:18-alpine Pulled 
+ Network citajusta_default Creating 
+ Network citajusta_default Created 
+ Volume citajusta_pgdata Creating 
+ Volume citajusta_pgdata Created 
+ Container citajusta-db-1 Creating 
+ Container citajusta-db-1 Created 
+ Container citajusta-migrate-1 Creating 
+ Container citajusta-migrate-1 Created 
+ Container citajusta-api-1 Creating 
+ Container citajusta-api-1 Created 
+ Container citajusta-web-1 Creating 
+ Container citajusta-web-1 Created 
+ Container citajusta-db-1 Starting 
+ Container citajusta-db-1 Started 
+ Container citajusta-db-1 Waiting 
+ Container citajusta-db-1 Healthy 
+ Container citajusta-migrate-1 Starting 
+ Container citajusta-migrate-1 Started 
+ Container citajusta-migrate-1 Waiting 
+ Container citajusta-migrate-1 Exited 
+ Container citajusta-api-1 Starting 
+ Container citajusta-api-1 Started 
+ Container citajusta-api-1 Waiting 
+ Container citajusta-api-1 Healthy 
+ Container citajusta-web-1 Starting 
+ Container citajusta-web-1 Started 
+ Container citajusta-db-1 Waiting 
+ Container citajusta-migrate-1 Waiting 
+ Container citajusta-api-1 Waiting 
+ Container citajusta-web-1 Waiting 
+ Container citajusta-api-1 Healthy 
+ Container citajusta-db-1 Healthy 
+ Container citajusta-migrate-1 Exited 
+ Container citajusta-web-1 Healthy 
+exit_up=0

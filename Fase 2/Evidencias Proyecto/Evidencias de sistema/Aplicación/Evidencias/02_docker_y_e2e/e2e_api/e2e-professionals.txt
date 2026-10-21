@@ -1,0 +1,33 @@
+# 2026-10-17 15:07:36 npm run test:e2e:professionals -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:professionals
+> npm run build && node --test --test-concurrency=1 test/e2e/professional-administration.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+▶ HU-013 professional administration with real HTTP and PostgreSQL
+  ✔ HU-030 new reads require auth, independent permission and institutional context (120.6426ms)
+  ✔ HU-030 list includes all statuses, excludes deleted/foreign and preserves public catalog (84.657ms)
+  ✔ HU-030 eligible search is exact, normalized and uniformly excludes unavailable accounts (172.416ms)
+  ✔ auth, permissions, institution and branch-only scope are enforced (47.5872ms)
+  ✔ invalid input, inactive user and foreign/inactive associations are rejected before creation (158.5275ms)
+  ✔ authorized creation persists exactly one professional with controlled DTO and associations (45.4328ms)
+  ✔ PATCH updates profile without changing identity and prevents IDOR and extra payload (173.2427ms)
+  ✔ association replacement preserves rows, custom durations and original creation timestamps (121.7338ms)
+  ✔ unique institutional user and code reject duplicates, including real concurrent creation (101.7347ms)
+  ✔ concurrent equivalent association PATCH creates no duplicate rows (63.0458ms)
+  ✔ real SQL failure rolls back profile, timestamp and both association sets (36.1768ms)
+  ✔ failure after nested creation rolls back the professional and initial associations (32.1079ms)
+  ✔ professional deactivation/unassignment preserves appointments, history and materialized agenda (147.5316ms)
+  ✔ existing read-only professional and availability routes stay compatible (76.1754ms)
+✔ HU-013 professional administration with real HTTP and PostgreSQL (2577.0564ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2970.8768

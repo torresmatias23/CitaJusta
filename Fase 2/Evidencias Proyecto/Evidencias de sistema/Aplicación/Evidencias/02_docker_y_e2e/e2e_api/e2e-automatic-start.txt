@@ -1,0 +1,28 @@
+# 2026-10-17 15:07:05 npm run test:e2e:automatic-start -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:automatic-start
+> npm run build && node --test --test-concurrency=1 test/e2e/automatic-reassignment-start.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+(node:23112) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+▶ HU-025 automatic start in cancellation transaction, manual start, rollback and concurrency
+  ✔ concurrent cancellations with no waitlist start exactly one EXHAUSTED process and replay is unchanged (305.3236ms)
+  ✔ cancellation by a user without generate permission creates first ranked offer, SYSTEM audit and notification atomically (312.2729ms)
+  ✔ blocked release still cancels; manual start retains authorization, branch isolation, errors and 201 contract after unblocking (201.6695ms)
+  ✔ past slot and inactive context do not prevent cancellation or create partial processes (217.7078ms)
+  ✔ failure after first offer notification INSERT rolls back the entire real cancellation transaction (109.3971ms)
+  ✔ a reassigned appointment can be cancelled again and binds a new process to its exact cancellation (229.9023ms)
+  ✔ manual start racing cancellation cannot create a second process or pending offer (126.9578ms)
+✔ HU-025 automatic start in cancellation transaction, manual start, rollback and concurrency (2910.7168ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3302.9087

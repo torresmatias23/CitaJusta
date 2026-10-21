@@ -1,0 +1,30 @@
+# 2026-10-17 15:06:42 npm run test:e2e:expiration -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:expiration
+> npm run build && node --test --test-concurrency=1 test/e2e/offer-expiration.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+(node:20748) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+▶ HU-023 real PostgreSQL expiration, continuation, invariants, rollback and races
+  ✔ current offer no-op; due equality persists once, keeps bound policy and never transfers appointment (331.566ms)
+  ✔ SQL candidate selection skips previously used, withdrawn, changed and incompatible entries, then exhausts (258.6014ms)
+  ✔ unusable slots cancel; cross-tenant invariant fails without repairing another institution (917.5217ms)
+  ✔ failure after next offer audit INSERT rolls back expiration, next offer and every audit write (226.6606ms)
+  ✔ expiry vs expiry creates exactly one next offer and one expiration audit (240.3234ms)
+  ✔ expiry vs acceptOffer: expiry wins safely (241.2008ms)
+  ✔ expiry vs acceptOffer: human transition wins safely (213.1459ms)
+  ✔ expiry vs rejectOffer: expiry wins safely (219.1457ms)
+  ✔ expiry vs rejectOffer: human transition wins safely (205.967ms)
+✔ HU-023 real PostgreSQL expiration, continuation, invariants, rollback and races (4559.9545ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4953.922
