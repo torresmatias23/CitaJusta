@@ -219,6 +219,122 @@ Cerrar esa sesión PowerShell al terminar. Iniciar sesión nuevamente en Desktop
 
 Validación automatizada aislada: `npm run e2e:docker -w @citajusta/api -- check` y después `npm run test:e2e:institutions -w @citajusta/api`. La suite verifica identidad Docker antes de crear fixtures y sólo limpia sus registros. No ejecutar este procedimiento de provisión sobre bases de uso normal como parte de las pruebas.
 
+## Provisión administrativa Docker DEMO — TASK-199
+
+Procedimiento **preparado, NO ejecutado** en esta tarea. Requiere revisión y autorización
+independiente del propietario de DEMO. No constituye el cierre de TASK-199 ni acredita
+la validación manual de RF-016. Prisma permanece en 7.10.0; sin nuevas migraciones.
+
+### Destino y garantías
+
+- Sólo Compose DEMO: `NODE_ENV=development`, `CITAJUSTA_DOCKER=development` y la URL exacta
+  del proyecto hacia `db:5432/citajusta_docker`, usuario técnico `citajusta`, schema public.
+- Preflight **sólo lectura** reutiliza `docker/api/migrate.mjs`: nombre/usuario reales,
+  PostgreSQL 18, marcador `citajusta-capstone-docker-v1`, migraciones/checksums compatibles
+  y cero pendientes. Nunca aplica migraciones. No certifica ausencia de todo drift manual.
+- La transacción de provisión vuelve a comprobar identidad real en su propia conexión,
+  usa Serializable, lock administrativo no bloqueante y un único reintento completo
+  sólo ante conflictos transaccionales reconocidos. Espera/ejecución acotadas.
+- UUID y correo deben identificar la misma cuenta ACTIVE/no eliminada. No crea cuentas,
+  cambia passwords, asigna roles al registrarse ni altera grants ajenos. No registra
+  correo, UUID de cuenta, URL, tokens ni detalles SQL en consola.
+- Inserta sólo RBAC compatible faltante. Colisiones, roles con permisos adicionales,
+  grants incompatibles/inactivos o instituciones no elegibles provocan rechazo, no reparación.
+  Repetir una provisión completa compatible no cambia filas ni repite auditoría.
+- Usa el evento existente `INSTITUTION_ADMINISTRATOR_PROVISIONED`, actor SYSTEM y recurso
+  USER_ROLE, dentro de la misma transacción. El grant referenciado identifica el rol;
+  la provisión institucional incluye institutionId, la general no. Si falla la auditoría,
+  se revierte toda la provisión de esa ejecución.
+
+`provision:institution-admin`, `seed:dev` y toolings Desktop siguen restringidos a DEV.
+El runner E2E sigue admitiendo exclusivamente su base aislada; sus fixtures no preparan DEMO.
+Este comando no carga `.env` API, no lanza procesos hijos ni se ejecuta al iniciar Docker/API.
+
+### Ejecución manual posterior en Windows — NO EJECUTADA
+
+Prerrequisitos: respaldo DEMO verificado, `db` DEMO ya healthy, esquema al día e identidades
+de las cuentas aprobadas. No iniciar, migrar ni reparar una base como efecto de estos comandos.
+Construir la imagen tooling con este cambio no escribe PostgreSQL:
+
+```powershell
+docker compose --env-file docker/.env --profile tools build migrate
+```
+
+En una sesión PowerShell privada, establecer parámetros de la cuenta administrativa
+**expresamente designada**, no de un usuario público elegido automáticamente:
+
+```powershell
+$env:DEMO_ADMIN_EMAIL = '<correo de la cuenta ACTIVE aprobada>'
+$env:DEMO_ADMIN_USER_ID = '<UUID verificado de esa misma cuenta>'
+$env:DEMO_PROVISION_CONFIRM = "citajusta_docker:platform:$($env:DEMO_ADMIN_USER_ID)"
+docker compose --env-file docker/.env --profile tools run --rm --no-deps -e DEMO_ADMIN_EMAIL -e DEMO_ADMIN_USER_ID -e DEMO_PROVISION_CONFIRM migrate npm run provision:docker-demo -w @citajusta/api -- platform
+```
+
+`platform` reutiliza `provisionInstitutionAdministrator()`: rol GLOBAL existente
+`INSTITUTION_PLATFORM_ADMINISTRATOR`, exclusivamente institutions.read/create/update;
+grant sin institución/sede. No concede poderes sobre los demás módulos.
+
+Con sesión administrativa válida, crear la institución mediante `POST /api/v1/institutions`
+sin headers de contexto institucional; conservar el UUID devuelto. No repetir altas por
+nombre: Institution.name no es una clave única. Para habilitar al operador institucional,
+autorizar por separado la cuenta (puede ser otra cuenta existente) y el UUID institucional:
+
+```powershell
+$env:DEMO_ADMIN_EMAIL = '<correo del operador ACTIVE aprobado>'
+$env:DEMO_ADMIN_USER_ID = '<UUID verificado del operador>'
+$env:DEMO_INSTITUTION_ID = '<UUID de la institución existente aprobada>'
+$env:DEMO_PROVISION_CONFIRM = "citajusta_docker:institution:$($env:DEMO_ADMIN_USER_ID):$($env:DEMO_INSTITUTION_ID)"
+docker compose --env-file docker/.env --profile tools run --rm --no-deps -e DEMO_ADMIN_EMAIL -e DEMO_ADMIN_USER_ID -e DEMO_INSTITUTION_ID -e DEMO_PROVISION_CONFIRM migrate npm run provision:docker-demo -w @citajusta/api -- institution
+```
+
+El servicio `migrate` se usa sólo como contenedor tooling: el comando explícito anterior
+**sustituye** su CMD de migraciones. `--no-deps` evita iniciar dependencias. No pasar secretos
+en argumentos, no imprimir el entorno expandido y cerrar la sesión privada al terminar.
+No ejecutar el script directamente en Windows con credenciales DEV.
+
+`institution` exige institución ACTIVE/no eliminada y crea/reutiliza el rol dedicado
+`DEMO_INSTITUTION_SETUP_OPERATOR`, scope INSTITUTION, grant ligado al UUID confirmado y
+branchId=null. Permisos exactos: branches.read/create, services.read/create,
+professionals.read/create, availability.read/create. No incluye update/block, GLOBAL,
+institutions.*, appointments.attendance, audit.* ni reassignments.*. Los otros roles del
+operador se conservan; por tanto no es un procedimiento de reducción de privilegios previos.
+Como los toolings Desktop, este rol técnico tiene una única pareja cuenta/institución
+aprobada: rechaza grants propios para otros destinatarios antes de completar permisos.
+Cambiar esa pareja requiere revisión independiente; no la sustituye ni amplía automáticamente.
+
+### Escenario posterior mediante funcionalidades existentes
+
+Conservar los UUID de todos los recursos creados; no adoptar recursos ajenos por nombre.
+Usar Bearer privado y `x-institution-id` de la institución aprobada, sin x-branch-id:
+
+1. Institución: nombre ficticio `Institución Demo CitaJusta`, zona `America/Santiago`,
+   creada con el administrador general. No necesita datos legales/personales inventados.
+2. `POST /api/v1/branches`: código propio y `Sede Centro Demo`, activa.
+3. `POST /api/v1/services`: código propio, `Atención General Demo`, durationMinutes=30,
+   active=true, requiresConfirmation=true, branchIds=[sede]. Para esta comprobación no
+   se requiere Waitlist; allowsWaitlist=false evita añadir preparación de sus catálogos.
+4. `POST /api/v1/professionals`: cuenta ACTIVE existente previamente aprobada, internalCode
+   propio, branchIds=[sede], serviceIds=[servicio]. Si falta esa identidad, registrarla
+   mediante Auth con credencial privada; el tooling no la crea ni le concede roles.
+5. `POST /api/v1/availability`: branchId, serviceId, professionalId y startsAt/endsAt futuros
+   ISO con offset, alineados a minuto; por ejemplo dos horas divisibles en 30 minutos,
+   dentro de una fecha institucional y de la ventana visible de búsqueda Web. El servicio
+   existente valida asociaciones/solapamientos y materializa los slots; no insertarlos
+   con Prisma/SQL. Bloqueos/feriados pueden producir BLOCKED: verificar los AVAILABLE.
+6. Reutilizar cupos futuros AVAILABLE compatibles. Si se consumieron o quedaron históricos,
+   crear un intervalo futuro distinto; no revivir RESERVED/RELEASED ni citas canceladas.
+7. Con una cuenta de usuario Web **sin nuevos roles administrativos**: iniciar sesión en
+   `http://127.0.0.1:8080`, buscar, reservar y abrir Mis citas. Verificar servicio con
+   requiresConfirmation=true y AGENDADA activa/no final con allowsConfirmation=true.
+   Esta última configuración ya fue confirmada en DEMO; no modificarla ni reejecutar
+   bootstrap para intentar sobrescribirla.
+8. Confirmar asistencia, F5 y comprobar persistencia. La cita continúa AGENDADA y el cupo
+   RESERVED; la confirmación no registra atención efectiva. No requiere Resend/Google.
+
+Las altas de dominio y la reserva/confirmación son escrituras posteriores que también
+requieren autorización. No se ejecutan en TASK-199 como parte de sus pruebas con mocks.
+No resetear, borrar volúmenes, ejecutar db push ni usar fixtures E2E contra DEMO.
+
 ## Estado actual
 
 Al 04-10-2026, el MVP Web permanece funcional y `apps/desktop` está implementado con Tauri 2 + React/Vite/TypeScript hasta HU-038. Sprint 7 está cerrado. Sprint 8 corresponde a integraciones externas HU-039 a HU-043; Docker/Compose, OpenAPI y hardening siguen pendientes para Sprint 9.

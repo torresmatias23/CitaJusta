@@ -29,6 +29,7 @@ RUN DATABASE_URL=postgresql://unused:unused@127.0.0.1:1/build \
 FROM build AS tooling
 COPY docker/api/migrate.mjs ./docker/api/migrate.mjs
 COPY apps/api/scripts/bootstrap-appointment-status.mjs apps/api/scripts/bootstrap-waitlist.mjs ./apps/api/scripts/
+COPY apps/api/scripts/provision-docker-demo.mjs ./apps/api/scripts/
 USER node
 CMD ["node", "docker/api/migrate.mjs"]
 

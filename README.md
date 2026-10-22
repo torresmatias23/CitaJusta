@@ -535,6 +535,8 @@ Preparación y comandos completos en [SETUP — Docker local](docs/development/S
 
 Las migraciones son una operación explícita del servicio `migrate`, con validación de destino, marcador de la base Docker e historial/checksums. El arranque API sólo comprueba el esquema en modo lectura y falla si faltan migraciones; nunca las aplica. No se utiliza la conexión de `apps/api/.env` ni se toca `citajusta_dev`. No se ejecutan bootstrap ni seeds automáticamente.
 
+TASK-199 prepara `provision:docker-demo` como entrada **manual y separadamente autorizada** para RBAC inicial: administrador general de instituciones y operador de lectura/creación limitado a una institución existente. Verifica identidad/marcador e historial Docker, exige UUID/correo coincidentes y confirmación ligada a acción/cuenta/destino. No crea usuarios ni catálogo/agenda, no cambia credenciales y no habilita los seeds DEV en DEMO. Ejecución y preparación posterior mediante APIs existentes en [SETUP — provisión DEMO](docs/development/SETUP.md#provisión-administrativa-docker-demo--task-199). Implementación preparada; provisión real y validación manual RF-016 pendientes de revisión/autorización.
+
 Estado de esta entrega: configuración y pruebas estáticas/locales disponibles; **imágenes, Compose y persistencia todavía no validados**, porque Docker CLI/Desktop no está disponible en el entorno de ejecución. No acredita despliegue ni cumplimiento final. La decisión de Docker obligatorio del Stack v0.2 y la versión histórica v0.1 se conservan.
 
 ## Documentación
