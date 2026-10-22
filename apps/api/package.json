@@ -8,6 +8,7 @@
     "test:e2e:profile-notifications": "node scripts/e2e-docker.mjs test profile-notifications",
     "test:e2e:account-recovery": "node scripts/e2e-docker.mjs test account-recovery",
     "provision:institution-admin": "npm run build && node scripts/provision-institution-administrator.mjs",
+    "provision:docker-demo": "node scripts/provision-docker-demo.mjs",
     "test:e2e:institutions": "node scripts/e2e-docker.mjs test institutions",
     "build": "tsc -p tsconfig.build.json",
     "prisma:generate": "prisma generate",
