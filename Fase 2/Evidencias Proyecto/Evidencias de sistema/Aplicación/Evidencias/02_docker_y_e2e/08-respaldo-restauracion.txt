@@ -1,0 +1,15 @@
+# 2026-10-17 15:14:38 Respaldo y restauración de prueba con docker compose cp (base temporal citajusta_restore)
+$ docker compose exec db sh -c 'pg_dump -U "$POSTGRES_USER" -Fc -f /tmp/citajusta_dev.dump citajusta_dev'
+exit=0
+$ docker compose cp db:/tmp/citajusta_dev.dump ./citajusta_dev.dump
+ citajusta-db-1 Copied citajusta-db-1:/tmp/citajusta_dev.dump to ./citajusta_dev.dump
+exit=0 tamaño=172798 bytes
+$ docker compose cp ./citajusta_dev.dump db:/tmp/citajusta_dev.dump
+ citajusta-db-1 Copied ./citajusta_dev.dump to citajusta-db-1:/tmp/citajusta_dev.dump
+exit=0
+$ docker compose exec db sh -c 'createdb -U "$POSTGRES_USER" citajusta_restore && pg_restore -U "$POSTGRES_USER" -d citajusta_restore --no-owner /tmp/citajusta_dev.dump'
+exit=0
+$ comparación de conteos: base | tablas | migraciones | usuarios | citas | cupos
+citajusta_dev|43|12|23|4|4
+citajusta_restore|43|12|23|4|4
+base temporal y archivo eliminados exit=0

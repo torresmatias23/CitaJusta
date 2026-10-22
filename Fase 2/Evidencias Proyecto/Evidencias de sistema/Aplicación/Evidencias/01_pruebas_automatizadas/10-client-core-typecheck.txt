@@ -1,0 +1,13 @@
+# date: 2026-10-17T14:50:36-03:00
+# cwd: C:\dev\startups\CitaJusta
+# git HEAD: 865a7d0 (Merge pull request #174 from torresmatias23/feat/nager-date-holidays)
+# command: npm run typecheck --workspace @citajusta/client-core
+# node v25.5.0 / npm 11.8.0
+# process env (dummy): DATABASE_URL=postgresql://user:pass@localhost:5432/none, SHADOW_DATABASE_URL=..._shadow, JWT_*_SECRET=<dummy 40+ chars>, OFFER_EXPIRATION_ENABLED=false, EMAIL_DELIVERY_ENABLED=false
+
+
+> @citajusta/client-core@0.1.0 typecheck
+> tsc --noEmit
+
+
+# exit code: 0 ; wall-clock duration: 1s

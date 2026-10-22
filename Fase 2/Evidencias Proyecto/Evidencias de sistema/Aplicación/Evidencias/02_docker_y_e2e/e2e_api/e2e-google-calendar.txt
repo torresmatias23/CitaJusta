@@ -1,0 +1,28 @@
+# 2026-10-17 15:08:45 npm run test:e2e:google-calendar -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:google-calendar
+> npm run build && node --test --test-concurrency=1 test/e2e/google-calendar.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+▶ HU-041 real HTTP/PostgreSQL with only Google transport mocked
+  ✔ Bearer required; UUID, strict body and forbidden query rejected without provider calls (50.897ms)
+  ✔ popup custom header and exact Web origin required without weakening global CORS (9.5323ms)
+  ✔ foreign/missing/deleted appointment have indistinguishable 404; tenant headers cannot grant ownership (54.4229ms)
+  ✔ inconsistent tenant relations are hidden and not exported (18.9095ms)
+  ✔ CANCELADA/ATENDIDA/INASISTENCIA and past/invalid intervals reject before OAuth (84.2774ms)
+  ✔ invalid code, denied scope and external failure sanitize output and preserve appointment/slot/history (92.2791ms)
+  ✔ own future AGENDADA inserts real data with institutional timezone and minimal USER audit (33.1919ms)
+  ✔ repeat and simultaneous fresh codes return idempotent success without a second event or audit (26.5799ms)
+  ✔ feature disabled is a controlled 503 with no additional OAuth request (4.6937ms)
+✔ HU-041 real HTTP/PostgreSQL with only Google transport mocked (1484.0593ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1866.3721

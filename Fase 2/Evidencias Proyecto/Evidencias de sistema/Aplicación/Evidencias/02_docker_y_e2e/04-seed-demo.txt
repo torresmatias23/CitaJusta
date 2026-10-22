@@ -1,0 +1,27 @@
+# 2026-10-17 15:02:53 docker compose --profile demo run --rm seed (seed-development + seed-booking-demo)
+ Container citajusta-db-1 Running 
+ Container citajusta-db-1 Waiting 
+ Container citajusta-db-1 Healthy 
+ Container citajusta-migrate-1 Starting 
+ Container citajusta-migrate-1 Started 
+ Container citajusta-migrate-1 Waiting 
+ Container citajusta-migrate-1 Exited 
+ Container citajusta-seed-run-4805f5d12ae4 Creating 
+ Container citajusta-seed-run-4805f5d12ae4 Created 
+[OK] Catálogo demo y Waitlist ACTIVE/WITHDRAWN/FULFILLED + STANDARD institucional preparados. Datos existentes preservados.
+ Container citajusta-db-1 Running 
+ Container citajusta-db-1 Waiting 
+ Container citajusta-db-1 Healthy 
+ Container citajusta-migrate-1 Starting 
+ Container citajusta-migrate-1 Started 
+ Container citajusta-migrate-1 Waiting 
+ Container citajusta-migrate-1 Exited 
+ Container citajusta-seed-run-15e665e29d62 Creating 
+ Container citajusta-seed-run-15e665e29d62 Created 
+[OK] Booking demo: nuevo intervalo creado mediante dominio real
+[OK] Institución Demo CitaJusta → Sede Centro Demo → Atención General Demo → Profesional Demo Booking
+[AVAILABLE] 18-10-2026, 1:00 p. m. — 18-10-2026, 1:30 p. m. (America/Santiago); UTC 2026-10-18T16:00:00.000Z — 2026-10-18T16:30:00.000Z
+[AVAILABLE] 18-10-2026, 1:30 p. m. — 18-10-2026, 2:00 p. m. (America/Santiago); UTC 2026-10-18T16:30:00.000Z — 2026-10-18T17:00:00.000Z
+[AVAILABLE] 18-10-2026, 2:00 p. m. — 18-10-2026, 2:30 p. m. (America/Santiago); UTC 2026-10-18T17:00:00.000Z — 2026-10-18T17:30:00.000Z
+[AVAILABLE] 18-10-2026, 2:30 p. m. — 18-10-2026, 3:00 p. m. (America/Santiago); UTC 2026-10-18T17:30:00.000Z — 2026-10-18T18:00:00.000Z
+[ACTION] Inicia sesión con tu cuenta Web, selecciona el catálogo indicado y busca en Próximos 30 días. Web muestra la zona horaria de tu dispositivo. El tooling no reserva.

@@ -1,0 +1,33 @@
+# 2026-10-17 15:07:16 npm run test:e2e:reassignment-policy -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:reassignment-policy
+> npm run build && node --test --test-concurrency=1 test/e2e/reassignment-policy.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+▶ HU-018 versioned institutional policy and frozen PostgreSQL reassignment process
+  ✔ authentication, separate permissions, mandatory institution and forbidden branch scope (80.9197ms)
+  ✔ GET DEFAULT uses effective legacy TTL and has zero persistence side effects (29.8975ms)
+  ✔ strict input rejects unsupported strategies, TTL, query and administrative overrides (123.0245ms)
+(node:5212) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  ✔ legacy process retains null policy, original priority/FIFO ranking and global TTL (41.4409ms)
+  ✔ first configuration creates version 1; GET and identical POST reuse it without writes (63.7863ms)
+  ✔ configured priority-first preserves legacy ordering and stores policy with configured TTL (133.5393ms)
+  ✔ version 2 is immutable and waiting-first changes only ordering; supervision exposes the bound policy (194.2252ms)
+  ✔ new current never changes existing processes/snapshots/offers and rejection uses original policy TTL (156.4385ms)
+  ✔ institutional pointer rejects cross-tenant FK and foreign GET stays DEFAULT (17.404ms)
+  ✔ equivalent simultaneous configuration creates one version and returns 201/200 (38.3877ms)
+  ✔ different simultaneous configuration creates monotonic distinct versions and one current pointer (49.6736ms)
+  ✔ failure after policy INSERT and pointer UPDATE rolls back both SQL writes (21.0843ms)
+✔ HU-018 versioned institutional policy and frozen PostgreSQL reassignment process (2740.9771ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3116.1463

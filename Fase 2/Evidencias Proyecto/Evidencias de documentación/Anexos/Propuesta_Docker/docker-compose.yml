@@ -1,0 +1,114 @@
+# CitaJusta: entorno reproducible con PostgreSQL, API NestJS y Web React (nginx).
+# Uso: copiar .env.example a .env, completar secretos y ejecutar `docker compose up -d --build`.
+# Desktop (Tauri) es una aplicación nativa: se ejecuta fuera de Docker contra http://localhost:3000/api/v1.
+name: citajusta
+
+x-database-env: &database-env
+  DATABASE_URL: postgresql://${POSTGRES_USER:-citajusta}:${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}@db:5432/citajusta_dev
+  # Prisma CLI la exige para resolver su configuración; migrate deploy no la utiliza.
+  SHADOW_DATABASE_URL: postgresql://${POSTGRES_USER:-citajusta}:${POSTGRES_PASSWORD}@db:5432/citajusta_shadow
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: citajusta_dev
+      POSTGRES_USER: ${POSTGRES_USER:-citajusta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    # Sólo loopback y puerto 5433 para no chocar con un PostgreSQL local en 5432.
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d citajusta_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Tarea única: migraciones versionadas + catálogos obligatorios (idempotentes).
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: tools
+    image: citajusta-api-tools:local
+    environment:
+      <<: *database-env
+    command: >-
+      sh -c "npx prisma migrate deploy
+      && node scripts/bootstrap-appointment-status.mjs
+      && node scripts/bootstrap-waitlist.mjs"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+    image: citajusta-api:local
+    restart: unless-stopped
+    environment:
+      <<: *database-env
+      NODE_ENV: production
+      PORT: 3000
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Define JWT_ACCESS_SECRET en .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Define JWT_REFRESH_SECRET en .env}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      JWT_REFRESH_TTL_SECONDS: ${JWT_REFRESH_TTL_SECONDS:-2592000}
+      WAITLIST_OFFER_TTL_MINUTES: ${WAITLIST_OFFER_TTL_MINUTES:-10}
+      OFFER_EXPIRATION_ENABLED: ${OFFER_EXPIRATION_ENABLED:-true}
+      EMAIL_DELIVERY_ENABLED: ${EMAIL_DELIVERY_ENABLED:-false}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM: ${RESEND_FROM:-}
+      GOOGLE_AUTH_ENABLED: ${GOOGLE_AUTH_ENABLED:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CALENDAR_ENABLED: ${GOOGLE_CALENDAR_ENABLED:-false}
+      GOOGLE_CALENDAR_CLIENT_SECRET: ${GOOGLE_CALENDAR_CLIENT_SECRET:-}
+      GOOGLE_CALENDAR_REDIRECT_URI: ${GOOGLE_CALENDAR_REDIRECT_URI:-http://localhost:8080}
+    # Publicado en el host para la aplicación Desktop (capability http://localhost:3000/api/v1/**).
+    ports:
+      - "${API_HOST_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+        VITE_GOOGLE_CALENDAR_ENABLED: ${GOOGLE_CALENDAR_ENABLED:-false}
+    image: citajusta-web:local
+    restart: unless-stopped
+    ports:
+      - "${WEB_HOST_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # Datos demo opcionales (perfil "demo"). Comparte la red de `db` para que el seed
+  # conecte por 127.0.0.1 y mantenga su protección de destino local citajusta_dev.
+  # Ejemplos:
+  #   docker compose --profile demo run --rm seed
+  #   docker compose --profile demo run --rm seed node scripts/seed-booking-demo.mjs
+  seed:
+    image: citajusta-api-tools:local
+    profiles: ["demo"]
+    network_mode: "service:db"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-citajusta}:${POSTGRES_PASSWORD}@127.0.0.1:5432/citajusta_dev
+    command: ["node", "scripts/seed-development.mjs"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

@@ -1,0 +1,18 @@
+# 2026-10-17 15:06:01 npm run test:e2e:checkpoint -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:checkpoint
+> npm run build && node --test --test-concurrency=1 test/e2e/backend-checkpoint.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+✔ backend E2E checkpoint uses real Nest HTTP, Prisma and local PostgreSQL (1904.4244ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2542.4973

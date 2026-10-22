@@ -1,0 +1,35 @@
+# 2026-10-17 15:07:26 npm run test:e2e:catalog -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:catalog
+> npm run build && node --test --test-concurrency=1 test/e2e/catalog-administration.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+▶ HU-012 catalog administration with real HTTP and PostgreSQL
+  ✔ HU-029 reads require independent permissions and never use body/query tenant (139.5277ms)
+  ✔ HU-029 administrative lists include inactive and exclude deleted/foreign resources (105.3089ms)
+  ✔ HU-029 branch scope reads only its branch; service/category reads are institution-wide (67.5792ms)
+  ✔ HU-029 GLOBAL still requires selected institution and rejects inactive/deleted institutions (53.5918ms)
+  ✔ authentication, explicit permission and institution context are mandatory (49.3359ms)
+  ✔ authorized branch creation and edit return a controlled DTO (73.1256ms)
+  ✔ cross-tenant and branch scope cannot escape authorization (123.4342ms)
+  ✔ invalid inputs and foreign relations never create catalog records (141.2024ms)
+  ✔ service create/edit/activate/deactivate and branch assignments persist (138.0841ms)
+  ✔ unique codes are protected on create/edit and simultaneous creation (80.0073ms)
+  ✔ foreign category and assignment PATCH fail atomically (40.6243ms)
+  ✔ failure after an actual intermediate SQL write rolls back service and assignments (24.8322ms)
+(node:1612) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  ✔ service deactivation keeps appointment/history/waitlist/agenda/professional records and historical reads (189.2246ms)
+  ✔ read-only institution/branch/service/availability endpoints retain their contract (62.5682ms)
+✔ HU-012 catalog administration with real HTTP and PostgreSQL (2446.0757ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2833.2883

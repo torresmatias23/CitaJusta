@@ -1,0 +1,34 @@
+# date: 2026-10-17T14:50:23-03:00
+# cwd: C:\dev\startups\CitaJusta
+# git HEAD: 865a7d0 (Merge pull request #174 from torresmatias23/feat/nager-date-holidays)
+# command: npm run build --workspace @citajusta/web
+# node v25.5.0 / npm 11.8.0
+# process env (dummy): DATABASE_URL=postgresql://user:pass@localhost:5432/none, SHADOW_DATABASE_URL=..._shadow, JWT_*_SECRET=<dummy 40+ chars>, OFFER_EXPIRATION_ENABLED=false, EMAIL_DELIVERY_ENABLED=false
+
+
+> @citajusta/web@0.1.0 build
+> npm run typecheck && vite build
+
+
+> @citajusta/web@0.1.0 typecheck
+> tsc --noEmit
+
+[36mvite v8.2.2 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 1961 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                              0.60 kB │ gzip:   0.37 kB
+dist/assets/inter-vietnamese-wght-normal-CBcvBZtf.woff2     10.25 kB
+dist/assets/inter-greek-ext-wght-normal-DlzME5K_.woff2      11.23 kB
+dist/assets/inter-cyrillic-wght-normal-DqGufNeO.woff2       18.74 kB
+dist/assets/inter-greek-wght-normal-CkhJZR-_.woff2          18.99 kB
+dist/assets/inter-cyrillic-ext-wght-normal-BOeWTOD4.woff2   25.96 kB
+dist/assets/inter-latin-wght-normal-Dx4kXJAl.woff2          48.25 kB
+dist/assets/inter-latin-ext-wght-normal-DO1Apj_S.woff2      85.06 kB
+dist/assets/index-B02Vb_BG.css                              35.13 kB │ gzip:   9.06 kB
+dist/assets/index-DitagoOw.js                              336.00 kB │ gzip: 103.15 kB
+
+[32m✓ built in 547ms[39m
+
+# exit code: 0 ; wall-clock duration: 4s

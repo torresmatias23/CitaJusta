@@ -1,0 +1,27 @@
+# 2026-10-17 15:08:53 npm run test:e2e:email-delivery -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:email-delivery
+> npm run build && node --test --test-concurrency=1 test/e2e/email-delivery.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+▶ HU-039 PostgreSQL outbox and real booking; never calls an external provider
+  ✔ real booking commits appointment, notification and exactly one PENDING delivery (79.1115ms)
+  ✔ failure after outbox INSERT rolls back the real domain transaction including slot/history (46.5255ms)
+  ✔ concurrent domain replays dedupe notifications and deliveries; waitlist events stay internal (58.6793ms)
+  ✔ two PostgreSQL workers claim once, persist SENT and never resend terminal deliveries (77.709ms)
+  ✔ retryable failure persists attempt/backoff and retries identical frozen payload (37.0496ms)
+  ✔ permanent failures are terminal and store only sanitized codes (23.0649ms)
+  ✔ crashed worker lease recovers and a stale owner cannot write completion (46.4409ms)
+  ✔ HU-024 list/read/count contract and recipient isolation remain independent of email delivery (28.3459ms)
+✔ HU-039 PostgreSQL outbox and real booking; never calls an external provider (1359.1636ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1724.2559

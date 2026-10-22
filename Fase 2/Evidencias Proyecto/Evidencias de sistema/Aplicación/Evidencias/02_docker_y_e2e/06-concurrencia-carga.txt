@@ -1,0 +1,5 @@
+# Concurrencia y carga · 2026-10-17T18:04:42.955Z · http://localhost:8080
+Cupo objetivo: 5c717117-acc8-4251-8ab1-1258109ec88c (2026-10-18T17:30:00.000Z); 10 usuarios distintos reservan simultáneamente
+PASS | Resultado: {"201":1,"409":9} -> 1 reserva confirmada, 9 conflictos 409, sin doble asignación
+Carga lectura disponibilidad: 300 solicitudes, 20 concurrentes, 1.16 s, 258.5 req/s, errores 0
+Latencia ms: p50 76 · p95 92 · p99 117 · máx 128

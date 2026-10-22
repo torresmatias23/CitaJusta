@@ -1,0 +1,29 @@
+# 2026-10-17 15:07:55 npm run test:e2e:agenda -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:agenda
+> npm run build && node --test --test-concurrency=1 test/e2e/agenda.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+▶ HU-015 institutional agenda is scoped, historical and read-only on PostgreSQL
+  ✔ authentication, agenda.read and institutional context are mandatory (26.7776ms)
+  ✔ strict query and GET functional body are rejected (88.9895ms)
+  ✔ authorized day query includes CANCELADA, excludes deleted/foreign/incoherent and orders ties by id (22.1947ms)
+  ✔ institutional date differs from UTC date at the boundary (22.8258ms)
+  ✔ branch/service/professional/status filters and combinations are exact (126.9489ms)
+  ✔ branch officer cannot escape and foreign institution sees only its own appointment (82.3133ms)
+  ✔ inactive related catalogs never hide persisted coherent appointments (44.0848ms)
+  ✔ DTO selects operational names only and emits ISO timestamps (15.2452ms)
+  ✔ HTTP reads leave appointments, slots/versions, history, offers and reassignment unchanged (50.3327ms)
+  ✔ existing availability and own appointment endpoints remain compatible (46.8372ms)
+✔ HU-015 institutional agenda is scoped, historical and read-only on PostgreSQL (1828.2705ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2234.9619

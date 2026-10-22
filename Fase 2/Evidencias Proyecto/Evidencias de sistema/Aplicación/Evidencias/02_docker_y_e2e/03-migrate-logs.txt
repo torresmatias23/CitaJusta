@@ -1,0 +1,62 @@
+# 2026-10-17 15:02:52 docker compose logs migrate
+migrate-1  | Loaded Prisma config from prisma.config.ts.
+migrate-1  | 
+migrate-1  | Prisma schema loaded from prisma/schema.prisma.
+migrate-1  | Datasource "db": PostgreSQL database "citajusta_dev", schema "public" at "db:5432"
+migrate-1  | 
+migrate-1  | 12 migrations found in prisma/migrations
+migrate-1  | 
+migrate-1  | Applying migration `20260827224820_identity_tenant_foundation`
+migrate-1  | Applying migration `20260830192903_services_professionals_foundation`
+migrate-1  | Applying migration `20260830194232_availability_agenda_foundation`
+migrate-1  | Applying migration `20260830195340_appointments_lifecycle_foundation`
+migrate-1  | Applying migration `20260830200707_waitlist_foundation`
+migrate-1  | Applying migration `20260831005059_reassignment_candidates_offers_foundation`
+migrate-1  | Applying migration `20260831011106_auth_sessions_foundation`
+migrate-1  | Applying migration `20260915230838_reassignment_policy`
+migrate-1  | Applying migration `20260916000000_audit_trail`
+migrate-1  | Applying migration `20260921000000_internal_notifications`
+migrate-1  | Applying migration `20261005020721_notification_email_delivery`
+migrate-1  | Applying migration `20261006000000_google_external_identity`
+migrate-1  | 
+migrate-1  | ┌─────────────────────────────────────────────────────────┐
+migrate-1  | │  Update available 7.10.0 -> 8.0.0-rc.23                 │
+migrate-1  | │                                                         │
+migrate-1  | │  This is a major update - please follow the guide at    │
+migrate-1  | │  https://pris.ly/d/major-version-upgrade                │
+migrate-1  | │                                                         │
+migrate-1  | │  Run the following to update                            │
+migrate-1  | │    npm i --save-dev prisma@latest                       │
+migrate-1  | │    npm i @prisma/client@latest                          │
+migrate-1  | └─────────────────────────────────────────────────────────┘
+migrate-1  | The following migration(s) have been applied:
+migrate-1  | 
+migrate-1  | migrations/
+migrate-1  |   └─ 20260827224820_identity_tenant_foundation/
+migrate-1  |     └─ migration.sql
+migrate-1  |   └─ 20260830192903_services_professionals_foundation/
+migrate-1  |     └─ migration.sql
+migrate-1  |   └─ 20260830194232_availability_agenda_foundation/
+migrate-1  |     └─ migration.sql
+migrate-1  |   └─ 20260830195340_appointments_lifecycle_foundation/
+migrate-1  |     └─ migration.sql
+migrate-1  |   └─ 20260830200707_waitlist_foundation/
+migrate-1  |     └─ migration.sql
+migrate-1  |   └─ 20260831005059_reassignment_candidates_offers_foundation/
+migrate-1  |     └─ migration.sql
+migrate-1  |   └─ 20260831011106_auth_sessions_foundation/
+migrate-1  |     └─ migration.sql
+migrate-1  |   └─ 20260915230838_reassignment_policy/
+migrate-1  |     └─ migration.sql
+migrate-1  |   └─ 20260916000000_audit_trail/
+migrate-1  |     └─ migration.sql
+migrate-1  |   └─ 20260921000000_internal_notifications/
+migrate-1  |     └─ migration.sql
+migrate-1  |   └─ 20261005020721_notification_email_delivery/
+migrate-1  |     └─ migration.sql
+migrate-1  |   └─ 20261006000000_google_external_identity/
+migrate-1  |     └─ migration.sql
+migrate-1  | 
+migrate-1  | All migrations have been successfully applied.
+migrate-1  | AppointmentStatus AGENDADA, CANCELADA, ATENDIDA and INASISTENCIA are present; existing configuration preserved.
+migrate-1  | Waitlist ACTIVE/WITHDRAWN/FULFILLED provisioned; STANDARD provisioned for 0 active institutions. Existing configuration preserved.

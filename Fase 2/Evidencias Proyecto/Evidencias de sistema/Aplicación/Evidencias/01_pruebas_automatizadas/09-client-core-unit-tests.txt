@@ -1,0 +1,26 @@
+# date: 2026-10-17T14:50:35-03:00
+# cwd: C:\dev\startups\CitaJusta
+# git HEAD: 865a7d0 (Merge pull request #174 from torresmatias23/feat/nager-date-holidays)
+# command: npm test --workspace @citajusta/client-core
+# node v25.5.0 / npm 11.8.0
+# process env (dummy): DATABASE_URL=postgresql://user:pass@localhost:5432/none, SHADOW_DATABASE_URL=..._shadow, JWT_*_SECRET=<dummy 40+ chars>, OFFER_EXPIRATION_ENABLED=false, EMAIL_DELIVERY_ENABLED=false
+
+
+> @citajusta/client-core@0.1.0 test
+> node --test test/*.test.mjs
+
+✔ core requiere base explícita válida y mantiene rutas Web/absolutas sin depender de env (1.1048ms)
+✔ core usa fetch inyectado, no sigue redirects y nunca propaga el body de error (17.6386ms)
+✔ institution context uses only validated headers; existing requests remain context-free (1.6714ms)
+✔ popup callback header is explicit opt-in and preserves existing request headers (0.3467ms)
+✔ selectContext accepts only server profile/context and rejects stale account/context responses (1.3274ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 141.1188
+
+# exit code: 0 ; wall-clock duration: 1s

@@ -1,0 +1,44 @@
+# 2026-10-17 15:06:20 npm run test:e2e:waitlist -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:waitlist
+> npm run build && node --test --test-concurrency=1 test/e2e/waitlist.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+▶ HU-007/HU-008 real HTTP and PostgreSQL waitlist
+  ✔ bootstrap repeated and concurrent preserves identifiers and existing settings (24.5732ms)
+  ✔ concurrent bootstrap creates exactly one missing institutional STANDARD (35.6634ms)
+  ✔ GET/POST require authentication, strict inputs and versioned route (54.9558ms)
+  ✔ real joins reject unavailable services, branches and cross-tenant assignments (183.918ms)
+(node:13732) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  ✔ POST without branch derives owner/institution and preserves preference defaults (24.4577ms)
+  ✔ unavailable institutional STANDARD returns 503 instead of falling back or provisioning (30.081ms)
+  ✔ GET isolates users and empty list, POST with a valid branch returns controlled branch (46.4716ms)
+  ✔ sequential duplicates including changed branches return 409 (41.1374ms)
+  ✔ different users can wait for the same service without seeing each other (29.2786ms)
+  ✔ two real transactions read absence concurrently: one 201, one 409, one row (37.1104ms)
+  ✔ actual INSERT rolls back on failure before commit, without leaking storage details (21.0667ms)
+  ✔ finalized and deleted entries permit new enrollment and are excluded from GET (59.0672ms)
+  ✔ open inactive status still blocks duplicates and remains listed (18.8984ms)
+  ✔ GET ordering is enteredAt ASC then id ASC, including inactive catalogs (31.373ms)
+  ✔ GET hides incoherent tenant links without leaking catalog data (11.871ms)
+  ✔ HU-007 has no appointment, slot, preference, candidate or offer side effects (12.9512ms)
+  ✔ HU-008 empty GET, ownership, authentication and strict request boundaries (109.0942ms)
+  ✔ HU-008 persists controlled DTO, preserves original branch/enteredAt and advances updatedAt (61.3627ms)
+  ✔ HU-008 rejects invalid/duplicate/overlapping ranges and invalid branch relationships (86.0939ms)
+  ✔ HU-008 rollback restores parent, all children and timestamps after a real write (33.518ms)
+  ✔ HU-008 replacement deletes omitted child rows and supports empty preferences (70.5204ms)
+  ✔ HU-008 concurrent withdrawal retries whole transaction and has a single effective update (91.1977ms)
+  ✔ HU-008 other final state rejects withdrawal and has no unrelated domain effects (21.1148ms)
+✔ HU-007/HU-008 real HTTP and PostgreSQL waitlist (2584.107ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3072.4066

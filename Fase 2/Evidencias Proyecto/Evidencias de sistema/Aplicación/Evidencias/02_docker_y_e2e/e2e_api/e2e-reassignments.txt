@@ -1,0 +1,40 @@
+# 2026-10-17 15:06:31 npm run test:e2e:reassignments -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:reassignments
+> npm run build && node --test --test-concurrency=1 test/e2e/reassignments.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+(node:15012) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+▶ HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow
+  ✔ HU-022 own offers require auth, reject query and return empty without institutional role (24.6615ms)
+  ✔ generation requires explicit permission and institutional scope, rejects arbitrary inputs (143.726ms)
+  ✔ rollback after real offer INSERT restores slot, process, candidates and offer (87.1466ms)
+  ✔ two concurrent requests produce one 201, one 409, one process/offer and one slot version increment (108.6232ms)
+  ✔ HU-022 recipient reads only own public offer, not another account, regardless of identity headers (45.4347ms)
+  ✔ HU-016 authenticated officers see candidates and pending offer only within authorized scope (123.8471ms)
+  ✔ persisted candidates have deterministic ranking, exclusion and complete independent snapshots (79.2804ms)
+  ✔ existing appointment stays unique, cancelled and unchanged; no transfer or history writes (5.025ms)
+  ✔ expired timestamp alone does not auto-expire, regenerate or accept an offer (63.3882ms)
+  ✔ no eligible candidate persists EXHAUSTED evaluation without an offer or new appointment (221.798ms)
+  ✔ rejection requires recipient identity, rejects arbitrary input and keeps expired offers pending (70.0092ms)
+  ✔ rejection rollback restores current offer when next offer persistence fails (66.6147ms)
+  ✔ concurrent rejection resolves once and continues with the next valid candidate (88.1044ms)
+  ✔ acceptance requires recipient identity and rejects arbitrary input (34.2162ms)
+  ✔ acceptance rollback restores every write when history persistence fails (65.1322ms)
+  ✔ concurrent acceptance transfers the existing appointment exactly once and replay is idempotent (85.5242ms)
+  ✔ HU-016 supervision reconstructs rejection then acceptance with deterministic order and zero writes (69.0868ms)
+  ✔ HU-016 shows EXHAUSTED after the only eligible recipient rejects (224.0738ms)
+  ✔ HU-022 history preserves every status/expiry, inactive catalogs and stable order without mutations (131.5861ms)
+✔ HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow (3864.3646ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4269.3794

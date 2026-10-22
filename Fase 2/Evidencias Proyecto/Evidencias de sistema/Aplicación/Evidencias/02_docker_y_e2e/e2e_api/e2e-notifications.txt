@@ -1,0 +1,28 @@
+# 2026-10-17 15:06:54 npm run test:e2e:notifications -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:notifications
+> npm run build && node --test --test-concurrency=1 test/e2e/notifications.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+▶ HU-024 real domain events, atomicity, dedupe, recipient isolation and read API
+  ✔ auth, strict query/limit/cursor and nonfunctional read body (77.742ms)
+  ✔ recipient-only listing across institutions, 50/100 limits and tie cursor without gaps; public DTO (211.5088ms)
+  ✔ real PostgreSQL notification FK failure rolls back reservation, slot, history and audit (77.5517ms)
+(node:21904) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  ✔ booking, entry, cancellation, initial/next offers, acceptance and rejection generate once under replay (833.7635ms)
+  ✔ two real cancellations of one reassigned appointment have distinct cancellation event keys (50.083ms)
+  ✔ withdrawal and automatic expiry persist once and valid replays do not duplicate (412.8928ms)
+  ✔ unique constraint, concurrent helper replay and first readAt preservation; historical content independent of active catalogs (49.4775ms)
+✔ HU-024 real domain events, atomicity, dedupe, recipient isolation and read API (3187.3821ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3602.7673

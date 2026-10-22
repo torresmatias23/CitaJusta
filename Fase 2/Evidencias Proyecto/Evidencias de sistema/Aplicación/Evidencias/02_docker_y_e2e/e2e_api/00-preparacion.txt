@@ -1,0 +1,8 @@
+# 2026-10-17 15:05:47 HEAD 865a7d0 · base aislada citajusta_e2e (Docker, 127.0.0.1:5433)
+NOTICE:  database "citajusta_e2e" does not exist, skipping
+base citajusta_e2e recreada
+    └─ migration.sql
+
+All migrations have been successfully applied.
+AppointmentStatus AGENDADA, CANCELADA, ATENDIDA and INASISTENCIA are present; existing configuration preserved.
+Waitlist ACTIVE/WITHDRAWN/FULFILLED provisioned; STANDARD provisioned for 0 active institutions. Existing configuration preserved.

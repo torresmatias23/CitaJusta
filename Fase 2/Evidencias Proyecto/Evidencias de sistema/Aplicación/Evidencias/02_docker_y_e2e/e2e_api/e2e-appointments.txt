@@ -1,0 +1,44 @@
+# 2026-10-17 15:06:10 npm run test:e2e:appointments -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:appointments
+> npm run build && node --test --test-concurrency=1 test/e2e/appointments.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+▶ HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments
+  ✔ bootstrap repeated against PostgreSQL preserves existing AGENDADA and CANCELADA (26.3174ms)
+  ✔ endpoint requires authentication and rejects body identity and origin (29.6024ms)
+  ✔ missing, unavailable, blocked and past slots return controlled errors (107.0513ms)
+  ✔ inactive and cross-tenant relations are rejected using actual database joins (258.5165ms)
+  ✔ real transaction rolls back slot and appointment when history storage fails (35.2647ms)
+  ✔ two users race for one slot: exactly one 201, one 409, one appointment and one history (102.7612ms)
+  ✔ UNIQUE prevents a second appointment and booking never replaces the original (44.5009ms)
+  ✔ HU-005 requires authentication and rejects query/body identity or filter overrides (29.4723ms)
+  ✔ HU-005 returns an empty list without exposing another user appointments (10.6085ms)
+  ✔ HU-005 returns only owned public DTOs, past/future dates and stable ordering without writes (37.521ms)
+  ✔ HU-042 real Decimal coordinates/nulls in catalog and owned appointment DTO; no foreign appointments (45.6135ms)
+  ✔ HU-005 retains owned history when catalogs become inactive (52.1864ms)
+  ✔ HU-005 hides cross-tenant appointment relations instead of exposing foreign catalogs (46.3036ms)
+  ✔ HU-005 ownership follows current userId, not creator or history (17.554ms)
+  ✔ HU-006 requires authentication and rejects identity or functional fields in every input (41.2009ms)
+(node:14200) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  ✔ HU-006 missing, soft-deleted and foreign appointments have the same non-disclosing 404 (56.6982ms)
+  ✔ HU-006 rejects a non-cancelable state and non-RESERVED slot without side effects (79.8198ms)
+  ✔ HU-006 never modifies a slot through incoherent tenant or appointment relations (135.247ms)
+  ✔ HU-006 PostgreSQL rolls back slot, appointment and cancellation when an intermediate write fails (59.1324ms)
+  ✔ HU-006 cancels an owned appointment with history and keeps it visible only to its owner (131.498ms)
+  ✔ HU-006 concurrent cancellations produce exactly one effective change and retries have no writes (113.4352ms)
+  ✔ HU-006 released slots stay outside public availability and HU-004 cannot create another appointment (123.0927ms)
+✔ HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments (2819.2343ms)
+ℹ Concurrent cancellation HTTP statuses: 200, 200; one cancellation/history and one automatic start
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3241.7428

@@ -1,0 +1,35 @@
+# 2026-10-17 15:07:45 npm run test:e2e:availability-admin -w @citajusta/api
+
+> @citajusta/api@0.1.0 test:e2e:availability-admin
+> npm run build && node --test --test-concurrency=1 test/e2e/availability-administration.e2e.test.mjs
+
+
+> @citajusta/api@0.1.0 build
+> tsc -p tsconfig.build.json
+
+▶ HU-014 real PostgreSQL availability, blocking and booking concurrency
+  ✔ HU032 read requires permission; strict filters and tenant/branch isolation (153.779ms)
+  ✔ HU032 existing rows from another institution or branch never leak into contextual GET (58.0816ms)
+  ✔ auth, permissions, invalid input and cross-tenant resource/context checks (214.7861ms)
+  ✔ active professional/branch/service associations are required (73.9263ms)
+  ✔ authorized branch officer configures materialized slots visible through existing GET (108.6642ms)
+  ✔ equivalent/overlapping availability is rejected; adjacent interval is accepted (72.976ms)
+  ✔ create -> query -> block -> unavailable -> booking conflict, with one version increment (164.0448ms)
+  ✔ block before availability prevents later materialization from bypassing it (75.2358ms)
+  ✔ PATCH retires old slots without deletion, deactivates and explicitly reactivates (294.0642ms)
+  ✔ compatible resource overlap honors capacity instead of rejecting all intersections (120.7313ms)
+  ✔ two equivalent availability requests yield one 201, one 409 and a single interval (53.9329ms)
+  ✔ equivalent concurrent blocks persist once and do not double-increment slots (80.423ms)
+  ✔ booking versus blocking cannot both succeed or leave inconsistent state (66.5903ms)
+  ✔ existing appointments/history are never silently cancelled or destroyed (102.7691ms)
+  ✔ SQL failure after block INSERT and slot UPDATE rolls back both (55.908ms)
+  ✔ SQL failure during materialization rolls back availability and every new slot (28.6683ms)
+✔ HU-014 real PostgreSQL availability, blocking and booking concurrency (2875.2104ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3294.8691
