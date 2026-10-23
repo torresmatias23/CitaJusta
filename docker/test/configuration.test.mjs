@@ -52,6 +52,15 @@ test('workspace build graph uses lockfile/npm ci, Linux generation and exact Nod
   for (const key of ['@prisma/client', '@prisma/adapter-pg']) assert.equal(dependencies.dependencies[key], '7.10.0');
   assert.equal(dependencies.devDependencies.prisma, '7.10.0');
 });
+test('runtime omits optional Prisma CLI without omitting required peers or changing tooling installation', () => {
+  const production = api.split('FROM workspace AS production-dependencies\n')[1].split('\nFROM node-base AS runtime')[0];
+  assert.match(production, /npm ci --omit=dev --omit=optional --workspace @citajusta\/api --include-workspace-root --no-audit --no-fund/);
+  assert.doesNotMatch(production, /--omit=peer|--legacy-peer-deps/);
+  const buildDependencies = api.split('FROM workspace AS dependencies\n')[1].split('\nFROM dependencies AS build')[0];
+  assert.match(buildDependencies, /npm ci --workspace @citajusta\/api --include-workspace-root --no-audit --no-fund/);
+  assert.doesNotMatch(buildDependencies, /--omit/);
+  assert.match(api, /FROM build AS tooling\n/);
+});
 test('runtime preserves ESM package, compiled Prisma and notification logo path with unprivileged users', () => {
   assert.match(api, /\/workspace\/apps\/api\/dist \.\/dist/);
   assert.match(api, /\/workspace\/apps\/api\/assets \.\/assets/);
