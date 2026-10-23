@@ -34,7 +34,9 @@ USER node
 CMD ["node", "docker/api/migrate.mjs"]
 
 FROM workspace AS production-dependencies
-RUN PRISMA_SKIP_POSTINSTALL_GENERATE=true npm ci --omit=dev --workspace @citajusta/api --include-workspace-root --no-audit --no-fund
+# Prisma CLI is an optional client peer. Keep required NestJS peers; omit only
+# dev/optional packages here. Build/tooling retain the complete locked tree.
+RUN PRISMA_SKIP_POSTINSTALL_GENERATE=true npm ci --omit=dev --omit=optional --workspace @citajusta/api --include-workspace-root --no-audit --no-fund
 
 FROM node-base AS runtime
 ENV NODE_ENV=production PORT=3000
