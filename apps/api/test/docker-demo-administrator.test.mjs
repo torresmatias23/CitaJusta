@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { demoAgendaReaderPermissions, demoAgendaReaderRole, demoOperatorPermissions, demoOperatorRole, provisionDockerDemoAdministrator } from '../dist/database/docker-demo-administrator.js';
+import { demoAgendaReaderPermissions, demoAgendaReaderRole, demoInstitutionalReaderPermissions, demoInstitutionalReaderRole, demoOperatorPermissions, demoOperatorRole, provisionDockerDemoAdministrator } from '../dist/database/docker-demo-administrator.js';
 import { AuthorizationService } from '../dist/authorization/authorization.service.js';
 import { institutionAdministratorRole } from '../dist/database/institution-administrator.js';
 import { runDockerDemoProvision, reportDemoProvisionFailure } from '../scripts/provision-docker-demo.mjs';
@@ -127,10 +127,11 @@ test('operator rejects an existing system role without repairing it or changing 
   assert.deepEqual(snapshot(f.state), before);
   assert.equal(f.state.roles[0].isSystem, true);
 });
-for (const mode of ['platform', 'institution', 'agenda-reader']) {
+for (const mode of ['platform', 'institution', 'agenda-reader', 'institutional-reader']) {
   test(`${mode}: second run is a strict no-op, including audit`, async () => {
     const f = fixture(mode); assert.equal((await f.run()).changed, true); const before = snapshot(f.state);
-    assert.equal(f.state.events[0].actionCode, mode === 'agenda-reader' ? 'AGENDA_READER_PROVISIONED' : 'INSTITUTION_ADMINISTRATOR_PROVISIONED');
+    assert.equal(f.state.events[0].actionCode, mode === 'institutional-reader' ? 'INSTITUTIONAL_READER_PROVISIONED'
+      : mode === 'agenda-reader' ? 'AGENDA_READER_PROVISIONED' : 'INSTITUTION_ADMINISTRATOR_PROVISIONED');
     assert.equal((await f.run()).changed, false); assert.deepEqual(snapshot(f.state), before);
   });
   test(`${mode}: preserves existing credentials, roles, permissions and unrelated grants`, async () => {
@@ -281,78 +282,108 @@ test('CLI logs omit identity, credentials and provider details on success/failur
   assert.equal(f.state.preflightClosed, 1); assert.equal(f.state.disconnected, 1);
 });
 
-test('agenda-reader provisions only agenda.read with a non-system institutional role and scoped audit', async () => {
-  const f = fixture('agenda-reader'), before = snapshot(f.state); await f.run();
-  assert.deepEqual(f.state.roles, [demoAgendaReaderRole]);
-  assert.equal(demoAgendaReaderRole.code, 'DEMO_DOCKER_AGENDA_READER');
-  assert.equal(demoAgendaReaderRole.scope, 'INSTITUTION'); assert.equal(demoAgendaReaderRole.isSystem, false);
-  assert.deepEqual([...demoAgendaReaderPermissions], ['agenda.read']);
-  assert.deepEqual(f.state.permissions, [{ id: f.state.permissions[0].id, code: 'agenda.read', module: 'agenda', action: 'read' }]);
-  assert.deepEqual(f.state.links, [{ roleId: demoAgendaReaderRole.id, permissionId: f.state.permissions[0].id }]);
-  assert.deepEqual(f.state.grants, [{ id: f.state.grants[0].id, userId, roleId: demoAgendaReaderRole.id,
+test('institutional-reader preserves the exclusive Agenda role and requires its own confirmation', async () => {
+  const f = fixture('institutional-reader');
+  await f.run({ DEMO_PROVISION_CONFIRM: confirmation('agenda-reader') }, ['agenda-reader']);
+  const before = snapshot(f.state);
+  await assert.rejects(f.run({ DEMO_PROVISION_CONFIRM: confirmation('agenda-reader') }));
+  assert.deepEqual(snapshot(f.state), before);
+  await f.run();
+  assert.deepEqual(f.state.roles.filter(role => role.id === demoAgendaReaderRole.id), before.roles);
+  assert.deepEqual(f.state.grants.filter(grant => grant.roleId === demoAgendaReaderRole.id), before.grants);
+  assert.deepEqual(f.state.links.filter(link => link.roleId === demoAgendaReaderRole.id), before.links);
+  assert.deepEqual(f.state.permissions.filter(p => p.code === 'agenda.read'), before.permissions);
+  assert.deepEqual(f.state.user, before.user); assert.deepEqual(f.state.appointments, before.appointments);
+});
+
+test('institutional-reader rejects every forbidden write link and never expands another owner', async () => {
+  for (const code of ['reassignments.generate', 'reassignments.policy.update', 'appointments.attendance']) {
+    const f = fixture('institutional-reader'); await f.run();
+    const permission = { id: randomUUID(), code, module: code.slice(0, code.lastIndexOf('.')), action: code.split('.').at(-1) };
+    f.state.permissions.push(permission); f.state.links.push({ roleId: demoInstitutionalReaderRole.id, permissionId: permission.id });
+    const before = snapshot(f.state); await assert.rejects(f.run(), /permisos ajenos/); assert.deepEqual(snapshot(f.state), before);
+  }
+  const f = fixture('institutional-reader'); await f.run(); f.state.links.pop(); f.state.grants[0].userId = randomUUID();
+  const before = snapshot(f.state); await assert.rejects(f.run(), /asignación ajena/); assert.deepEqual(snapshot(f.state), before);
+});
+
+for (const [mode, readerRole, readerPermissions, expectedRoleCode, expectedPermissions, auditAction] of [
+  ['agenda-reader', demoAgendaReaderRole, demoAgendaReaderPermissions, 'DEMO_DOCKER_AGENDA_READER', ['agenda.read'], 'AGENDA_READER_PROVISIONED'],
+  ['institutional-reader', demoInstitutionalReaderRole, demoInstitutionalReaderPermissions, 'DEMO_DOCKER_INSTITUTIONAL_READER',
+    ['reassignments.read', 'reports.read', 'audit.read'], 'INSTITUTIONAL_READER_PROVISIONED'],
+]) {
+test(`${mode}: provisions exact read permissions with a non-system institutional role and scoped audit`, async () => {
+  const f = fixture(mode), before = snapshot(f.state); await f.run();
+  assert.deepEqual(f.state.roles, [readerRole]);
+  assert.equal(readerRole.code, expectedRoleCode);
+  assert.equal(readerRole.scope, 'INSTITUTION'); assert.equal(readerRole.isSystem, false);
+  assert.deepEqual([...readerPermissions], expectedPermissions);
+  assert.deepEqual(f.state.permissions, expectedPermissions.map((code, index) => ({ id: f.state.permissions[index].id, code, module: code.split('.')[0], action: 'read' })));
+  assert.deepEqual(f.state.links, f.state.permissions.map(permission => ({ roleId: readerRole.id, permissionId: permission.id })));
+  assert.deepEqual(f.state.grants, [{ id: f.state.grants[0].id, userId, roleId: readerRole.id,
     institutionId, branchId: null, active: true, validFrom: null, validTo: null }]);
   assert.equal(f.state.events.length, 1); const event = f.state.events[0];
-  assert.equal(event.actionCode, 'AGENDA_READER_PROVISIONED'); assert.equal(event.actorType, 'SYSTEM');
+  assert.equal(event.actionCode, auditAction); assert.equal(event.actorType, 'SYSTEM');
   assert.equal(event.institutionId, institutionId); assert.equal(event.resourceType, 'USER_ROLE');
   assert.equal(event.resourceId, f.state.grants[0].id);
   for (const key of ['user', 'institution', 'appointments']) assert.deepEqual(f.state[key], before[key]);
 });
-test('agenda-reader preserves both existing administrative roles and every existing permission/grant', async () => {
-  const f = fixture('agenda-reader');
+test(`${mode}: preserves both existing administrative roles and every existing permission/grant`, async () => {
+  const f = fixture(mode);
   await f.run({ DEMO_PROVISION_CONFIRM: confirmation('platform'), DEMO_INSTITUTION_ID: undefined }, ['platform']);
   await f.run({ DEMO_PROVISION_CONFIRM: confirmation('institution') }, ['institution']);
   const before = snapshot(f.state); await f.run();
   for (const key of collections) assert.deepEqual(f.state[key].slice(0, before[key].length), before[key]);
-  assert.deepEqual(f.state.permissions.filter(p => p.code === 'agenda.read').length, 1);
+  for (const code of expectedPermissions) assert.equal(f.state.permissions.filter(p => p.code === code).length, 1);
   for (const roleId of [demoOperatorRole.id, institutionAdministratorRole.id]) {
     assert.deepEqual(f.state.links.filter(link => link.roleId === roleId), before.links.filter(link => link.roleId === roleId));
   }
   assert.deepEqual(f.state.user, before.user); assert.deepEqual(f.state.appointments, before.appointments);
 });
-test('agenda-reader rejects missing confirmation, another action or institution before connecting', async () => {
+test(`${mode}: rejects missing confirmation, another action or institution before connecting`, async () => {
   for (const patch of [{ DEMO_PROVISION_CONFIRM: undefined }, { DEMO_PROVISION_CONFIRM: 'yes' },
     { DEMO_PROVISION_CONFIRM: confirmation('platform') }, { DEMO_PROVISION_CONFIRM: confirmation('institution') },
     { DEMO_INSTITUTION_ID: undefined }, { DEMO_INSTITUTION_ID: randomUUID() }, { DEMO_ADMIN_USER_ID: randomUUID() },
     { DEMO_ADMIN_EMAIL: undefined }]) {
-    const f = fixture('agenda-reader'); await assert.rejects(f.run(patch));
+    const f = fixture(mode); await assert.rejects(f.run(patch));
     assert.equal(f.state.preflightConnected, 0); assert.equal(f.state.createdClients, 0); empty(f.state);
   }
 });
-test('agenda-reader rejects unsafe targets and both preflight/writing connection identity mismatches', async () => {
+test(`${mode}: rejects unsafe targets and both preflight/writing connection identity mismatches`, async () => {
   for (const patch of [{ NODE_ENV: 'production' }, { NODE_ENV: 'test' }, { CITAJUSTA_DOCKER: undefined },
     ...['citajusta_dev', 'citajusta_e2e'].map(name => ({ DATABASE_URL: environment.DATABASE_URL.replace('citajusta_docker', name) })),
     { DATABASE_URL: environment.DATABASE_URL.replace('@db:', '@remote.example:') }]) {
-    const f = fixture('agenda-reader'); await assert.rejects(f.run(patch));
+    const f = fixture(mode); await assert.rejects(f.run(patch));
     assert.equal(f.state.preflightConnected, 0); assert.equal(f.state.createdClients, 0); empty(f.state);
   }
   for (const connection of ['preflightIdentity', 'identity']) {
     for (const patch of [{ database: 'citajusta_dev' }, { database: 'citajusta_e2e' }, { marker: null }, { marker: 'foreign' },
       { username: 'postgres' }, { version: 170000 }, { version: 190000 }]) {
-      const f = fixture('agenda-reader'); Object.assign(f.state[connection], patch); await assert.rejects(f.run());
+      const f = fixture(mode); Object.assign(f.state[connection], patch); await assert.rejects(f.run());
       empty(f.state); assert.equal(f.state.userReads, 0);
     }
   }
-  const f = fixture('agenda-reader'); f.state.pending = true;
+  const f = fixture(mode); f.state.pending = true;
   await assert.rejects(f.run(), /migrations pending/); assert.equal(f.state.createdClients, 0); empty(f.state);
 });
-test('agenda-reader refuses missing, foreign, inactive or deleted institutions', async () => {
+test(`${mode}: refuses missing, foreign, inactive or deleted institutions`, async () => {
   for (const patch of [null, { id: randomUUID() }, { status: 'INACTIVE' }, { deletedAt: new Date() }]) {
-    const f = fixture('agenda-reader'); f.state.institution = patch === null ? null : { ...f.state.institution, ...patch };
+    const f = fixture(mode); f.state.institution = patch === null ? null : { ...f.state.institution, ...patch };
     const before = snapshot(f.state); await assert.rejects(f.run(), /institución debe existir/);
     assert.deepEqual(snapshot(f.state), before);
   }
 });
-test('agenda-reader reuses a compatible permission and preserves timestamps on replay', async () => {
-  const f = fixture('agenda-reader');
-  const permission = { id: randomUUID(), code: 'agenda.read', module: 'agenda', action: 'read', createdAt: new Date('2026-01-01T00:00:00Z') };
-  f.state.permissions.push(permission); await f.run();
-  assert.deepEqual(f.state.permissions, [permission]); assert.equal(f.state.links[0].permissionId, permission.id);
+test(`${mode}: reuses a compatible permission and preserves timestamps on replay`, async () => {
+  const f = fixture(mode);
+  const permissions = expectedPermissions.map(code => ({ id: randomUUID(), code, module: code.split('.')[0], action: 'read', createdAt: new Date('2026-01-01T00:00:00Z') }));
+  f.state.permissions.push(...permissions); await f.run();
+  assert.deepEqual(f.state.permissions, permissions); assert.deepEqual(f.state.links.map(link => link.permissionId), permissions.map(p => p.id));
   for (const key of ['roles', 'grants']) for (const row of f.state[key]) {
     row.createdAt = new Date('2026-01-01T00:00:00Z'); row.updatedAt = new Date('2026-01-02T00:00:00Z');
   }
   const before = snapshot(f.state); assert.equal((await f.run()).changed, false); assert.deepEqual(snapshot(f.state), before);
 });
-test('agenda-reader rejects incompatible roles, grants, duplicate identities and extra permissions without repair', async () => {
+test(`${mode}: rejects incompatible roles, grants, duplicate identities and extra permissions without repair`, async () => {
   for (const mutate of [
     s => { s.roles[0].isSystem = true; }, s => { s.roles[0].scope = 'GLOBAL'; }, s => { s.roles[0].scope = 'BRANCH'; },
     s => { s.roles[0].active = false; }, s => { s.roles[0].description = 'foreign'; },
@@ -362,21 +393,21 @@ test('agenda-reader rejects incompatible roles, grants, duplicate identities and
     s => { s.grants[0].active = false; }, s => { s.grants[0].validTo = new Date(); },
     s => { s.grants.push({ ...s.grants[0], id: randomUUID() }); },
     s => { const p = { id: randomUUID(), code: 'appointments.attendance', module: 'appointments', action: 'attendance' };
-      s.permissions.push(p); s.links.push({ roleId: demoAgendaReaderRole.id, permissionId: p.id }); },
+      s.permissions.push(p); s.links.push({ roleId: readerRole.id, permissionId: p.id }); },
   ]) {
-    const f = fixture('agenda-reader'); await f.run(); mutate(f.state); const before = snapshot(f.state);
+    const f = fixture(mode); await f.run(); mutate(f.state); const before = snapshot(f.state);
     await assert.rejects(f.run(), /incompatible|ajen|alcance|duplicad|colisión/i); assert.deepEqual(snapshot(f.state), before);
   }
 });
-test('agenda-reader rejects incompatible permission code/module-action collisions before any insert', async () => {
-  for (const fields of [{ code: 'agenda.read', module: 'foreign', action: 'read' },
-    { code: 'foreign.read', module: 'agenda', action: 'read' }]) {
-    const f = fixture('agenda-reader'); f.state.permissions.push({ id: randomUUID(), ...fields }); const before = snapshot(f.state);
+test(`${mode}: rejects incompatible permission code/module-action collisions before any insert`, async () => {
+  for (const fields of [{ code: expectedPermissions[0], module: 'foreign', action: 'read' },
+    { code: 'foreign.read', module: expectedPermissions[0].split('.')[0], action: 'read' }]) {
+    const f = fixture(mode); f.state.permissions.push({ id: randomUUID(), ...fields }); const before = snapshot(f.state);
     await assert.rejects(f.run(), /incompatible/); assert.deepEqual(snapshot(f.state), before);
   }
 });
-test('agenda-reader grant is effective only in the authorized tenant through the real AuthorizationService', async () => {
-  const f = fixture('agenda-reader'); await f.run();
+test(`${mode}: grant is effective only in the authorized tenant through the real AuthorizationService`, async () => {
+  const f = fixture(mode); await f.run();
   const foreignInstitutionId = randomUUID(), ownBranchId = randomUUID(), foreignBranchId = randomUUID();
   const authorization = new AuthorizationService({
     institution: { findUnique: async ({ where }) => [institutionId, foreignInstitutionId].includes(where.id) ? { id: where.id } : null },
@@ -387,7 +418,7 @@ test('agenda-reader grant is effective only in the authorized tenant through the
   });
   for (const context of [{ institutionId }, { institutionId, branchId: ownBranchId }]) {
     const result = await authorization.resolveForUser(userId, context);
-    assert.deepEqual(result.permissions, ['agenda.read']); assert.deepEqual(result.roleCodes, [demoAgendaReaderRole.code]);
+    assert.deepEqual(result.permissions, [...expectedPermissions].sort()); assert.deepEqual(result.roleCodes, [readerRole.code]);
   }
   for (const context of [{}, { institutionId: foreignInstitutionId }, { institutionId: foreignInstitutionId, branchId: foreignBranchId }]) {
     const result = await authorization.resolveForUser(userId, context); assert.deepEqual(result.permissions, []); assert.deepEqual(result.roleCodes, []);
@@ -395,14 +426,15 @@ test('agenda-reader grant is effective only in the authorized tenant through the
   await assert.rejects(authorization.resolveForUser(userId, { institutionId, branchId: foreignBranchId }), error => error.getStatus?.() === 400);
   assert.deepEqual((await authorization.resolveForUser(randomUUID(), { institutionId })).permissions, []);
 });
-test('agenda-reader sanitizes failure and success logs and never retries arbitrary SQL/programming errors', async () => {
+test(`${mode}: sanitizes failure and success logs and never retries arbitrary SQL/programming errors`, async () => {
   for (const error of [new TypeError('PRIVATE SQL'), { code: '40001' }, { code: 'P2002' },
     { name: 'DriverAdapterError', cause: { kind: 'Other', originalCode: '40001' } }]) {
-    const f = fixture('agenda-reader'); f.state.commitError = error; await assert.rejects(f.run());
+    const f = fixture(mode); f.state.commitError = error; await assert.rejects(f.run());
     assert.equal(f.state.transactions, 1); empty(f.state);
     const logs = []; reportDemoProvisionFailure(error, message => logs.push(message));
     assert.equal(logs.length, 1); assert.match(logs[0], /Detalles del proveedor omitidos/); assert.ok(!logs[0].includes('PRIVATE SQL'));
   }
-  const f = fixture('agenda-reader'); await f.run();
+  const f = fixture(mode); await f.run();
   for (const secret of [password, userId, institutionId, environment.DEMO_ADMIN_EMAIL, 'UNTOUCHED']) assert.ok(!f.state.logs.join('\n').includes(secret));
 });
+}

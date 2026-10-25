@@ -9,27 +9,44 @@ export const ids = Object.fromEntries([
   'availabilityMain', 'availabilityOtherContext', 'availabilityCrossTenant', 'slotAvailable',
   'roleInstitution', 'roleBranch', 'roleGlobal',
   'roleAgendaReader', 'grantAgendaReader', 'permissionAgendaRead',
+  'roleInstitutionalReader', 'grantInstitutionalReader', 'permissionReassignmentsRead', 'permissionReportsRead', 'permissionAuditRead',
 ].map((name) => [name, randomUUID()]));
 const institutions = [ids.institutionA, ids.institutionB];
-const roles = [ids.roleInstitution, ids.roleBranch, ids.roleGlobal, ids.roleAgendaReader];
+const roles = [ids.roleInstitution, ids.roleBranch, ids.roleGlobal, ids.roleAgendaReader, ids.roleInstitutionalReader];
+const readerPermissionIds = [ids.permissionAgendaRead, ids.permissionReassignmentsRead, ids.permissionReportsRead, ids.permissionAuditRead];
 
 // E2E-owned RBAC data only: never invoke the Docker DEMO identity/provisioning wrapper.
 export async function createAgendaReaderAuditFixture(prisma, userId, recordAudit) {
+  return createReaderAuditFixture(prisma, userId, recordAudit, { roleId: ids.roleAgendaReader, grantId: ids.grantAgendaReader,
+    roleCode: `E2E_AUDIT_AGENDA_READER_${ids.roleAgendaReader}`, actionCode: 'AGENDA_READER_PROVISIONED',
+    permissions: [{ id: ids.permissionAgendaRead, code: 'agenda.read' }] });
+}
+
+export async function createInstitutionalReaderAuditFixture(prisma, userId, recordAudit) {
+  return createReaderAuditFixture(prisma, userId, recordAudit, { roleId: ids.roleInstitutionalReader, grantId: ids.grantInstitutionalReader,
+    roleCode: `E2E_AUDIT_INSTITUTIONAL_READER_${ids.roleInstitutionalReader}`, actionCode: 'INSTITUTIONAL_READER_PROVISIONED',
+    permissions: [{ id: ids.permissionReassignmentsRead, code: 'reassignments.read' },
+      { id: ids.permissionReportsRead, code: 'reports.read' }, { id: ids.permissionAuditRead, code: 'audit.read' }] });
+}
+
+async function createReaderAuditFixture(prisma, userId, recordAudit, definition) {
   return prisma.$transaction(async (tx) => {
-    let permission = await tx.permission.findUnique({ where: { code: 'agenda.read' } });
-    if (permission) {
-      assert.equal(permission.module, 'agenda'); assert.equal(permission.action, 'read');
-    } else {
-      permission = await tx.permission.create({ data: { id: ids.permissionAgendaRead,
-        code: 'agenda.read', module: 'agenda', action: 'read' } });
+    await tx.role.create({ data: { id: definition.roleId, code: definition.roleCode,
+      name: 'Audit reader fixture', scope: 'INSTITUTION', isSystem: false, active: true } });
+    for (const { id, code } of definition.permissions) {
+      const [module, action] = code.split('.');
+      let permission = await tx.permission.findUnique({ where: { code } });
+      if (permission) {
+        assert.equal(permission.module, module); assert.equal(permission.action, action);
+      } else {
+        permission = await tx.permission.create({ data: { id, code, module, action } });
+      }
+      await tx.rolePermission.create({ data: { roleId: definition.roleId, permissionId: permission.id } });
     }
-    await tx.role.create({ data: { id: ids.roleAgendaReader, code: `E2E_AUDIT_AGENDA_READER_${ids.roleAgendaReader}`,
-      name: 'Audit agenda reader fixture', scope: 'INSTITUTION', isSystem: false, active: true } });
-    await tx.rolePermission.create({ data: { roleId: ids.roleAgendaReader, permissionId: permission.id } });
-    const grant = await tx.userRole.create({ data: { id: ids.grantAgendaReader, userId,
-      roleId: ids.roleAgendaReader, institutionId: ids.institutionA, branchId: null, active: true } });
+    const grant = await tx.userRole.create({ data: { id: definition.grantId, userId,
+      roleId: definition.roleId, institutionId: ids.institutionA, branchId: null, active: true } });
     await recordAudit(tx, { institutionId: ids.institutionA, actorType: 'SYSTEM',
-      actionCode: 'AGENDA_READER_PROVISIONED', resourceType: 'USER_ROLE', resourceId: grant.id, outcome: 'SUCCESS' });
+      actionCode: definition.actionCode, resourceType: 'USER_ROLE', resourceId: grant.id, outcome: 'SUCCESS' });
     return grant;
   }, { isolationLevel: 'Serializable' });
 }
@@ -81,7 +98,7 @@ export async function cleanupAuditFixtures(prisma) {
   await prisma.userRole.deleteMany({ where: { roleId: { in: roles } } });
   await prisma.rolePermission.deleteMany({ where: { roleId: { in: roles } } });
   await prisma.role.deleteMany({ where: { id: { in: roles } } });
-  await prisma.permission.deleteMany({ where: { id: ids.permissionAgendaRead, code: 'agenda.read', module: 'agenda', action: 'read' } });
+  await prisma.permission.deleteMany({ where: { id: { in: readerPermissionIds }, action: 'read' } });
   await prisma.branch.deleteMany({ where: { institutionId: { in: institutions } } });
   await prisma.institution.deleteMany({ where: { id: { in: institutions } } });
   const userScope = { email: { startsWith: FIXTURE_EMAIL_PREFIX } };
@@ -94,8 +111,8 @@ export async function cleanupAuditFixtures(prisma) {
 
 export async function assertAuditClean(prisma) {
   assert.equal(await prisma.role.count({ where: { id: { in: roles } } }), 0);
-  assert.equal(await prisma.userRole.count({ where: { id: ids.grantAgendaReader } }), 0);
-  assert.equal(await prisma.permission.count({ where: { id: ids.permissionAgendaRead } }), 0);
+  assert.equal(await prisma.userRole.count({ where: { id: { in: [ids.grantAgendaReader, ids.grantInstitutionalReader] } } }), 0);
+  assert.equal(await prisma.permission.count({ where: { id: { in: readerPermissionIds } } }), 0);
   assert.equal(await prisma.auditEvent.count({ where: { institutionId: { in: institutions } } }), 0);
   assert.equal(await prisma.institution.count({ where: { id: { in: institutions } } }), 0);
   assert.equal(await prisma.user.count({ where: { email: { startsWith: FIXTURE_EMAIL_PREFIX } } }), 0);
