@@ -12,8 +12,8 @@ export async function runDockerDemoProvision(args, environment, {
     connectionTimeoutMillis: 5000, statement_timeout: 15000 }) }),
   log = console.log,
 } = {}) {
-  if (args.length !== 1 || !['platform', 'institution'].includes(args[0])) {
-    throw new DemoProvisionError('Usa provision:docker-demo -- platform o institution; no se aceptan otros argumentos.');
+  if (args.length !== 1 || !['platform', 'institution', 'agenda-reader'].includes(args[0])) {
+    throw new DemoProvisionError('Usa provision:docker-demo -- platform, institution o agenda-reader; no se aceptan otros argumentos.');
   }
   const snapshot = { ...environment };
   const connectionString = assertDockerTarget(snapshot);

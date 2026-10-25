@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { test, mock } from 'node:test';
 import { NestFactory } from '@nestjs/core';
 import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
-import { FIXTURE_EMAIL_PREFIX, ids, createAuditFixtures, cleanupAuditFixtures, assertAuditClean } from './audit.fixture.mjs';
+import { FIXTURE_EMAIL_PREFIX, ids, createAuditFixtures, createAgendaReaderAuditFixture, cleanupAuditFixtures, assertAuditClean } from './audit.fixture.mjs';
 
 test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagination', { timeout: 120_000 }, async (t) => {
   loadApiEnvironment(); assertSafeLocalDatabaseUrl(process.env.DATABASE_URL); process.env.NODE_ENV = 'test';
@@ -282,6 +282,40 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
       assert.equal((await request('PATCH', `/institutions/${created.body.data.id}`, admin.token, { legalName: 'Audit RF005' })).status, 200);
       assert.equal((await auditRows('INSTITUTION_CREATED', created.body.data.id)).length, 1);
       assert.equal((await auditRows('INSTITUTION_UPDATED', created.body.data.id)).length, 1);
+    });
+    await t.test('agenda reader provisioning fixture persists scoped SYSTEM audit and rolls back RBAC with audit failure', async () => {
+      const reader = await register();
+      const record = AuditService.record;
+      const spy = mock.method(AuditService, 'record', async (...args) => {
+        await record(...args);
+        throw new Error('Agenda reader fixture audit rollback');
+      });
+      try {
+        await assert.rejects(createAgendaReaderAuditFixture(prisma, reader.id, AuditService.record), /Agenda reader fixture audit rollback/);
+      } finally { spy.mock.restore(); }
+      assert.equal(await prisma.role.count({ where: { id: ids.roleAgendaReader } }), 0);
+      assert.equal(await prisma.rolePermission.count({ where: { roleId: ids.roleAgendaReader } }), 0);
+      assert.equal(await prisma.permission.count({ where: { id: ids.permissionAgendaRead } }), 0);
+      assert.equal(await prisma.userRole.count({ where: { id: ids.grantAgendaReader } }), 0);
+      assert.equal((await auditRows('AGENDA_READER_PROVISIONED', ids.grantAgendaReader)).length, 0);
+
+      const grant = await createAgendaReaderAuditFixture(prisma, reader.id, AuditService.record);
+      assert.equal(grant.userId, reader.id); assert.equal(grant.institutionId, ids.institutionA);
+      assert.equal(grant.roleId, ids.roleAgendaReader); assert.equal(grant.branchId, null); assert.equal(grant.active, true);
+      const role = await prisma.role.findUniqueOrThrow({ where: { id: grant.roleId }, include: { permissions: { include: { permission: true } } } });
+      assert.equal(role.scope, 'INSTITUTION'); assert.equal(role.isSystem, false);
+      assert.deepEqual(role.permissions.map(link => link.permission.code), ['agenda.read']);
+      const events = await auditRows('AGENDA_READER_PROVISIONED', grant.id); assert.equal(events.length, 1);
+      const event = events[0];
+      assert.equal(event.institutionId, ids.institutionA); assert.equal(event.branchId, null);
+      assert.equal(event.actorType, 'SYSTEM'); assert.equal(event.actorUserId, null);
+      assert.equal(event.resourceType, 'USER_ROLE'); assert.equal(event.resourceId, grant.id); assert.equal(event.outcome, 'SUCCESS');
+      const query = { action: 'AGENDA_READER_PROVISIONED', resourceType: 'USER_ROLE' };
+      const response = await get(query); assert.equal(response.status, 200);
+      assert.deepEqual(response.body.data, [{ ...event, occurredAt: event.occurredAt.toISOString() }]);
+      const foreignResponse = await get(query, foreign.token, { 'x-institution-id': ids.institutionB });
+      assert.equal(foreignResponse.status, 200); assert.deepEqual(foreignResponse.body.data, []);
+      assert.equal((await get(query, reader.token)).status, 403);
     });
     await t.test('account recovery audits only stable codes and revokes existing sessions atomically', async () => {
       const visitor = await register();

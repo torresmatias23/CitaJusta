@@ -8,9 +8,31 @@ export const ids = Object.fromEntries([
   'serviceA', 'serviceA2', 'serviceB', 'professionalA', 'professionalA2', 'professionalB',
   'availabilityMain', 'availabilityOtherContext', 'availabilityCrossTenant', 'slotAvailable',
   'roleInstitution', 'roleBranch', 'roleGlobal',
+  'roleAgendaReader', 'grantAgendaReader', 'permissionAgendaRead',
 ].map((name) => [name, randomUUID()]));
 const institutions = [ids.institutionA, ids.institutionB];
-const roles = [ids.roleInstitution, ids.roleBranch, ids.roleGlobal];
+const roles = [ids.roleInstitution, ids.roleBranch, ids.roleGlobal, ids.roleAgendaReader];
+
+// E2E-owned RBAC data only: never invoke the Docker DEMO identity/provisioning wrapper.
+export async function createAgendaReaderAuditFixture(prisma, userId, recordAudit) {
+  return prisma.$transaction(async (tx) => {
+    let permission = await tx.permission.findUnique({ where: { code: 'agenda.read' } });
+    if (permission) {
+      assert.equal(permission.module, 'agenda'); assert.equal(permission.action, 'read');
+    } else {
+      permission = await tx.permission.create({ data: { id: ids.permissionAgendaRead,
+        code: 'agenda.read', module: 'agenda', action: 'read' } });
+    }
+    await tx.role.create({ data: { id: ids.roleAgendaReader, code: `E2E_AUDIT_AGENDA_READER_${ids.roleAgendaReader}`,
+      name: 'Audit agenda reader fixture', scope: 'INSTITUTION', isSystem: false, active: true } });
+    await tx.rolePermission.create({ data: { roleId: ids.roleAgendaReader, permissionId: permission.id } });
+    const grant = await tx.userRole.create({ data: { id: ids.grantAgendaReader, userId,
+      roleId: ids.roleAgendaReader, institutionId: ids.institutionA, branchId: null, active: true } });
+    await recordAudit(tx, { institutionId: ids.institutionA, actorType: 'SYSTEM',
+      actionCode: 'AGENDA_READER_PROVISIONED', resourceType: 'USER_ROLE', resourceId: grant.id, outcome: 'SUCCESS' });
+    return grant;
+  }, { isolationLevel: 'Serializable' });
+}
 
 export async function createAuditFixtures(prisma, adminId, secondUserId) {
   await prisma.institution.createMany({ data: institutions.map((id) => ({ id, name: `E2E Audit ${id}`, timeZone: 'America/Santiago' })) });
@@ -59,6 +81,7 @@ export async function cleanupAuditFixtures(prisma) {
   await prisma.userRole.deleteMany({ where: { roleId: { in: roles } } });
   await prisma.rolePermission.deleteMany({ where: { roleId: { in: roles } } });
   await prisma.role.deleteMany({ where: { id: { in: roles } } });
+  await prisma.permission.deleteMany({ where: { id: ids.permissionAgendaRead, code: 'agenda.read', module: 'agenda', action: 'read' } });
   await prisma.branch.deleteMany({ where: { institutionId: { in: institutions } } });
   await prisma.institution.deleteMany({ where: { id: { in: institutions } } });
   const userScope = { email: { startsWith: FIXTURE_EMAIL_PREFIX } };
@@ -70,6 +93,10 @@ export async function cleanupAuditFixtures(prisma) {
 }
 
 export async function assertAuditClean(prisma) {
+  assert.equal(await prisma.role.count({ where: { id: { in: roles } } }), 0);
+  assert.equal(await prisma.userRole.count({ where: { id: ids.grantAgendaReader } }), 0);
+  assert.equal(await prisma.permission.count({ where: { id: ids.permissionAgendaRead } }), 0);
+  assert.equal(await prisma.auditEvent.count({ where: { institutionId: { in: institutions } } }), 0);
   assert.equal(await prisma.institution.count({ where: { id: { in: institutions } } }), 0);
   assert.equal(await prisma.user.count({ where: { email: { startsWith: FIXTURE_EMAIL_PREFIX } } }), 0);
   assert.equal(await prisma.externalIdentity.count({ where: { provider: 'GOOGLE', providerSubject: { startsWith: FIXTURE_EMAIL_PREFIX } } }), 0);
