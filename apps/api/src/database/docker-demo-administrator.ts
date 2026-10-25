@@ -29,11 +29,27 @@ export const demoAgendaReaderRole = { id: agendaReaderUuid('role'), code: 'DEMO_
   name: 'Lector de agenda Docker DEMO', description: agendaReaderMarker, scope: 'INSTITUTION' as const, isSystem: false, active: true };
 export const demoAgendaReaderPermissions = ['agenda.read'] as const;
 
+const institutionalReaderMarker = 'CITAJUSTA_DOCKER_INSTITUTIONAL_READER_V1';
+const institutionalReaderUuid = (key: string) => uuid(key, institutionalReaderMarker);
+export const demoInstitutionalReaderRole = { id: institutionalReaderUuid('role'), code: 'DEMO_DOCKER_INSTITUTIONAL_READER',
+  name: 'Lector institucional Docker DEMO', description: institutionalReaderMarker, scope: 'INSTITUTION' as const, isSystem: false, active: true };
+export const demoInstitutionalReaderPermissions = ['reassignments.read', 'reports.read', 'audit.read'] as const;
+
+const institutionalModes = {
+  institution: { role: demoOperatorRole, permissions: demoOperatorPermissions, grantUuid: uuid,
+    actionCode: 'INSTITUTION_ADMINISTRATOR_PROVISIONED' },
+  'agenda-reader': { role: demoAgendaReaderRole, permissions: demoAgendaReaderPermissions, grantUuid: agendaReaderUuid,
+    actionCode: 'AGENDA_READER_PROVISIONED' },
+  'institutional-reader': { role: demoInstitutionalReaderRole, permissions: demoInstitutionalReaderPermissions, grantUuid: institutionalReaderUuid,
+    actionCode: 'INSTITUTIONAL_READER_PROVISIONED' },
+} as const;
+
 const identity = { email: z.string(), userId: z.string().uuid(), confirmation: z.string() };
 const requestSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('platform'), ...identity }).strict(),
   z.object({ mode: z.literal('institution'), ...identity, institutionId: z.string().uuid() }).strict(),
   z.object({ mode: z.literal('agenda-reader'), ...identity, institutionId: z.string().uuid() }).strict(),
+  z.object({ mode: z.literal('institutional-reader'), ...identity, institutionId: z.string().uuid() }).strict(),
 ]);
 export function parseDemoProvisionRequest(input: unknown) {
   const parsed = requestSchema.safeParse(input);
@@ -62,9 +78,7 @@ async function provisionInstitutionalRole(tx: Prisma.TransactionClient, request:
   if (!user || user.id !== request.userId || user.status !== 'ACTIVE' || user.deletedAt !== null) {
     throw new DemoProvisionError('Provisión DEMO: la cuenta debe coincidir por UUID/correo, existir, estar ACTIVE y no eliminada.');
   }
-  const role = request.mode === 'agenda-reader' ? demoAgendaReaderRole : demoOperatorRole;
-  const allowedPermissions = request.mode === 'agenda-reader' ? demoAgendaReaderPermissions : demoOperatorPermissions;
-  const grantUuid = request.mode === 'agenda-reader' ? agendaReaderUuid : uuid;
+  const { role, permissions: allowedPermissions, grantUuid, actionCode } = institutionalModes[request.mode];
   const roles = await tx.role.findMany({ where: { OR: [{ id: role.id }, { code: role.code }] } });
   if (roles.length > 1) throw new DemoProvisionError('Provisión DEMO: colisión del rol dedicado.');
   if (roles[0]) compatible(roles[0], role);
@@ -107,7 +121,7 @@ async function provisionInstitutionalRole(tx: Prisma.TransactionClient, request:
   if (!grants.length) { await tx.userRole.create({ data: grant }); changed = true; }
   // Keep the event specific to the provisioned role, in this same transaction.
   if (changed) await AuditService.record(tx, { institutionId: request.institutionId, actorType: 'SYSTEM',
-    actionCode: request.mode === 'agenda-reader' ? 'AGENDA_READER_PROVISIONED' : 'INSTITUTION_ADMINISTRATOR_PROVISIONED',
+    actionCode,
     resourceType: 'USER_ROLE', resourceId: grant.id, outcome: 'SUCCESS' });
   return { role: role.code, changed };
 }

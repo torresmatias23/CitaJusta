@@ -242,7 +242,8 @@ la validación manual de RF-016. Prisma permanece en 7.10.0; sin nuevas migracio
   grants incompatibles/inactivos o instituciones no elegibles provocan rechazo, no reparación.
   Repetir una provisión completa compatible no cambia filas ni repite auditoría.
 - Usa `INSTITUTION_ADMINISTRATOR_PROVISIONED` para platform/institution y
-  `AGENDA_READER_PROVISIONED` para agenda-reader, actor SYSTEM y recurso USER_ROLE,
+  `AGENDA_READER_PROVISIONED` para agenda-reader e `INSTITUTIONAL_READER_PROVISIONED`
+  para institutional-reader, actor SYSTEM y recurso USER_ROLE,
   dentro de la misma transacción. El grant referenciado identifica el rol;
   la provisión institucional incluye institutionId, la general no. Si falla la auditoría,
   se revierte toda la provisión de esa ejecución.
@@ -362,6 +363,66 @@ sus sedes, no concede un permiso GLOBAL ni de escritura, asistencia o reasignaci
 separado: no utilizarlo contra `citajusta_docker`. No cambiar marcadores, protecciones,
 `.env`, usuarios o citas para conseguir acceso. Las pruebas de este cambio no conectan
 DEV/DEMO; la ejecución real y la verificación manual Desktop quedan pendientes.
+
+### Consultas institucionales Desktop en Docker DEMO
+
+El modo adicional `institutional-reader` **no se ha ejecutado en DEMO en esta tarea**.
+Crea/reutiliza `DEMO_DOCKER_INSTITUTIONAL_READER`, scope INSTITUTION, isSystem=false,
+con un grant ACTIVE ligado a la cuenta/institución expresamente aprobadas, branchId=null
+y sin fechas de vencimiento. Permisos exactos, sin wildcard ni GLOBAL:
+
+| Consulta Desktop | API | Permiso |
+| --- | --- | --- |
+| Reasignaciones (UUID de proceso conocido) | `GET /api/v1/reassignments/:reassignmentId` | `reassignments.read` |
+| Reportes | `GET /api/v1/reports/indicators` | `reports.read` |
+| Auditoría | `GET /api/v1/audit/events` | `audit.read` |
+
+Asistencia reutiliza `GET /api/v1/agenda` y el permiso **ya existente** `agenda.read`.
+El nuevo rol no lo duplica: conservar el grant independiente de `DEMO_DOCKER_AGENDA_READER`
+para esa consulta. Registrar asistencia/inasistencia exige además `appointments.attendance`;
+esa operación no se habilita. No se inventa un permiso `attendance.read`.
+Los catálogos auxiliares de selección/zonas usan las lecturas autenticadas existentes;
+no es necesario conceder administración de instituciones, sedes o profesionales.
+
+El rol nuevo no concede `reassignments.generate`, `reassignments.policy.read/update`,
+`appointments.attendance` ni ninguna escritura. No modifica roles de Agenda/administración,
+credenciales, sesiones ni datos de dominio. Los permisos efectivos son la unión de los roles
+anteriores: este tooling **no revoca** privilegios previamente existentes. Consultar auditoría
+y supervisión permite ver trazabilidad e identificadores internos del tenant; aprobar sólo
+personal institucional autorizado, nunca asignarlo automáticamente a usuarios públicos.
+
+Reutiliza sin excepciones el preflight de Docker DEMO, verificación real de PostgreSQL 18,
+marcador, migraciones/checksums, cuenta ACTIVE por UUID/correo e institución ACTIVE/no eliminadas.
+Serializable, lock administrativo y único reintento de conflicto reconocido se conservan.
+La confirmación queda vinculada al nuevo modo, cuenta e institución; no sirve una confirmación
+de Agenda/administración. Rechaza colisiones, permisos adicionales, roles sistémicos y grants
+ajenos/incompatibles sin repararlos. Admite una única pareja cuenta/institución aprobada.
+Auditoría `INSTITUTIONAL_READER_PROVISIONED`, actor SYSTEM, recurso USER_ROLE apuntando al grant,
+dentro de la misma transacción; sin cambios no emite un segundo evento. El código de acción
+se almacena en el VARCHAR existente: no requiere migración.
+
+Procedimiento posterior **pendiente de autorización y NO EJECUTADO**. Desde la raíz, con DEMO
+respaldada/healthy y las identidades verificadas, en PowerShell privado:
+
+```powershell
+# Construye tooling; no recrea los contenedores DEMO ni escribe PostgreSQL.
+docker compose --env-file docker/.env --profile tools build migrate
+$env:DEMO_ADMIN_EMAIL = '<correo de la cuenta institucional ACTIVE autorizada>'
+$env:DEMO_ADMIN_USER_ID = '<UUID verificado de esa misma cuenta>'
+$env:DEMO_INSTITUTION_ID = '<UUID de la institución ACTIVE autorizada>'
+$env:DEMO_PROVISION_CONFIRM = "citajusta_docker:institutional-reader:$($env:DEMO_ADMIN_USER_ID):$($env:DEMO_INSTITUTION_ID)"
+docker compose --env-file docker/.env --profile tools run --rm --no-deps -e DEMO_ADMIN_EMAIL -e DEMO_ADMIN_USER_ID -e DEMO_INSTITUTION_ID -e DEMO_PROVISION_CONFIRM migrate npm run provision:docker-demo -w @citajusta/api -- institutional-reader
+```
+
+El comando sustituye el CMD de migraciones: no migra ni ejecuta seeds. No imprimir variables,
+URLs o tokens; cerrar la sesión privada al terminar. Después iniciar sesión de nuevo en Desktop,
+aplicar la institución autorizada en Sedes y servicios y verificar los tres permisos en ese
+contexto. En Asistencia sólo consultar; las acciones de registro deben seguir deshabilitadas
+si no existe una autorización previa independiente. Reasignaciones requiere un UUID real conocido:
+el tooling no crea procesos, citas ni ofertas. Reportes sin datos puede devolver ceros y Auditoría
+puede estar vacía según filtros; no son fallos de permisos. Sin contexto/en otro tenant este
+grant no habilita consultas; los otros roles siguen aplicándose según sus alcances actuales.
+La ejecución real y la validación manual Tauri quedan pendientes de autorización.
 
 ### Escenario posterior mediante funcionalidades existentes
 

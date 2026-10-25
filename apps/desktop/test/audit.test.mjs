@@ -25,7 +25,7 @@ test('HU038 validates UUIDs, unknown query including institution/user/offset/pag
   for (const key of ['institutionId', 'userId', 'offset', 'page', 'body', 'limit', 'unknown', 'cursor']) assert.throws(() => auditQuery({ [key]: '50' }), status(400));
 });
 test('HU038 closed action/resource enums sent unchanged; invalid values rejected', () => {
-  assert.equal(auditActions.length, 35); assert.equal(auditResources.length, 12);
+  assert.equal(auditActions.length, 36); assert.equal(auditResources.length, 12);
   for (const action of auditActions) assert.equal(auditQuery({ action }).action, action);
   for (const resourceType of auditResources) assert.equal(auditQuery({ resourceType }).resourceType, resourceType);
   for (const filters of [{ action: 'DELETE_ALL' }, { resourceType: 'USER' }, { action: null }]) assert.throws(() => auditQuery(filters), status(400));
@@ -36,17 +36,19 @@ test('HU040 Google linking audit is readable and filterable without allowing unk
   assert.equal(parseAuditPage(page([linked])).data[0].actionCode, 'AUTH_GOOGLE_LINKED');
   assert.equal(auditQuery({ action: 'AUTH_GOOGLE_LINKED' }).action, 'AUTH_GOOGLE_LINKED');
 });
-test('agenda-reader provisioning audit is readable and filterable as SYSTEM/USER_ROLE', async () => {
-  const created = auditEvent({ actionCode: 'AGENDA_READER_PROVISIONED', actorType: 'SYSTEM', actorUserId: null,
+for (const actionCode of ['AGENDA_READER_PROVISIONED', 'INSTITUTIONAL_READER_PROVISIONED']) {
+test(`${actionCode} provisioning audit is readable and filterable as SYSTEM/USER_ROLE`, async () => {
+  const created = auditEvent({ actionCode, actorType: 'SYSTEM', actorUserId: null,
     branchId: null, resourceType: 'USER_ROLE', resourceId });
   const api = apiWith(async (path, options) => {
     assert.equal(path, 'audit/events');
-    assert.deepEqual(options.query, { limit: '50', action: 'AGENDA_READER_PROVISIONED', resourceType: 'USER_ROLE' });
+    assert.deepEqual(options.query, { limit: '50', action: actionCode, resourceType: 'USER_ROLE' });
     assert.deepEqual(options.institutionContext, { institutionId });
     return page([created]);
   });
-  assert.deepEqual((await api.find({ action: 'AGENDA_READER_PROVISIONED', resourceType: 'USER_ROLE' }, signal())).data, [created]);
+  assert.deepEqual((await api.find({ action: actionCode, resourceType: 'USER_ROLE' }, signal())).data, [created]);
 });
+}
 
 test('HU041 Calendar export audit remains readable and filterable in institutional Desktop', () => {
   const created = auditEvent({ actionCode: 'GOOGLE_CALENDAR_EVENT_CREATED', resourceType: 'APPOINTMENT' });

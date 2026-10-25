@@ -36,7 +36,7 @@ test('record rejects arbitrary bodies, secrets, states and branch without instit
     { actionCode: 'ARBITRARY' }, { branchId: randomUUID() }]) await assert.rejects(AuditService.record(db, { ...event, ...extra }));
   assert.equal(db.auditEvent.create.mock.callCount(), 0);
 });
-for (const actionCode of ['AGENDA_READER_PROVISIONED', 'INSTITUTION_ADMINISTRATOR_PROVISIONED']) {
+for (const actionCode of ['AGENDA_READER_PROVISIONED', 'INSTITUTIONAL_READER_PROVISIONED', 'INSTITUTION_ADMINISTRATOR_PROVISIONED']) {
   test(`provision audit ${actionCode} is validated, stored and queried with USER_ROLE in its institution`, async () => {
     const { db, service } = fixture();
     const input = { institutionId: context.institutionId, actorType: 'SYSTEM', actionCode,

@@ -17,6 +17,7 @@ const actionLabels: Record<typeof auditActions[number], string> = {
   INSTITUTION_CREATED: 'Institución registrada', INSTITUTION_UPDATED: 'Institución actualizada',
   INSTITUTION_ADMINISTRATOR_PROVISIONED: 'Administrador general provisionado',
   AGENDA_READER_PROVISIONED: 'Lector de agenda provisionado',
+  INSTITUTIONAL_READER_PROVISIONED: 'Lector institucional provisionado',
   APPOINTMENT_CREATED: 'Cita creada', APPOINTMENT_CANCELLED: 'Cita cancelada', ATTENDANCE_RECORDED: 'Asistencia registrada', NO_SHOW_RECORDED: 'Inasistencia registrada',
   OFFER_CREATED: 'Oferta creada', OFFER_ACCEPTED: 'Oferta aceptada', OFFER_REJECTED: 'Oferta rechazada', OFFER_EXPIRED: 'Oferta expirada',
   REASSIGNMENT_STARTED: 'Reasignación iniciada', REASSIGNMENT_COMPLETED: 'Reasignación completada', REASSIGNMENT_EXHAUSTED: 'Reasignación agotada',

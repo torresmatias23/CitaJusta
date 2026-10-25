@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { test, mock } from 'node:test';
 import { NestFactory } from '@nestjs/core';
 import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
-import { FIXTURE_EMAIL_PREFIX, ids, createAuditFixtures, createAgendaReaderAuditFixture, cleanupAuditFixtures, assertAuditClean } from './audit.fixture.mjs';
+import { FIXTURE_EMAIL_PREFIX, ids, createAuditFixtures, createAgendaReaderAuditFixture, createInstitutionalReaderAuditFixture, cleanupAuditFixtures, assertAuditClean } from './audit.fixture.mjs';
 
 test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagination', { timeout: 120_000 }, async (t) => {
   loadApiEnvironment(); assertSafeLocalDatabaseUrl(process.env.DATABASE_URL); process.env.NODE_ENV = 'test';
@@ -316,6 +316,51 @@ test('HU-020 real audit writes, atomicity, privacy, scoped reads and cursor pagi
       const foreignResponse = await get(query, foreign.token, { 'x-institution-id': ids.institutionB });
       assert.equal(foreignResponse.status, 200); assert.deepEqual(foreignResponse.body.data, []);
       assert.equal((await get(query, reader.token)).status, 403);
+    });
+    await t.test('institutional reader has only scoped read access, persisted audit and atomic rollback', async () => {
+      const reader = await register();
+      const record = AuditService.record;
+      const spy = mock.method(AuditService, 'record', async (...args) => {
+        await record(...args);
+        throw new Error('Institutional reader fixture audit rollback');
+      });
+      try {
+        await assert.rejects(createInstitutionalReaderAuditFixture(prisma, reader.id, AuditService.record), /Institutional reader fixture audit rollback/);
+      } finally { spy.mock.restore(); }
+      assert.equal(await prisma.role.count({ where: { id: ids.roleInstitutionalReader } }), 0);
+      assert.equal(await prisma.rolePermission.count({ where: { roleId: ids.roleInstitutionalReader } }), 0);
+      assert.equal(await prisma.userRole.count({ where: { id: ids.grantInstitutionalReader } }), 0);
+      assert.equal(await prisma.permission.count({ where: { id: { in: [ids.permissionReassignmentsRead, ids.permissionReportsRead, ids.permissionAuditRead] } } }), 0);
+      assert.equal((await auditRows('INSTITUTIONAL_READER_PROVISIONED', ids.grantInstitutionalReader)).length, 0);
+
+      const grant = await createInstitutionalReaderAuditFixture(prisma, reader.id, AuditService.record);
+      assert.equal(grant.userId, reader.id); assert.equal(grant.institutionId, ids.institutionA); assert.equal(grant.branchId, null);
+      const role = await prisma.role.findUniqueOrThrow({ where: { id: grant.roleId }, include: { permissions: { include: { permission: true } } } });
+      assert.equal(role.scope, 'INSTITUTION'); assert.equal(role.isSystem, false);
+      assert.deepEqual(role.permissions.map(link => link.permission.code).sort(), ['audit.read', 'reassignments.read', 'reports.read']);
+      const events = await auditRows('INSTITUTIONAL_READER_PROVISIONED', grant.id); assert.equal(events.length, 1);
+      const event = events[0];
+      assert.equal(event.institutionId, ids.institutionA); assert.equal(event.branchId, null);
+      assert.equal(event.actorType, 'SYSTEM'); assert.equal(event.actorUserId, null);
+      assert.equal(event.resourceType, 'USER_ROLE'); assert.equal(event.resourceId, grant.id); assert.equal(event.outcome, 'SUCCESS');
+      const query = { action: 'INSTITUTIONAL_READER_PROVISIONED', resourceType: 'USER_ROLE' };
+      const audit = await get(query, reader.token); assert.equal(audit.status, 200);
+      assert.deepEqual(audit.body.data, [{ ...event, occurredAt: event.occurredAt.toISOString() }]);
+      const process = await prisma.reassignment.findFirstOrThrow({ where: { institutionId: ids.institutionA }, select: { id: true } });
+      const detail = await request('GET', `/reassignments/${process.id}`, reader.token, null, headers);
+      assert.equal(detail.status, 200); assert.equal(detail.body.data.institution.id, ids.institutionA);
+      const reportsPath = '/reports/indicators?from=2050-01-15&to=2050-01-15';
+      assert.equal((await request('GET', reportsPath, reader.token, null, headers)).status, 200);
+      for (const scope of [{}, { 'x-institution-id': ids.institutionB }]) {
+        assert.equal((await get(query, reader.token, scope)).status, 403);
+        assert.equal((await request('GET', reportsPath, reader.token, null, scope)).status, 403);
+        assert.equal((await request('GET', `/reassignments/${process.id}`, reader.token, null, scope)).status, 403);
+      }
+      assert.equal((await request('GET', `/reassignments/${process.id}`, foreign.token, null, { 'x-institution-id': ids.institutionB })).status, 403);
+      for (const [path, body] of [[`/reassignments/${ids.slotAvailable}/offers`, null], ['/reassignment-policy', { rankingStrategy: 'PRIORITY_THEN_WAITING', offerTtlMinutes: 10 }],
+        [`/appointments/${randomUUID()}/attendance`, { status: 'ATENDIDA' }]]) {
+        assert.equal((await request('POST', path, reader.token, body, headers)).status, 403);
+      }
     });
     await t.test('account recovery audits only stable codes and revokes existing sessions atomically', async () => {
       const visitor = await register();
