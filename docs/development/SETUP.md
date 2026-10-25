@@ -241,8 +241,9 @@ la validación manual de RF-016. Prisma permanece en 7.10.0; sin nuevas migracio
 - Inserta sólo RBAC compatible faltante. Colisiones, roles con permisos adicionales,
   grants incompatibles/inactivos o instituciones no elegibles provocan rechazo, no reparación.
   Repetir una provisión completa compatible no cambia filas ni repite auditoría.
-- Usa el evento existente `INSTITUTION_ADMINISTRATOR_PROVISIONED`, actor SYSTEM y recurso
-  USER_ROLE, dentro de la misma transacción. El grant referenciado identifica el rol;
+- Usa `INSTITUTION_ADMINISTRATOR_PROVISIONED` para platform/institution y
+  `AGENDA_READER_PROVISIONED` para agenda-reader, actor SYSTEM y recurso USER_ROLE,
+  dentro de la misma transacción. El grant referenciado identifica el rol;
   la provisión institucional incluye institutionId, la general no. Si falla la auditoría,
   se revierte toda la provisión de esa ejecución.
 
@@ -301,6 +302,66 @@ operador se conservan; por tanto no es un procedimiento de reducción de privile
 Como los toolings Desktop, este rol técnico tiene una única pareja cuenta/institución
 aprobada: rechaza grants propios para otros destinatarios antes de completar permisos.
 Cambiar esa pareja requiere revisión independiente; no la sustituye ni amplía automáticamente.
+
+### Lectura de Agenda Desktop en Docker DEMO
+
+El modo `agenda-reader` de `provision:docker-demo` está **implementado y probado con mocks;
+NO ejecutado en DEMO en esta tarea**. Requiere aprobación independiente sobre una cuenta
+existente (UUID y correo coincidentes, ACTIVE/no eliminada) y una institución existente
+ACTIVE/no eliminada. No se infiere la identidad desde capturas ni se elige un administrador
+automáticamente. No requiere repetir `platform`, `institution`, seeds ni altas de dominio.
+
+Crea/reutiliza únicamente el rol `DEMO_DOCKER_AGENDA_READER`, scope INSTITUTION,
+isSystem=false, y un grant con institutionId aprobado y branchId=null. Su único permiso es
+`agenda.read` (module=agenda, action=read). No agrega permisos a
+`DEMO_INSTITUTION_SETUP_OPERATOR` ni `INSTITUTION_PLATFORM_ADMINISTRATOR`; preserva roles,
+grants, usuarios, credenciales, sesiones y citas existentes. El acceso permite consultar
+citas y datos de las personas atendidas en esa institución: aprobarlo sólo para personal
+institucional autorizado, no para usuarios públicos por defecto.
+
+Reutiliza el mismo preflight Docker (URL exacta, nombre/usuario reales, PostgreSQL 18,
+marcador e historial/checksums sin pendientes), comprobación de identidad en la conexión
+de escritura, transacción Serializable, lock y reintento acotado descritos arriba.
+La confirmación incluye explícitamente el modo `agenda-reader`, la cuenta y la institución;
+una confirmación anterior de administrador/operador no sirve. Auditoría atómica mediante
+`AGENDA_READER_PROVISIONED`, actor SYSTEM, institutionId y recurso USER_ROLE
+referenciado al nuevo grant. Repetir una configuración compatible no cambia timestamps
+ni añade otro evento. Roles sistémicos, permisos adicionales, colisiones o grants ajenos
+se rechazan sin reparación. El rol técnico admite una única pareja cuenta/institución
+aprobada; no reemplaza ni amplía una asignación incompatible.
+
+Procedimiento posterior, **NO EJECUTADO**, desde la raíz en PowerShell privado, después
+de revisión/autorización y con DB DEMO ya healthy y respaldada:
+
+```powershell
+# Construir sólo tooling; no recrea API/Web/DB ni aplica migraciones.
+docker compose --env-file docker/.env --profile tools build migrate
+$env:DEMO_ADMIN_EMAIL = '<correo de la cuenta institucional autorizada>'
+$env:DEMO_ADMIN_USER_ID = '<UUID verificado de esa misma cuenta>'
+$env:DEMO_INSTITUTION_ID = '<UUID de la institución autorizada>'
+$env:DEMO_PROVISION_CONFIRM = "citajusta_docker:agenda-reader:$($env:DEMO_ADMIN_USER_ID):$($env:DEMO_INSTITUTION_ID)"
+docker compose --env-file docker/.env --profile tools run --rm --no-deps -e DEMO_ADMIN_EMAIL -e DEMO_ADMIN_USER_ID -e DEMO_INSTITUTION_ID -e DEMO_PROVISION_CONFIRM migrate npm run provision:docker-demo -w @citajusta/api -- agenda-reader
+```
+
+Se sustituye el CMD de `migrate`: **no ejecuta migraciones**. `--no-deps` evita iniciar
+dependencias; no usar `up`, seeds ni bootstrap para esta operación. El script ya forma
+parte de tooling y no se ejecuta al arrancar la API. La exclusión de dependencias
+opcionales del runtime permanece intacta; no se reintroduce Prisma CLI allí.
+No imprimir variables, URLs ni tokens; cerrar la sesión privada al terminar.
+
+En Desktop, iniciar sesión nuevamente con la cuenta destinataria y aplicar el UUID de
+institución aprobado en Sedes y servicios, inicialmente sin sede. El perfil de ese contexto
+debe incluir `agenda.read` además de los permisos que ya tuviera. Abrir Agenda → Consulta
+de citas y seleccionar la fecha institucional de la cita de prueba existente; consultar
+sin modificarla. Una lista vacía no demuestra un fallo de permisos: revisar fecha/filtros.
+Sin contexto institucional o en otra institución, este grant no habilita Agenda; no limita
+otros permisos previamente concedidos por roles distintos. El alcance institucional cubre
+sus sedes, no concede un permiso GLOBAL ni de escritura, asistencia o reasignación.
+
+`seed:desktop-agenda-reader` conserva sus restricciones a `citajusta_dev` y su rol DEV
+separado: no utilizarlo contra `citajusta_docker`. No cambiar marcadores, protecciones,
+`.env`, usuarios o citas para conseguir acceso. Las pruebas de este cambio no conectan
+DEV/DEMO; la ejecución real y la verificación manual Desktop quedan pendientes.
 
 ### Escenario posterior mediante funcionalidades existentes
 

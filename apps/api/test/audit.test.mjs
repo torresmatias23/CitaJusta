@@ -36,6 +36,24 @@ test('record rejects arbitrary bodies, secrets, states and branch without instit
     { actionCode: 'ARBITRARY' }, { branchId: randomUUID() }]) await assert.rejects(AuditService.record(db, { ...event, ...extra }));
   assert.equal(db.auditEvent.create.mock.callCount(), 0);
 });
+for (const actionCode of ['AGENDA_READER_PROVISIONED', 'INSTITUTION_ADMINISTRATOR_PROVISIONED']) {
+  test(`provision audit ${actionCode} is validated, stored and queried with USER_ROLE in its institution`, async () => {
+    const { db, service } = fixture();
+    const input = { institutionId: context.institutionId, actorType: 'SYSTEM', actionCode,
+      resourceType: 'USER_ROLE', resourceId: randomUUID(), outcome: 'SUCCESS' };
+    await AuditService.record(db, input);
+    const written = db.auditEvent.create.mock.calls[0].arguments[0].data;
+    assert.deepEqual(written, { id: written.id, ...input });
+    const occurredAt = new Date('2026-10-25T12:00:00.000Z');
+    db.auditEvent.findMany.mock.mockImplementation(async () => [{ ...written, occurredAt }]);
+    const result = await service.find(parseAuditQuery({ action: actionCode, resourceType: 'USER_ROLE' }), context);
+    const { where } = db.auditEvent.findMany.mock.calls[0].arguments[0];
+    assert.equal(where.actionCode, actionCode); assert.equal(where.resourceType, 'USER_ROLE');
+    assert.equal(where.institutionId, context.institutionId);
+    assert.deepEqual(result, { data: [{ ...written, occurredAt: occurredAt.toISOString() }], page: { nextCursor: null } });
+    assert.equal(db.auditEvent.create.mock.callCount(), 1);
+  });
+}
 test('query has strict dates, filters, default 50 and max 100', () => {
   assert.equal(parseAuditQuery({}, undefined).limit, 50);
   assert.equal(parseAuditQuery({ limit: '100', from: '2026-01-01' }, {}).limit, 100);

@@ -10,8 +10,8 @@ import { isTransactionConflict } from './transaction-conflict.js';
 export class DemoProvisionError extends Error {}
 
 const marker = 'CITAJUSTA_DOCKER_INSTITUTION_OPERATOR_V1';
-const uuid = (key: string) => {
-  const hex = createHash('sha256').update(`${marker}:${key}`).digest('hex');
+const uuid = (key: string, namespace = marker) => {
+  const hex = createHash('sha256').update(`${namespace}:${key}`).digest('hex');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 };
 export const demoOperatorRole = { id: uuid('role'), code: 'DEMO_INSTITUTION_SETUP_OPERATOR',
@@ -23,17 +23,24 @@ export const demoOperatorPermissions = [
   'availability.read', 'availability.create',
 ] as const;
 
+const agendaReaderMarker = 'CITAJUSTA_DOCKER_AGENDA_READER_V1';
+const agendaReaderUuid = (key: string) => uuid(key, agendaReaderMarker);
+export const demoAgendaReaderRole = { id: agendaReaderUuid('role'), code: 'DEMO_DOCKER_AGENDA_READER',
+  name: 'Lector de agenda Docker DEMO', description: agendaReaderMarker, scope: 'INSTITUTION' as const, isSystem: false, active: true };
+export const demoAgendaReaderPermissions = ['agenda.read'] as const;
+
 const identity = { email: z.string(), userId: z.string().uuid(), confirmation: z.string() };
 const requestSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('platform'), ...identity }).strict(),
   z.object({ mode: z.literal('institution'), ...identity, institutionId: z.string().uuid() }).strict(),
+  z.object({ mode: z.literal('agenda-reader'), ...identity, institutionId: z.string().uuid() }).strict(),
 ]);
 export function parseDemoProvisionRequest(input: unknown) {
   const parsed = requestSchema.safeParse(input);
   if (!parsed.success) throw new DemoProvisionError('Provisión DEMO: modo, identidad o confirmación obligatoria inválidos.');
   const request = parsed.data;
   const target = parseInstitutionAdministratorIdentity({ email: request.email, userId: request.userId });
-  const expected = `citajusta_docker:${request.mode}:${target.userId}${request.mode === 'institution' ? `:${request.institutionId}` : ''}`;
+  const expected = `citajusta_docker:${request.mode}:${target.userId}${request.mode !== 'platform' ? `:${request.institutionId}` : ''}`;
   if (request.confirmation !== expected) throw new DemoProvisionError('Provisión DEMO: falta confirmación exacta de base, acción, cuenta e institución cuando corresponda.');
   return { ...request, ...target };
 }
@@ -45,7 +52,7 @@ function compatible(row: object, expected: object) {
   }
 }
 
-async function provisionOperator(tx: Prisma.TransactionClient, request: Extract<ReturnType<typeof parseDemoProvisionRequest>, { mode: 'institution' }>) {
+async function provisionInstitutionalRole(tx: Prisma.TransactionClient, request: Exclude<ReturnType<typeof parseDemoProvisionRequest>, { mode: 'platform' }>) {
   const institution = await tx.institution.findUnique({ where: { id: request.institutionId },
     select: { status: true, deletedAt: true } });
   if (!institution || institution.status !== 'ACTIVE' || institution.deletedAt !== null) {
@@ -55,13 +62,15 @@ async function provisionOperator(tx: Prisma.TransactionClient, request: Extract<
   if (!user || user.id !== request.userId || user.status !== 'ACTIVE' || user.deletedAt !== null) {
     throw new DemoProvisionError('Provisión DEMO: la cuenta debe coincidir por UUID/correo, existir, estar ACTIVE y no eliminada.');
   }
-  const role = demoOperatorRole;
+  const role = request.mode === 'agenda-reader' ? demoAgendaReaderRole : demoOperatorRole;
+  const allowedPermissions = request.mode === 'agenda-reader' ? demoAgendaReaderPermissions : demoOperatorPermissions;
+  const grantUuid = request.mode === 'agenda-reader' ? agendaReaderUuid : uuid;
   const roles = await tx.role.findMany({ where: { OR: [{ id: role.id }, { code: role.code }] } });
   if (roles.length > 1) throw new DemoProvisionError('Provisión DEMO: colisión del rol dedicado.');
   if (roles[0]) compatible(roles[0], role);
   const links = await tx.rolePermission.findMany({ where: { roleId: role.id },
     select: { permissionId: true, permission: { select: { code: true } } } });
-  if (links.some(link => !demoOperatorPermissions.some(code => code === link.permission.code))) {
+  if (links.some(link => !allowedPermissions.some(code => code === link.permission.code))) {
     throw new DemoProvisionError('Provisión DEMO: el rol dedicado contiene permisos ajenos.');
   }
   const roleGrants = await tx.userRole.findMany({ where: { roleId: role.id } });
@@ -71,17 +80,17 @@ async function provisionOperator(tx: Prisma.TransactionClient, request: Extract<
     grant.institutionId !== request.institutionId || grant.branchId !== null)) {
     throw new DemoProvisionError('Provisión DEMO: asignación ajena, duplicada o fuera del alcance institucional.');
   }
-  const grant = { id: uuid(`grant:${user.id}:${request.institutionId}`), userId: user.id, roleId: role.id,
+  const grant = { id: grantUuid(`grant:${user.id}:${request.institutionId}`), userId: user.id, roleId: role.id,
     institutionId: request.institutionId, branchId: null, active: true, validFrom: null, validTo: null };
   const grants = await tx.userRole.findMany({ where: { OR: [{ id: grant.id },
     { userId: user.id, roleId: role.id, institutionId: request.institutionId }] } });
   if (grants.length > 1) throw new DemoProvisionError('Provisión DEMO: asignaciones duplicadas.');
   if (grants[0]) compatible(grants[0], grant);
   const permissions = [];
-  for (const code of demoOperatorPermissions) {
+  for (const code of allowedPermissions) {
     const [module, action] = code.split('.');
     const expected = { code, module: module!, action: action! };
-    const id = uuid(code);
+    const id = grantUuid(code);
     const matches = await tx.permission.findMany({ where: { OR: [{ id }, { code }, { module: expected.module, action: expected.action }] } });
     if (matches.length > 1) throw new DemoProvisionError('Provisión DEMO: colisión de permiso.');
     if (matches[0]) compatible(matches[0], expected);
@@ -96,10 +105,10 @@ async function provisionOperator(tx: Prisma.TransactionClient, request: Extract<
     }
   }
   if (!grants.length) { await tx.userRole.create({ data: grant }); changed = true; }
-  // Existing administrative provisioning event: the referenced grant identifies
-  // the exact role; institutionId distinguishes this scoped assignment from GLOBAL.
+  // Keep the event specific to the provisioned role, in this same transaction.
   if (changed) await AuditService.record(tx, { institutionId: request.institutionId, actorType: 'SYSTEM',
-    actionCode: 'INSTITUTION_ADMINISTRATOR_PROVISIONED', resourceType: 'USER_ROLE', resourceId: grant.id, outcome: 'SUCCESS' });
+    actionCode: request.mode === 'agenda-reader' ? 'AGENDA_READER_PROVISIONED' : 'INSTITUTION_ADMINISTRATOR_PROVISIONED',
+    resourceType: 'USER_ROLE', resourceId: grant.id, outcome: 'SUCCESS' });
   return { role: role.code, changed };
 }
 
@@ -125,7 +134,7 @@ export async function provisionDockerDemoAdministrator(prisma: Pick<PrismaClient
         if (!lock?.acquired) throw new DemoProvisionError('Provisión DEMO: otra provisión está ejecutándose; repetir después.');
         return request.mode === 'platform'
           ? provisionInstitutionAdministrator(tx, { email: request.email, userId: request.userId })
-          : provisionOperator(tx, request);
+          : provisionInstitutionalRole(tx, request);
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5000, timeout: 15000 });
     } catch (error) {
       if (attempt === 0 && isTransactionConflict(error)) continue;
