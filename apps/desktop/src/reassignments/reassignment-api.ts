@@ -3,6 +3,9 @@ import type { ApiClient, UserProfile } from '@citajusta/client-core';
 import { named, record, text, uuid } from '../agenda/agenda-api.ts';
 import { uuidPattern } from '../catalog/catalog-api.ts';
 
+export const reassignmentStatuses = ['PENDING', 'EVALUATING', 'OFFERING', 'COMPLETED', 'EXHAUSTED', 'CANCELLED', 'FAILED'] as const;
+export type ReassignmentStatus = typeof reassignmentStatuses[number];
+
 function number(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error('Respuesta inválida.');
   return value;
@@ -83,6 +86,48 @@ export function parseReassignment(value: unknown) {
   };
 }
 export type Reassignment = ReturnType<typeof parseReassignment>;
+export type ReassignmentListing = {
+  id: string; status: ReassignmentStatus; detectedAt: string; startedAt: string | null; finishedAt: string | null; closureReasonCode: string | null;
+  branch: { id: string; name: string }; service: { id: string; name: string };
+  agendaSlot: { id: string; startsAt: string; endsAt: string };
+};
+export type ReassignmentListingPage = { data: ReassignmentListing[]; nextCursor: string | null };
+
+function listingStatus(value: unknown): ReassignmentStatus {
+  const found = reassignmentStatuses.find(status => status === value);
+  if (!found) throw new Error('Invalid reassignment status.');
+  return found;
+}
+function listing(value: unknown): ReassignmentListing {
+  const row = record(value), slot = record(row.agendaSlot);
+  const startsAt = instant(slot.startsAt), endsAt = instant(slot.endsAt);
+  if (endsAt <= startsAt) throw new Error('Invalid interval.');
+  return {
+    id: uuid(row.id), status: listingStatus(row.status), detectedAt: instant(row.detectedAt),
+    startedAt: nullable(row.startedAt, instant), finishedAt: nullable(row.finishedAt, instant), closureReasonCode: nullable(row.closureReasonCode, text),
+    branch: named(row.branch), service: named(row.service), agendaSlot: { id: uuid(slot.id), startsAt, endsAt },
+  };
+}
+function listingCursor(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,300}$/.test(value)) throw new Error('Invalid reassignment page.');
+  return value;
+}
+export function parseReassignmentListingPage(value: unknown): ReassignmentListingPage {
+  const response = record(value), page = record(response.page);
+  if (!Array.isArray(response.data)) throw new Error('Invalid reassignment listing.');
+  return { data: response.data.map(listing), nextCursor: listingCursor(page.nextCursor) };
+}
+export function reassignmentListingQuery(status?: ReassignmentStatus, cursor?: string): Record<string, string> {
+  const query: Record<string, string> = { limit: '50' };
+  if (status !== undefined) query.status = listingStatus(status);
+  if (cursor !== undefined) {
+    const parsed = listingCursor(cursor);
+    if (parsed === null) throw new ApiError(400);
+    query.cursor = parsed;
+  }
+  return query;
+}
 export function canReadReassignments(user: UserProfile) { return Boolean(user.context.institutionId) && user.permissions.includes('reassignments.read'); }
 export function reassignmentError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -93,6 +138,15 @@ export function reassignmentError(error: unknown): string {
   }
   return 'No pudimos consultar el proceso. Revisa la conexión y vuelve a intentar.';
 }
+export function reassignmentListingError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 400) return 'El filtro de reasignaciones no es válido.';
+    if (error.status === 401) return 'Tu sesión no es válida. Inicia sesión nuevamente.';
+    if (error.status === 403) return 'No tienes permiso para consultar reasignaciones en este contexto.';
+    if (error.status === 404) return 'La página solicitada no está disponible en tu contexto.';
+  }
+  return 'No pudimos consultar las reasignaciones. Revisa la conexión y vuelve a intentar.';
+}
 export function createReassignmentApi(api: ApiClient, user: UserProfile) {
   const institutionContext = { institutionId: user.context.institutionId ?? '', ...(user.context.branchId ? { branchId: user.context.branchId } : {}) };
   return { async find(id: string, signal: AbortSignal) {
@@ -101,5 +155,11 @@ export function createReassignmentApi(api: ApiClient, user: UserProfile) {
     const result = parseReassignment(record(await api.request(`reassignments/${id}`, { institutionContext, signal })).data);
     if (result.id !== id || result.institution.id !== institutionContext.institutionId || (institutionContext.branchId && result.branch.id !== institutionContext.branchId)) throw new ApiError(404);
     return result;
+  }, async list(status: ReassignmentStatus | undefined, signal: AbortSignal, cursor?: string): Promise<ReassignmentListingPage> {
+    if (!canReadReassignments(user)) throw new ApiError(403);
+    const query = reassignmentListingQuery(status, cursor);
+    const page = parseReassignmentListingPage(await api.request('reassignments', { query, institutionContext, signal }));
+    if (institutionContext.branchId && page.data.some(row => row.branch.id !== institutionContext.branchId)) throw new ApiError(404);
+    return page;
   } };
 }
