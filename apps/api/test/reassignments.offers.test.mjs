@@ -87,7 +87,7 @@ test('HU-016 unexpected storage failures return sanitized 500', async () => {
 });
 test('HU-016 controller authenticates, rejects query/body/UUID extras and uses read permission metadata', () => {
   const id = randomUUID(); const context = { institutionId: randomUUID(), permissions: ['reassignments.read'] };
-  const controller = new ReassignmentsController({}, { getDetail: (entryId, authorization) => ({ entryId, authorization }) });
+  const controller = new ReassignmentsController({}, { getDetail: (entryId, authorization) => ({ entryId, authorization }) }, {}, {});
   const request = { principal: { userId: randomUUID() }, authorization: context };
   assert.deepEqual(controller.getDetail({ reassignmentId: id }, {}, undefined, request), { entryId: id, authorization: context });
   for (const [params, query, body] of [[{ reassignmentId: 'bad' }, {}, undefined], [{ reassignmentId: id }, { userId: id }, undefined], [{ reassignmentId: id }, {}, { force: true }]]) {
@@ -164,7 +164,7 @@ test('controller rejects missing identity, arbitrary body/query and missing cont
     generate: (id, context) => ({ id, context }),
     acceptOffer: (id, principal) => ({ id, principal }),
     rejectOffer: (id, principal) => ({ id, principal }),
-  });
+  }, {}, {}, {});
   const request = { principal: { userId: randomUUID() }, authorization: { userId: randomUUID(), institutionId: slot.institutionId, permissions: ['reassignments.generate'] } };
   const params = { agendaSlotId: randomUUID() };
   assert.equal(controller.generate(params, {}, undefined, request).id, params.agendaSlotId);

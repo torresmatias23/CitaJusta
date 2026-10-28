@@ -1,10 +1,12 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { UserProfile } from '@citajusta/client-core';
 import { useAuth } from '../auth/auth-provider';
+import { InlineAlert } from '../components/ui/inline-alert';
 import { StatusBadge } from '../components/ui/status-badge';
+import { reassignmentStatuses } from './reassignment-api';
 import { createReassignmentModel } from './reassignment-model';
 import type { ReassignmentState } from './reassignment-model';
-import type { Reassignment } from './reassignment-api';
+import type { Reassignment, ReassignmentListing } from './reassignment-api';
 
 type Value = string | number | boolean | null | undefined;
 function Fields({ rows }: { rows: [string, Value][] }) {
@@ -23,19 +25,46 @@ function Workspace({ user }: { user: UserProfile }) {
   return <ReassignmentView model={model} state={state} />;
 }
 export function ReassignmentView({ model, state }: { model: ReturnType<typeof createReassignmentModel>; state: ReassignmentState }) {
-  if (state.status === 'denied') return <p role="status">Acceso no disponible. Aplica un contexto institucional en Sedes y servicios y verifica el permiso reassignments.read.</p>;
+  if (state.status === 'denied') return <InlineAlert>Acceso no disponible. Aplica un contexto institucional y verifica el permiso reassignments.read.</InlineAlert>;
+  const busy = state.status === 'loading' || state.loadingMore;
   return <section className="catalog-page" aria-label="Supervisión de reasignaciones">
-    <p>Consulta un proceso conocido. Vista de sólo lectura; el backend determina los estados, el ranking y la oferta activa.</p>
-    <form className="catalog-context" aria-label="Consultar reasignación" onSubmit={event => { event.preventDefault(); void model.consult(); }}>
+    <header><h2>Reasignaciones institucionales</h2><p>Vista de solo lectura. El backend determina estados, ranking, ofertas y alcance institucional.</p></header>
+    <form className="catalog-context" aria-label="Consultar por UUID" onSubmit={event => { event.preventDefault(); void model.consultById(); }}>
       <label className="catalog-field">Identificador del proceso<input name="reassignmentId" value={state.id} aria-describedby="process-help" onChange={event => model.setId(event.target.value)} /></label>
-      <p id="process-help" className="field-help">Introduce el UUID del proceso. No existe un listado de procesos en esta pantalla.</p>
-      <button className="primary-button" type="submit" disabled={state.status === 'loading'}>{state.status === 'loading' ? 'Consultando…' : 'Consultar proceso'}</button>
+      <p id="process-help" className="field-help">Consulta un UUID conocido, aunque no aparezca en el listado o no coincida con el filtro. Consulta nuevamente para actualizar su detalle.</p>
+      <button className="primary-button" type="submit" disabled={state.detailStatus === 'loading'}>{state.detailStatus === 'loading' ? 'Consultando…' : 'Consultar por UUID'}</button>
     </form>
-    {state.status === 'idle' && <p role="status">Introduce un identificador para consultar el proceso.</p>}
-    {state.status === 'loading' && <p role="status">Cargando proceso…</p>}
-    {state.status === 'error' && <p role="alert">{state.error}</p>}
-    {state.status === 'ready' && state.data && <ReassignmentDetail data={state.data} />}
+    <label className="catalog-field">Estado
+      <select name="status" value={state.filter ?? ''} disabled={busy} onChange={event => model.setFilter(event.target.value)}>
+        <option value="">Todos los estados</option>{reassignmentStatuses.map(status => <option value={status} key={status}>{status}</option>)}
+      </select>
+    </label>
+    {state.status === 'idle' && <p role="status">Preparando el listado de reasignaciones…</p>}
+    {state.status === 'loading' && <p role="status">Cargando reasignaciones…</p>}
+    {state.status === 'error' && <><InlineAlert failed>{state.error}</InlineAlert><button type="button" className="primary-button" onClick={() => { void model.consult(); }}>Reintentar carga</button></>}
+    {state.status === 'ready' && <section className="catalog-section" aria-label="Procesos de reasignación" aria-busy={state.loadingMore}>
+      <p className="field-help">Orden del servidor: detección más reciente primero. Los horarios y fechas se muestran en ISO UTC.</p>
+      {!state.data.length && <InlineAlert>No se encontraron reasignaciones para el estado seleccionado.</InlineAlert>}
+      <ol className="catalog-list">{state.data.map(row => <li key={row.id}><ReassignmentListingCard row={row} disabled={state.detailStatus === 'loading'} open={() => { void model.openDetail(row.id); }} /></li>)}</ol>
+      {state.moreError && <InlineAlert failed>{state.moreError} Los resultados ya consultados se conservan.</InlineAlert>}
+      {state.loadingMore && <p role="status">Cargando más reasignaciones…</p>}
+      {state.nextCursor !== null && <button type="button" className="primary-button" disabled={state.loadingMore} onClick={() => { void model.loadMore(); }}>{state.loadingMore ? 'Cargando…' : 'Cargar más'}</button>}
+    </section>}
+    {state.detailStatus === 'loading' && <p role="status">Cargando detalle del proceso…</p>}
+    {state.detailStatus === 'error' && <InlineAlert failed>{state.detailError}</InlineAlert>}
+    {state.detailStatus === 'ready' && state.detail && <section className="catalog-section" aria-label="Detalle de reasignación"><button type="button" onClick={() => model.closeDetail()}>Cerrar detalle</button><ReassignmentDetail data={state.detail} /></section>}
   </section>;
+}
+export function ReassignmentListingCard({ row, disabled, open }: { row: ReassignmentListing; disabled: boolean; open: () => void }) {
+  return <article className="catalog-card">
+    <div className="catalog-heading"><h3>{row.service.name}</h3><StatusBadge code={row.status}>{row.status}</StatusBadge></div>
+    <p>Sede: {row.branch.name}</p>
+    <dl className="catalog-fields supervision-fields">
+      <div><dt>Horario (UTC)</dt><dd><time dateTime={row.agendaSlot.startsAt}>{row.agendaSlot.startsAt}</time> — <time dateTime={row.agendaSlot.endsAt}>{row.agendaSlot.endsAt}</time></dd></div>
+      <div><dt>Detectada (UTC)</dt><dd><time dateTime={row.detectedAt}>{row.detectedAt}</time></dd></div>
+    </dl>
+    <button type="button" disabled={disabled} onClick={open}>Abrir detalle</button>
+  </article>;
 }
 export function ReassignmentDetail({ data: d }: { data: Reassignment }) {
   const criteria = d.evaluation.criteriaSnapshot;

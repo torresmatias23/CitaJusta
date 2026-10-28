@@ -7,6 +7,7 @@ import { ReassignmentsService } from './reassignments.service.js';
 import { ReassignmentSupervisionService } from './reassignment-supervision.service.js';
 import { RecipientOffersService } from './recipient-offers.service.js';
 import { OfferExpirationRunner } from './offer-expiration.runner.js';
+import { ReassignmentListingService } from './reassignment-listing.service.js';
 
-@Module({ imports: [AuthModule, AuthorizationModule, DatabaseModule], controllers: [ReassignmentsController], providers: [ReassignmentsService, ReassignmentSupervisionService, RecipientOffersService, OfferExpirationRunner] })
+@Module({ imports: [AuthModule, AuthorizationModule, DatabaseModule], controllers: [ReassignmentsController], providers: [ReassignmentsService, ReassignmentSupervisionService, ReassignmentListingService, RecipientOffersService, OfferExpirationRunner] })
 export class ReassignmentsModule {}

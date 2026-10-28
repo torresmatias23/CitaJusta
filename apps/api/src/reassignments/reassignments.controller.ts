@@ -12,6 +12,8 @@ import type { AuthorizedRequest } from '../authorization/types/authorization-con
 import { ReassignmentsService, GENERATE_OFFERS_PERMISSION } from './reassignments.service.js';
 import { ReassignmentSupervisionService, SUPERVISE_REASSIGNMENTS_PERMISSION } from './reassignment-supervision.service.js';
 import { RecipientOffersService } from './recipient-offers.service.js';
+import { ReassignmentListingService } from './reassignment-listing.service.js';
+import { parseReassignmentListingQuery } from './reassignment-listing.schemas.js';
 
 const slotParamsSchema = z.object({ agendaSlotId: z.string().uuid() }).strict();
 const offerParamsSchema = z.object({ offerId: z.string().uuid() }).strict();
@@ -20,7 +22,8 @@ const empty = z.object({}).strict();
 
 @Controller('reassignments')
 export class ReassignmentsController {
-  constructor(private readonly service: ReassignmentsService, private readonly supervision: ReassignmentSupervisionService, private readonly recipientOffers: RecipientOffersService) {}
+  constructor(private readonly service: ReassignmentsService, private readonly supervision: ReassignmentSupervisionService,
+    private readonly recipientOffers: RecipientOffersService, private readonly listing: ReassignmentListingService) {}
 
   @Get('offers/me')
   @UseGuards(AccessTokenGuard)
@@ -30,6 +33,15 @@ export class ReassignmentsController {
       throw new BadRequestException('Invalid recipient offers request');
     }
     return this.recipientOffers.findMine(request.principal);
+  }
+
+  @Get()
+  @UseGuards(AccessTokenGuard, AuthorizationContextGuard, PermissionsGuard)
+  @RequirePermissions(SUPERVISE_REASSIGNMENTS_PERMISSION)
+  list(@Query() query: unknown, @Body() body: unknown, @Req() request: AuthorizedRequest) {
+    if (!request.principal || !request.authorization) throw new UnauthorizedException('Unauthorized');
+    if (!request.authorization.institutionId) throw new BadRequestException('Institutional context required');
+    return this.listing.find(parseReassignmentListingQuery(query, body), request.authorization);
   }
 
   @Get(':reassignmentId')

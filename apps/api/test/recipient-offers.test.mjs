@@ -66,7 +66,7 @@ test('unexpected persistence errors are sanitized', async () => {
 });
 
 test('recipient controller rejects extras, requires principal, and only uses AccessTokenGuard', async () => {
-  const controller = new ReassignmentsController(null, null, { findMine: async (actor) => { assert.equal(actor, principal); return { data: [] }; } });
+  const controller = new ReassignmentsController(null, null, { findMine: async (actor) => { assert.equal(actor, principal); return { data: [] }; } }, null);
   assert.throws(() => controller.findMine({}, undefined, {}), (e) => e.getStatus() === 401);
   for (const query of [{ userId: principal.userId }, { institutionId: randomUUID() }, { limit: 100 }]) {
     assert.throws(() => controller.findMine(query, undefined, { principal }), (e) => e.getStatus() === 400);
