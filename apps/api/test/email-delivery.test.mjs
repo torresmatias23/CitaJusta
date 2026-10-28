@@ -255,6 +255,40 @@ test('previous HTML-only frozen payload is never rendered again or given a logo 
   assert.deepEqual(f.adapter.send.mock.calls[0].arguments[1], frozen);
   assert.equal(Object.hasOwn(f.row.payload, 'attachments'), false);
 });
+
+for (const type of ['OFFER_CREATED', 'OFFER_ACCEPTED']) {
+  test(`${type}: new delivery freezes the unified HTML/CID and sends once through the mocked provider`, async () => {
+    const f = fixture();
+    f.row.notification.type = type;
+    f.row.notification.data = { startsAt: '2030-01-02T16:00:00.000Z', ...(type === 'OFFER_CREATED' ? { expiresAt: '2030-01-01T16:10:00.000Z' } : {}) };
+    await f.service.processBatch(); await f.service.processBatch();
+    assert.equal(f.row.status, 'SENT'); assert.equal(f.adapter.send.mock.callCount(), 1);
+    const expected = { from: payload.from, to: payload.to, ...renderEmailContent({ type, data: f.row.notification.data }, 'America/Santiago') };
+    assert.deepEqual(f.row.payload, expected);
+    assert.deepEqual(f.adapter.send.mock.calls[0].arguments.slice(0, 2), [f.row.notification.id, expected]);
+    assert.match(f.row.payload.html, /border-bottom:4px solid #008184/);
+    assert.equal(f.row.payload.attachments[0].content_id, 'citajusta-logo');
+  });
+
+  test(`${type}: historical dark-header frozen HTML retries byte-for-byte, without adding CID`, async () => {
+    const frozen = { ...payload, subject: type === 'OFFER_CREATED' ? 'Recibiste una oferta' : 'Oferta aceptada',
+      html: '<html><body><table><tr><td style="background-color:#14345c">CitaJusta</td></tr></table></body></html>' };
+    let attempts = 0;
+    const f = fixture({ payload: structuredClone(frozen), firstAttemptAt: new Date() }, {}, async () => {
+      if (++attempts === 1) throw new EmailProviderError('RESEND_HTTP_429', true);
+      return randomUUID();
+    });
+    f.row.notification.type = type;
+    f.prisma.institution.findUnique = async () => assert.fail('Frozen offers must bypass rendering');
+    await f.service.processBatch(); assert.equal(f.row.status, 'PENDING');
+    f.row.nextAttemptAt = new Date(0); f.row.notification.data = {};
+    await f.service.processBatch(); assert.equal(f.row.status, 'SENT');
+    assert.equal(f.adapter.send.mock.callCount(), 2);
+    assert.deepEqual(f.row.payload, frozen);
+    for (const call of f.adapter.send.mock.calls) assert.deepEqual(call.arguments.slice(0, 2), [f.row.notification.id, frozen]);
+    assert.equal(Object.hasOwn(f.row.payload, 'attachments'), false);
+  });
+}
 test('permanent and max-attempt failures are terminal, including lease-crash exhaustion', async () => {
   for (const f of [fixture({}, {}, async () => { throw new EmailProviderError('RESEND_HTTP_422', false); }),
     fixture({ attemptCount: 4 }, {}, async () => { throw new EmailProviderError('RESEND_HTTP_500', true); })]) {
