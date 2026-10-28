@@ -29,6 +29,11 @@ export function ReassignmentView({ model, state }: { model: ReturnType<typeof cr
   const busy = state.status === 'loading' || state.loadingMore;
   return <section className="catalog-page" aria-label="Supervisión de reasignaciones">
     <header><h2>Reasignaciones institucionales</h2><p>Vista de solo lectura. El backend determina estados, ranking, ofertas y alcance institucional.</p></header>
+    <form className="catalog-context" aria-label="Consultar por UUID" onSubmit={event => { event.preventDefault(); void model.consultById(); }}>
+      <label className="catalog-field">Identificador del proceso<input name="reassignmentId" value={state.id} aria-describedby="process-help" onChange={event => model.setId(event.target.value)} /></label>
+      <p id="process-help" className="field-help">Consulta un UUID conocido, aunque no aparezca en el listado o no coincida con el filtro. Consulta nuevamente para actualizar su detalle.</p>
+      <button className="primary-button" type="submit" disabled={state.detailStatus === 'loading'}>{state.detailStatus === 'loading' ? 'Consultando…' : 'Consultar por UUID'}</button>
+    </form>
     <label className="catalog-field">Estado
       <select name="status" value={state.filter ?? ''} disabled={busy} onChange={event => model.setFilter(event.target.value)}>
         <option value="">Todos los estados</option>{reassignmentStatuses.map(status => <option value={status} key={status}>{status}</option>)}
@@ -36,7 +41,7 @@ export function ReassignmentView({ model, state }: { model: ReturnType<typeof cr
     </label>
     {state.status === 'idle' && <p role="status">Preparando el listado de reasignaciones…</p>}
     {state.status === 'loading' && <p role="status">Cargando reasignaciones…</p>}
-    {state.status === 'error' && <InlineAlert failed>{state.error}</InlineAlert>}
+    {state.status === 'error' && <><InlineAlert failed>{state.error}</InlineAlert><button type="button" className="primary-button" onClick={() => { void model.consult(); }}>Reintentar carga</button></>}
     {state.status === 'ready' && <section className="catalog-section" aria-label="Procesos de reasignación" aria-busy={state.loadingMore}>
       <p className="field-help">Orden del servidor: detección más reciente primero. Los horarios y fechas se muestran en ISO UTC.</p>
       {!state.data.length && <InlineAlert>No se encontraron reasignaciones para el estado seleccionado.</InlineAlert>}

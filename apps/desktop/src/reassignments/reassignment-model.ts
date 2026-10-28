@@ -5,13 +5,13 @@ import type { Reassignment, ReassignmentListing, ReassignmentStatus } from './re
 export type ReassignmentState = {
   status: 'idle' | 'loading' | 'ready' | 'error' | 'denied'; filter: ReassignmentStatus | undefined;
   data: ReassignmentListing[]; nextCursor: string | null; error: string; loadingMore: boolean; moreError: string;
-  detailStatus: 'idle' | 'loading' | 'ready' | 'error'; detail: Reassignment | null; detailError: string;
+  id: string; detailStatus: 'idle' | 'loading' | 'ready' | 'error'; detail: Reassignment | null; detailError: string;
 };
 export function createReassignmentModel(api: ApiClient, user: UserProfile) {
   const allowed = canReadReassignments(user), client = createReassignmentApi(api, user);
   const initial = (): ReassignmentState => ({
     status: allowed ? 'idle' : 'denied', filter: undefined, data: [], nextCursor: null, error: '', loadingMore: false, moreError: '',
-    detailStatus: 'idle', detail: null, detailError: '',
+    id: '', detailStatus: 'idle', detail: null, detailError: '',
   });
   let state = initial(), active = true, readRevision = 0, detailRevision = 0;
   let readRequest = new AbortController(), detailRequest = new AbortController();
@@ -43,8 +43,8 @@ export function createReassignmentModel(api: ApiClient, user: UserProfile) {
       }
     } catch (error) { if (active && current === readRevision) update({ loadingMore: false, moreError: reassignmentListingError(error) }); }
   };
-  const openDetail = async (id: string) => {
-    if (!active || !allowed || state.detailStatus === 'loading' || !state.data.some(row => row.id === id)) return;
+  const loadDetail = async (id: string) => {
+    if (!active || !allowed || state.detailStatus === 'loading') return;
     invalidateDetail(); detailRequest = new AbortController(); const current = detailRevision;
     update({ detailStatus: 'loading', detail: null, detailError: '' });
     try {
@@ -62,9 +62,12 @@ export function createReassignmentModel(api: ApiClient, user: UserProfile) {
       const selected = filter === '' ? undefined : reassignmentStatuses.find(status => status === filter);
       if (filter !== '' && !selected) return;
       invalidateRead(); clearDetail(); update({ filter: selected, status: 'idle', data: [], nextCursor: null, error: '', loadingMore: false, moreError: '' });
-      void consult();
+      return consult();
     },
-    consult, loadMore, openDetail,
+    setId(id: string) { if (active && allowed) { clearDetail(); update({ id }); } },
+    consultById: () => loadDetail(state.id.trim()),
+    consult, loadMore,
+    openDetail(id: string) { if (state.data.some(row => row.id === id)) return loadDetail(id); },
     closeDetail() { if (!active) return; clearDetail(); },
   };
 }

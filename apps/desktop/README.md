@@ -6,13 +6,38 @@
 
 No administra roles, no concede privilegios desde el cliente, no cambia estados institucionales ni zonas horarias existentes y no elimina datos. Los administradores institucionales conservan únicamente sus capacidades anteriores. El rol general no obtiene permisos de los demás módulos. Provisión persistente e instrucciones de autorización en [SETUP](../../docs/development/SETUP.md#administrador-general-de-instituciones-rf-005).
 
-## HU-036 — Supervisión de reasignaciones
+## HU-036 y RF-038 parcial — Supervisión y listado de reasignaciones
 
-Operación → Reasignaciones consulta exclusivamente `GET /api/v1/reassignments/:id`.
-Requiere UUID conocido, contexto institucional y `reassignments.read`; la sede
-contextual se conserva. No existe listado ni filtros de procesos. Consultar proceso
-permite refrescar la observación. Cambiar UUID/contexto o salir descarta respuestas
-obsoletas. Errores 404 no distinguen inexistencia de falta de acceso.
+Operación → Reasignaciones permite consultar el listado institucional mediante
+`GET /api/v1/reassignments` y, simultáneamente, un UUID conocido mediante
+`GET /api/v1/reassignments/:reassignmentId`. Ambos requieren `reassignments.read`
+y contexto institucional explícito, incluso para GLOBAL; la sede contextual se
+conserva y restringe el acceso. No hay campos editables de institución/sede en esta
+pantalla ni asignación automática de permisos.
+
+El listado permite seleccionar todos los estados o uno de `PENDING`, `EVALUATING`,
+`OFFERING`, `COMPLETED`, `EXHAUSTED`, `CANCELLED`, `FAILED`. Desktop solicita páginas
+de 50; la API admite `limit` de 1 a 100, predeterminado 50. El orden es
+`detectedAt DESC, id DESC`; «Cargar más» reutiliza el cursor opaco `page.nextCursor`
+hasta que sea `null`. No se interpreta el cursor ni se reconstruyen fechas para
+paginar. Cambiar filtro/contexto reinicia la consulta sin cursor. La API recorre
+lotes para completar la página con registros consistentes, aunque existan filas
+históricas incoherentes; no altera esos datos.
+
+La respuesta es `{ data: [...], page: { nextCursor } }`. Cada resumen sólo contiene
+`id`, `status`, `detectedAt`, `startedAt`, `finishedAt`, `closureReasonCode`, sede
+y servicio (`id`, `name`) y cupo (`id`, `startsAt`, `endsAt`); no incluye pacientes,
+contactos, candidatos, ofertas ni snapshots. Fechas ISO UTC. Un error inicial
+muestra «Reintentar carga»: conserva filtro/contexto, vuelve a la primera página
+y bloquea solicitudes duplicadas. Un fallo al cargar más conserva las filas ya
+consultadas y permite reintentar «Cargar más».
+
+«Consultar por UUID» funciona aunque falle el listado o el proceso no aparezca en
+la página/filtro actual. Valida el UUID antes del transporte, reutiliza el detalle
+existente y permite consultar nuevamente para refrescar la observación. Cambiar
+UUID/contexto o salir descarta respuestas obsoletas. Errores 404 no distinguen
+inexistencia de falta de acceso. Un cursor cuyo ancla cambió de estado/contexto
+puede requerir reiniciar el listado; no hay snapshot entre peticiones.
 
 Presenta sólo campos permitidos: resumen, política (o legado), evaluación,
 candidatos, ofertas y trazabilidad. Fechas ISO UTC explícitas; sin consulta de
@@ -22,11 +47,23 @@ No genera, acepta, rechaza o expira ofertas ni modifica citas/cupos/políticas.
 
 Validación manual: una cuenta ACTIVE existente debe tener `reassignments.read`
 provisionado por el administrador en su contexto autorizado, y disponer de un UUID
-real de proceso. No hay seed Desktop dedicado a este permiso; esta HU no otorga
-roles automáticamente ni ejecuta tooling sobre la base. Aplicar contexto en Sedes
+real de proceso. La pantalla no otorga roles automáticamente ni ejecuta tooling
+sobre la base. Aplicar contexto en Sedes
 y servicios, abrir Reasignaciones y consultar el UUID. Verificar denegación sin
-permiso, 404 genérico y PENDING persistida sin oferta activa. No usar fixtures como
-datos locales.
+permiso, 404 genérico y PENDING persistida sin oferta activa, y la coexistencia del
+formulario, listado, filtro y reintento. No usar fixtures como datos locales ni
+ejecutar pruebas contra Docker DEMO.
+
+La implementación cubre solamente parte de RF-038. Las pruebas unitarias de modelo
+y render se ejecutan con `npm test -w @citajusta/desktop`; el build con
+`npm run build -w @citajusta/desktop`. La suite protegida
+`npm run test:e2e:reassignments -w @citajusta/api` incorpora integración del
+cliente HTTP, decoder y modelo reales de Desktop con NestJS y PostgreSQL E2E
+aislado, sin mocks HTTP/Prisma para ese flujo. Su ejecución requiere autorización
+y un `check` de identidad satisfactorio del runner; preparar pruebas no acredita
+su ejecución. No valida la ventana ni el transporte nativo Tauri: esa comprobación
+manual sigue pendiente, requiere configuración exclusiva de pruebas y no debe
+reutilizar la API/puerto de DEMO ni ampliar globalmente los permisos HTTP de Tauri.
 
 ## HU-034 — Sistema visual institucional
 

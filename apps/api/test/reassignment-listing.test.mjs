@@ -29,11 +29,14 @@ function row(overrides = {}) {
 function fixture(rows = [], anchors = new Map()) {
   const db = { reassignment: {
     findFirst: mock.fn(async ({ where }) => {
-      const candidate = anchors.get(where.id);
+      const candidate = anchors.get(where.id) ?? rows.find((item) => item.id === where.id);
       if (!candidate || candidate.institutionId !== where.institutionId || (where.status && candidate.status !== where.status)) return null;
       return candidate;
     }),
-    findMany: mock.fn(async () => rows),
+    findMany: mock.fn(async ({ cursor, take }) => {
+      const index = cursor ? rows.findIndex((item) => item.id === cursor.id) + 1 : 0;
+      return rows.slice(index, index + take);
+    }),
   } };
   return { db, service: new ReassignmentListingService(db) };
 }
@@ -136,6 +139,94 @@ test('historically inconsistent rows are suppressed without exposing their inter
   const result = await service.find(parseReassignmentListingQuery({}, undefined), context);
   assert.deepEqual(result.data.map((item) => item.id), [valid.id]);
   assert.equal(JSON.stringify(result).includes('appointmentId'), false);
+});
+
+test('listing fills pages across inconsistent batches and repeats tenant, branch and status filters', async () => {
+  const branchId = randomUUID();
+  const rows = Array.from({ length: 10 }, (_, index) => {
+    const record = row({ detectedAt: new Date(at.getTime() - index * 1_000) });
+    record.agendaSlot.availability.branch.id = branchId;
+    record.appointment.branchId = index < 6 ? randomUUID() : branchId;
+    return record;
+  });
+  const { db, service } = fixture(rows);
+  const query = { status: 'OFFERING', limit: 2 };
+  const scope = { ...context, branchId };
+  const first = await service.find(query, scope);
+  assert.deepEqual(first.data.map((item) => item.id), rows.slice(6, 8).map((item) => item.id));
+  assert.equal(first.page.nextCursor, encodeReassignmentCursor(rows[7]));
+  assert.equal(db.reassignment.findMany.mock.callCount(), 3);
+  assert.deepEqual(db.reassignment.findMany.mock.calls.map((call) => call.arguments[0].cursor),
+    [undefined, { id: rows[2].id }, { id: rows[5].id }]);
+  const second = await service.find({ ...query, cursor: first.page.nextCursor }, scope);
+  assert.deepEqual(second.data.map((item) => item.id), rows.slice(8).map((item) => item.id));
+  assert.equal(second.page.nextCursor, null);
+  assert.equal(new Set([...first.data, ...second.data].map((item) => item.id)).size, 4);
+  for (const { arguments: [args] } of db.reassignment.findMany.mock.calls) {
+    assert.equal(args.take, 3);
+    assert.deepEqual(args.orderBy, [{ detectedAt: 'desc' }, { id: 'desc' }]);
+    assert.deepEqual(args.where, {
+      institutionId: context.institutionId, status: 'OFFERING',
+      service: { institutionId: context.institutionId }, appointment: { institutionId: context.institutionId },
+      agendaSlot: { availability: { branch: { institutionId: context.institutionId, id: branchId } } },
+    });
+    if (args.cursor) assert.equal(args.skip, 1);
+  }
+});
+
+test('limit=1 emits reusable valid cursors even when batch boundaries are inconsistent', async () => {
+  const rows = Array.from({ length: 5 }, (_, index) => {
+    const record = row({ detectedAt: new Date(at.getTime() - index * 1_000) });
+    if (index % 2) record.appointment.branchId = randomUUID();
+    return record;
+  });
+  const { service } = fixture(rows);
+  const seen = []; const cursors = [];
+  let cursor;
+  do {
+    const page = await service.find({ limit: 1, ...(cursor ? { cursor } : {}) }, context);
+    assert.equal(page.data.length, 1);
+    seen.push(page.data[0].id);
+    cursor = page.page.nextCursor;
+    if (cursor) {
+      assert.equal(decodeReassignmentCursor(cursor).id, page.data[0].id);
+      assert.equal(cursors.includes(cursor), false);
+      cursors.push(cursor);
+    }
+  } while (cursor);
+  assert.deepEqual(seen, [rows[0].id, rows[2].id, rows[4].id]);
+  assert.equal(new Set(seen).size, 3);
+});
+
+for (const validCount of [0, 1, 2]) test(`listing exhausts inconsistent tails and returns ${validCount} valid rows without an artificial cursor`, async () => {
+  const valid = Array.from({ length: validCount }, () => row());
+  const invalid = Array.from({ length: 8 }, () => {
+    const record = row(); record.appointment.branchId = randomUUID(); return record;
+  });
+  const { db, service } = fixture([...invalid.slice(0, 4), ...valid, ...invalid.slice(4)]);
+  const result = await service.find({ limit: 2 }, context);
+  assert.deepEqual(result.data.map((item) => item.id), valid.map((item) => item.id));
+  assert.equal(result.page.nextCursor, null);
+  assert.ok(db.reassignment.findMany.mock.callCount() >= 3);
+});
+
+test('inconsistent anchors remain rejected even though internal scanning can pass inconsistent rows', async () => {
+  const invalid = row(); invalid.appointment.branchId = randomUUID();
+  const { db, service } = fixture([invalid, row()]);
+  await assert.rejects(service.find({ limit: 1, cursor: encodeReassignmentCursor(invalid) }, context), status(404));
+  assert.equal(db.reassignment.findMany.mock.callCount(), 0);
+});
+
+test('a later batch failure rejects the request instead of returning a partial page', async () => {
+  const invalid = row(); invalid.appointment.branchId = randomUUID();
+  let calls = 0;
+  const db = { reassignment: { findMany: mock.fn(async () => {
+    if (++calls === 1) return [row(), invalid];
+    throw new Error('PRIVATE_SECOND_BATCH_FAILURE');
+  }) } };
+  await assert.rejects(new ReassignmentListingService(db).find({ limit: 1 }, context),
+    (error) => error.getStatus?.() === 500 && !error.message.includes('PRIVATE_SECOND_BATCH_FAILURE'));
+  assert.equal(db.reassignment.findMany.mock.callCount(), 2);
 });
 
 test('unexpected persistence failures are sanitized', async () => {

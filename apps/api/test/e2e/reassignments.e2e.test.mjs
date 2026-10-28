@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { NestFactory } from '@nestjs/core';
+import { createAuthSession, createHttpClient } from '@citajusta/client-core';
+import { createReassignmentModel } from '../../../desktop/src/reassignments/reassignment-model.ts';
+import { createMemorySessionStorage } from '../../../desktop/src/auth/memory-session-storage.ts';
 import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
 import { FIXTURE_EMAIL_PREFIX, ids, cleanupCheckpointFixtures, createCheckpointFixtures, assertCheckpointIsClean } from './fixture.mjs';
 
@@ -16,7 +19,7 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
   const app = await NestFactory.create(AppModule, { logger: false });
   let prisma; let cleanupEnabled = false; let ownedPermission; let ownedSupervisionPermission;
   const users = []; const statusIds = []; const appointmentStatusIds = [];
-  const listingFixture = { slots: [], appointments: [], cancellations: [], reassignments: [] };
+  const listingFixture = { slots: [], appointments: [], cancellations: [], reassignments: [], rows: [] };
   const permissionCode = 'reassignments.generate';
   try {
     configureApplication(app); await app.listen(getE2ePort(), '127.0.0.1');
@@ -34,7 +37,7 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
       const result = await request('POST', '/api/v1/auth/register', undefined, { ...credentials, firstName: 'Offers', lastName: 'Fixture' });
       assert.equal(result.status, 201); users.push(result.body.id);
       const login = await request('POST', '/api/v1/auth/login', undefined, credentials); assert.equal(login.status, 200);
-      return { id: result.body.id, token: login.body.accessToken };
+      return { id: result.body.id, token: login.body.accessToken, credentials };
     }
     const admin = await register(); const source = await register();
     await createCheckpointFixtures(prisma, admin.id);
@@ -83,10 +86,21 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
       add('COMPLETED', new Date('2045-01-01T00:00:00.000Z'));
       add('COMPLETED', new Date('2045-01-01T00:00:00.000Z'));
       add('EXHAUSTED', new Date('2044-01-01T00:00:00.000Z'), mainAvailability, '2044-01-01 00:00:00.123456');
-      add('EXHAUSTED', new Date('2044-01-01T00:00:00.000Z'), mainAvailability, '2044-01-01 00:00:00.123455');
+      add('EXHAUSTED', new Date('2044-01-01T00:00:00.000Z'), mainAvailability, '2044-01-01 00:00:00.123454');
+      add('EXHAUSTED', new Date('2044-01-01T00:00:00.000Z'), mainAvailability, '2044-01-01 00:00:00.123457', ids.branchA2);
+      add('EXHAUSTED', new Date('2044-01-01T00:00:00.000Z'), mainAvailability, '2044-01-01 00:00:00.123455', ids.branchA2);
       add('EXHAUSTED', new Date('2043-01-01T00:00:00.000Z'), otherAvailability);
       add('CANCELLED', new Date('2030-01-01T00:00:03.000Z'));
       for (let index = 0; index < 51; index += 1) add('FAILED', new Date(Date.UTC(2031, 0, 1, 0, 0, index)));
+      // Multiple fully inconsistent batches, mixed page boundaries and an inconsistent tail.
+      for (const [index, consistent] of [false, false, false, false, true, false, true, false, true, false, false].entries()) {
+        add('CANCELLED', new Date(Date.UTC(2046, 0, 1, 0, 0, 30 - index)), mainAvailability, undefined,
+          consistent ? ids.branchA1 : ids.branchA2);
+      }
+      // This branch/status scope has only inconsistent records and must end with an empty page.
+      for (let index = 0; index < 4; index += 1) {
+        add('EVALUATING', new Date(Date.UTC(2046, 0, 2, 0, 0, index)), otherAvailability, undefined, ids.branchA1);
+      }
 
       await prisma.agendaSlot.createMany({ data: rows.map((row) => ({
         id: row.slotId, availabilityId: row.availability.id, startsAt: row.startsAt,
@@ -119,8 +133,15 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
           row.id,
         );
       }
+      listingFixture.rows.push(...rows);
       return rows;
     }
+    const listingSnapshot = async () => ({
+      processes: await prisma.reassignment.findMany({ where: { id: { in: listingFixture.reassignments } }, orderBy: { id: 'asc' } }),
+      slots: await prisma.agendaSlot.findMany({ where: { id: { in: listingFixture.slots } }, orderBy: { id: 'asc' } }),
+      appointments: await prisma.appointment.findMany({ where: { id: { in: listingFixture.appointments } }, orderBy: { id: 'asc' } }),
+      cancellations: await prisma.cancellation.findMany({ where: { id: { in: listingFixture.cancellations } }, orderBy: { id: 'asc' } }),
+    });
     const headers = { 'x-institution-id': ids.institutionA };
     const supervise = (id, token = admin.token, scope = headers) => request('GET', `/api/v1/reassignments/${id}`, token, undefined, scope);
     const list = (query = '', token = admin.token, scope = headers) => request('GET', `/api/v1/reassignments${query}`, token, undefined, scope);
@@ -558,10 +579,7 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
     await t.test('RF-038 lists only authorized, consistent institutional reassignments with stable cursor pages', async () => {
       const rows = await createListingFixtures();
       const byStatus = (status) => rows.filter((row) => row.status === status);
-      const readFixture = () => prisma.reassignment.findMany({
-        where: { id: { in: listingFixture.reassignments } }, orderBy: { id: 'asc' },
-      });
-      const before = await readFixture();
+      const before = await listingSnapshot();
 
       assert.equal((await list('', null)).status, 401);
       assert.equal((await list('', source.token)).status, 403);
@@ -606,8 +624,10 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
       const completedSecond = await list(`?status=COMPLETED&limit=1&cursor=${encodeURIComponent(completedFirst.body.page.nextCursor)}`);
       assert.equal(completedSecond.status, 200); assert.equal(completedSecond.body.data[0].id, completedRows[1].id);
 
-      const microsecondRows = byStatus('EXHAUSTED').filter((row) => row.precision).sort((left, right) => right.precision.localeCompare(left.precision));
-      for (const row of microsecondRows) {
+      const precisionRows = byStatus('EXHAUSTED').filter((row) => row.precision);
+      const microsecondRows = precisionRows.filter((row) => row.appointmentBranchId === row.availability.branchId)
+        .sort((left, right) => right.precision.localeCompare(left.precision));
+      for (const row of precisionRows) {
         const stored = await prisma.$queryRawUnsafe(
           'SELECT to_char("detectada_at", \'YYYY-MM-DD HH24:MI:SS.US\') AS "detectedAt" FROM "reasignaciones" WHERE "id" = $1::uuid',
           row.id,
@@ -619,6 +639,12 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
       const microsecondSecond = await list(`?status=EXHAUSTED&limit=1&cursor=${encodeURIComponent(microsecondFirst.body.page.nextCursor)}`,
         admin.token, { ...headers, 'x-branch-id': ids.branchA1 });
       assert.equal(microsecondSecond.status, 200); assert.equal(microsecondSecond.body.data[0].id, microsecondRows[1].id);
+      // Older EXHAUSTED processes from the preceding flow still follow the precision fixtures.
+      assert.ok(microsecondSecond.body.page.nextCursor);
+      const microsecondThird = await list(`?status=EXHAUSTED&limit=1&cursor=${encodeURIComponent(microsecondSecond.body.page.nextCursor)}`,
+        admin.token, { ...headers, 'x-branch-id': ids.branchA1 });
+      assert.equal(microsecondThird.status, 200); assert.equal(microsecondThird.body.data.length, 1);
+      assert.equal(precisionRows.some((row) => row.id === microsecondThird.body.data[0].id), false);
 
       const otherBranch = byStatus('EXHAUSTED').find((row) => row.availability.branchId === ids.branchA2);
       assert.ok(otherBranch);
@@ -640,7 +666,117 @@ test('HU-009/HU-010/HU-011/HU-016 real HTTP and PostgreSQL reassignment flow', {
       }
       const detail = await supervise(summary.id);
       assert.equal(detail.status, 200); assert.equal(detail.body.data.id, summary.id);
-      assert.deepEqual(await readFixture(), before);
+      assert.deepEqual(await listingSnapshot(), before);
+    });
+
+    await t.test('RF-038 fills valid pages across inconsistent batches, reuses every cursor and exhausts invalid-only scopes', async () => {
+      const rows = listingFixture.rows;
+      assert.ok(rows.length > 0);
+      const before = await listingSnapshot();
+      const valid = rows.filter((row) => row.status === 'CANCELLED' && row.appointmentBranchId === row.availability.branchId)
+        .sort((left, right) => right.detectedAt.getTime() - left.detectedAt.getTime() || right.id.localeCompare(left.id));
+      assert.equal(valid.length, 4);
+      for (const limit of [1, 2]) {
+        let cursor; const seen = []; const cursors = new Set();
+        for (let offset = 0; offset < valid.length; offset += limit) {
+          const response = await list(`?status=CANCELLED&limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+          assert.equal(response.status, 200);
+          assert.deepEqual(response.body.data.map((row) => row.id), valid.slice(offset, offset + limit).map((row) => row.id));
+          seen.push(...response.body.data.map((row) => row.id));
+          cursor = response.body.page.nextCursor;
+          if (offset + limit < valid.length) {
+            assert.ok(cursor); assert.equal(cursors.has(cursor), false); cursors.add(cursor);
+            assert.equal(JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')).id, response.body.data.at(-1).id);
+          } else assert.equal(cursor, null);
+        }
+        assert.deepEqual(seen, valid.map((row) => row.id)); assert.equal(new Set(seen).size, valid.length);
+      }
+      const empty = await list('?status=EVALUATING&limit=1', admin.token, { ...headers, 'x-branch-id': ids.branchA2 });
+      assert.equal(empty.status, 200); assert.deepEqual(empty.body, { data: [], page: { nextCursor: null } });
+      const invalid = rows.find((row) => row.status === 'CANCELLED' && row.appointmentBranchId !== row.availability.branchId);
+      assert.ok(invalid);
+      const invalidCursor = Buffer.from(JSON.stringify({ v: 1, id: invalid.id })).toString('base64url');
+      assert.equal((await list(`?status=CANCELLED&cursor=${invalidCursor}`)).status, 404);
+      assert.deepEqual(await listingSnapshot(), before);
+    });
+
+    await t.test('RF-038 real Desktop client/model reads NestJS listing, filters, pages and direct UUID details with isolated PostgreSQL', async () => {
+      const sessions = []; const models = [];
+      const createDesktop = async (credentials, context) => {
+        const baseUrl = `${base}/api/v1`;
+        const session = createAuthSession({
+          publicApi: createHttpClient({ baseUrl }),
+          authenticatedApi: (getAccessToken) => createHttpClient({ baseUrl, getAccessToken }),
+          storage: createMemorySessionStorage(),
+        });
+        sessions.push(session);
+        await session.login(credentials);
+        if (context) await session.selectContext(context);
+        const snapshot = session.getSnapshot();
+        assert.equal(snapshot.status, 'authenticated'); assert.ok(snapshot.user);
+        const model = createReassignmentModel(session.api, snapshot.user); models.push(model);
+        return { session, model, user: snapshot.user };
+      };
+      try {
+        const scope = { institutionId: ids.institutionA, branchId: ids.branchA1 };
+        const { session, model, user } = await createDesktop(admin.credentials, scope);
+        assert.ok(user.permissions.includes('reassignments.read')); assert.deepEqual(user.context, scope);
+        const before = await listingSnapshot();
+        await model.consult();
+        assert.equal(model.getSnapshot().status, 'ready'); assert.equal(model.getSnapshot().data.length, 50);
+        assert.ok(model.getSnapshot().data.every((row) => row.branch.id === ids.branchA1));
+        const summary = model.getSnapshot().data[0];
+        assert.equal(Object.hasOwn(summary, 'candidates'), false); assert.equal(Object.hasOwn(summary, 'offers'), false);
+        await model.openDetail(summary.id);
+        assert.equal(model.getSnapshot().detailStatus, 'ready'); assert.equal(model.getSnapshot().detail.id, summary.id);
+
+        await model.setFilter('FAILED');
+        assert.equal(model.getSnapshot().status, 'ready'); assert.equal(model.getSnapshot().data.length, 50);
+        assert.ok(model.getSnapshot().data.every((row) => row.status === 'FAILED'));
+        assert.ok(model.getSnapshot().nextCursor);
+        await model.loadMore();
+        assert.equal(model.getSnapshot().data.length, 51); assert.equal(model.getSnapshot().nextCursor, null);
+        assert.equal(new Set(model.getSnapshot().data.map((row) => row.id)).size, 51);
+
+        const known = listingFixture.rows.find((row) => row.status === 'PENDING' && row.appointmentBranchId === ids.branchA1);
+        assert.ok(known); assert.equal(model.getSnapshot().data.some((row) => row.id === known.id), false);
+        model.setId(`  ${known.id}  `); await model.consultById();
+        assert.equal(model.getSnapshot().detailStatus, 'ready'); assert.equal(model.getSnapshot().detail.id, known.id);
+        assert.equal(model.getSnapshot().detail.status, 'PENDING'); assert.equal(model.getSnapshot().filter, 'FAILED');
+        await model.consultById(); assert.equal(model.getSnapshot().detailStatus, 'ready');
+        model.setId('invalid-uuid'); await model.consultById();
+        assert.equal(model.getSnapshot().detailStatus, 'error'); assert.match(model.getSnapshot().detailError, /UUID/);
+        assert.equal(model.getSnapshot().detail, null);
+
+        const otherBranch = listingFixture.rows.find((row) => row.status === 'EXHAUSTED' && row.availability.branchId === ids.branchA2);
+        assert.ok(otherBranch); model.setId(otherBranch.id); await model.consultById();
+        assert.equal(model.getSnapshot().detailStatus, 'error'); assert.match(model.getSnapshot().detailError, /no está disponible en tu contexto/);
+        model.dispose();
+        await session.selectContext({ institutionId: ids.institutionA, branchId: ids.branchA2 });
+        const branchModel = createReassignmentModel(session.api, session.getSnapshot().user); models.push(branchModel);
+        assert.equal(branchModel.getSnapshot().id, ''); assert.equal(branchModel.getSnapshot().detail, null);
+        await branchModel.consult();
+        assert.equal(branchModel.getSnapshot().status, 'ready');
+        assert.ok(branchModel.getSnapshot().data.every((row) => row.branch.id === ids.branchA2));
+        assert.deepEqual(branchModel.getSnapshot().data.filter((row) => listingFixture.reassignments.includes(row.id)).map((row) => row.id), [otherBranch.id]);
+        assert.equal(branchModel.getSnapshot().data.some((row) => row.id === known.id), false);
+        branchModel.setId(otherBranch.id); await branchModel.consultById();
+        assert.equal(branchModel.getSnapshot().detailStatus, 'ready'); assert.equal(branchModel.getSnapshot().detail.id, otherBranch.id);
+
+        const foreign = await createDesktop(otherOfficer.credentials, { institutionId: ids.institutionB });
+        await foreign.model.consult(); assert.equal(foreign.model.getSnapshot().status, 'ready');
+        assert.deepEqual(foreign.model.getSnapshot().data, []);
+        foreign.model.setId(known.id); await foreign.model.consultById();
+        assert.equal(foreign.model.getSnapshot().detailStatus, 'error'); assert.equal(foreign.model.getSnapshot().detail, null);
+        assert.match(foreign.model.getSnapshot().detailError, /no está disponible en tu contexto/);
+        const denied = await createDesktop(source.credentials);
+        await denied.model.consult(); denied.model.setId(known.id); await denied.model.consultById();
+        assert.equal(denied.model.getSnapshot().status, 'denied'); assert.equal(denied.model.getSnapshot().detail, null);
+        assert.deepEqual(await listingSnapshot(), before);
+      } finally {
+        for (const model of models) model.dispose();
+        for (const session of sessions) await session.logout();
+      }
     });
     await t.test('HU-022 history preserves every status/expiry, inactive catalogs and stable order without mutations', async () => {
       const own = await prisma.appointmentOffer.findMany({ where: { candidate: { userId: winnerUser.id } } });

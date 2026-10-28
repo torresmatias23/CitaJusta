@@ -48,7 +48,9 @@ test('RF038 permiso y contexto no se infieren de roles ni habilitan transporte',
   for (const user of [{ ...profile, permissions: [], roles: ['ADMIN'] }, { ...profile, context: {} }]) {
     const api = { request() { assert.fail('No request'); } };
     await assert.rejects(createReassignmentApi(api, user).list(undefined, new AbortController().signal), error => error.status === 403);
-    const model = createReassignmentModel(api, user); model.activate(); assert.equal(model.getSnapshot().status, 'denied'); model.dispose();
+    await assert.rejects(createReassignmentApi(api, user).find(id(3), new AbortController().signal), error => error.status === 403);
+    const model = createReassignmentModel(api, user); model.activate(); model.setId(id(3)); await model.consultById();
+    assert.equal(model.getSnapshot().status, 'denied'); assert.equal(model.getSnapshot().id, ''); model.dispose();
   }
 });
 test('RF038 decoder del listado acepta solo resumen público y contrato estricto', () => {
@@ -118,9 +120,132 @@ test('RF038 cambios de filtro y desmontaje abortan y descartan respuestas antigu
   assert.deepEqual(model.getSnapshot().data.map(row => row.id), [id(31)]);
   const second = model.consult(); model.dispose(); pending[2].resolve(listingPage([listingRow()])); await second; assert.equal(model.getSnapshot().data.length, 0);
 });
-test('RF038 abrir fila reutiliza GET de detalle sin aceptar UUID arbitrario', async () => {
+test('RF038 abrir fila reutiliza GET de detalle y la consulta UUID funciona fuera del listado y filtro', async () => {
   const paths = [];
   const model = createReassignmentModel({ request: async (path) => { paths.push(path); return path === 'reassignments' ? listingPage() : { data: processFixture() }; } }, profile);
   await model.consult(); await model.openDetail(id(3)); assert.equal(paths[1], `reassignments/${id(3)}`); assert.equal(model.getSnapshot().detailStatus, 'ready');
   await model.openDetail(id(99)); assert.equal(paths.length, 2); model.closeDetail(); assert.equal(model.getSnapshot().detail, null); model.dispose();
+  const directPaths = [];
+  const direct = createReassignmentModel({ request: async (path) => {
+    directPaths.push(path); return path === 'reassignments' ? listingPage([]) : { data: processFixture() };
+  } }, profile);
+  direct.setFilter('FAILED'); await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(direct.getSnapshot().data, []);
+  direct.setId(`  ${id(3)}  `); await direct.consultById();
+  assert.equal(direct.getSnapshot().detailStatus, 'ready'); assert.equal(direct.getSnapshot().detail.status, 'OFFERING');
+  assert.equal(direct.getSnapshot().filter, 'FAILED'); assert.deepEqual(direct.getSnapshot().data, []);
+  await direct.consultById(); assert.deepEqual(directPaths, ['reassignments', `reassignments/${id(3)}`, `reassignments/${id(3)}`]);
+  direct.dispose();
+});
+
+test('RF038 consulta UUID valida antes del transporte y queda disponible con el listado fallido o cargando', async () => {
+  let detailCalls = 0;
+  const model = createReassignmentModel({ request: async (path) => {
+    if (path === 'reassignments') throw new ApiError(500);
+    detailCalls++; return { data: processFixture() };
+  } }, profile);
+  await model.consult(); assert.equal(model.getSnapshot().status, 'error');
+  for (const value of ['', 'invalid', '../secret']) {
+    model.setId(value); await model.consultById();
+    assert.equal(model.getSnapshot().detailStatus, 'error'); assert.match(model.getSnapshot().detailError, /UUID/);
+  }
+  assert.equal(detailCalls, 0);
+  model.setId(id(3)); await model.consultById();
+  assert.equal(model.getSnapshot().status, 'error'); assert.equal(model.getSnapshot().detail.id, id(3));
+  model.dispose();
+
+  let release;
+  const pending = createReassignmentModel({ request: (path) => path === 'reassignments'
+    ? new Promise(resolve => { release = resolve; }) : Promise.resolve({ data: processFixture() }) }, profile);
+  const listing = pending.consult(); pending.setId(id(3)); await pending.consultById();
+  assert.equal(pending.getSnapshot().status, 'loading'); assert.equal(pending.getSnapshot().detailStatus, 'ready');
+  release(listingPage()); await listing; pending.dispose();
+});
+
+test('RF038 cambios de UUID abortan la consulta previa y doble envío no duplica solicitudes', async () => {
+  const pending = [];
+  const model = createReassignmentModel({ request: (path, options) => new Promise(resolve => { pending.push({ path, options, resolve }); }) }, profile);
+  model.setId(id(3)); const first = model.consultById(); await model.consultById(); assert.equal(pending.length, 1);
+  model.setId(id(99)); assert.equal(pending[0].options.signal.aborted, true);
+  assert.equal(model.getSnapshot().detailStatus, 'idle'); assert.equal(model.getSnapshot().detail, null);
+  const second = model.consultById();
+  pending[1].resolve({ data: { ...processFixture(), id: id(99) } }); await second;
+  pending[0].resolve({ data: processFixture() }); await first;
+  assert.equal(model.getSnapshot().detail.id, id(99)); model.dispose();
+});
+
+test('RF038 cambiar filtro o desmontar descarta detalles incluso si el transporte ignora abort', async () => {
+  const pending = [];
+  const model = createReassignmentModel({ request: (path, options) => path === 'reassignments' ? Promise.resolve(listingPage())
+    : new Promise(resolve => { pending.push({ options, resolve }); }) }, profile);
+  model.setId(id(3)); const first = model.consultById(); model.setFilter('FAILED');
+  assert.equal(pending[0].options.signal.aborted, true); pending[0].resolve({ data: processFixture() }); await first;
+  assert.equal(model.getSnapshot().detail, null);
+  const second = model.consultById(); model.dispose(); model.activate();
+  assert.equal(pending[1].options.signal.aborted, true); pending[1].resolve({ data: processFixture() }); await second;
+  assert.equal(model.getSnapshot().detail, null); assert.equal(model.getSnapshot().id, ''); model.dispose();
+});
+
+for (const change of [{ context: { institutionId: id(20) } }, { context: { institutionId: id(2), branchId: id(4) } }, { permissions: [] }]) {
+  test(`RF038 reemplazar workspace al cambiar contexto/permisos descarta UUID y listado (${JSON.stringify(change)})`, async () => {
+    const pending = [];
+    const previous = createReassignmentModel({ request: (_path, options) => {
+      return new Promise(resolve => { pending.push({ options, resolve }); });
+    } }, profile);
+    const listing = previous.consult(); previous.setId(id(3)); const detail = previous.consultById(); previous.dispose();
+    const next = createReassignmentModel({}, { ...profile, ...change });
+    pending[0].resolve(listingPage()); pending[1].resolve({ data: processFixture() }); await Promise.all([listing, detail]);
+    assert.ok(pending.every(({ options }) => options.signal.aborted)); assert.equal(next.getSnapshot().id, '');
+    assert.equal(next.getSnapshot().detail, null); assert.deepEqual(next.getSnapshot().data, []);
+    assert.equal(previous.getSnapshot().detail, null); assert.deepEqual(previous.getSnapshot().data, []); next.dispose();
+  });
+}
+
+test('RF038 errores UUID no conservan un detalle anterior y están sanitizados', async () => {
+  let failure;
+  const model = createReassignmentModel({ request: async () => {
+    if (failure) throw failure;
+    return { data: processFixture() };
+  } }, profile);
+  model.setId(id(3)); await model.consultById();
+  for (const status of [400, 401, 403, 404, 500]) {
+    failure = new ApiError(status); failure.message = 'PRIVATE SQL password';
+    await model.consultById();
+    assert.equal(model.getSnapshot().detailStatus, 'error'); assert.equal(model.getSnapshot().detail, null);
+    assert.doesNotMatch(model.getSnapshot().detailError, /PRIVATE|SQL|password/);
+  }
+  model.dispose();
+});
+
+test('RF038 reintenta la primera página con filtro, sin cursor ni solicitudes duplicadas', async () => {
+  const calls = []; let release;
+  const model = createReassignmentModel({ request: async (_path, options) => {
+    calls.push(options);
+    if (calls.length === 1) throw new ApiError(500);
+    return new Promise(resolve => { release = resolve; });
+  } }, profile);
+  model.setFilter('OFFERING'); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(model.getSnapshot().status, 'error');
+  const retry = model.consult(); await model.consult(); assert.equal(calls.length, 2);
+  assert.equal(model.getSnapshot().status, 'loading'); assert.equal(model.getSnapshot().error, '');
+  assert.deepEqual(calls[1].query, { limit: '50', status: 'OFFERING' });
+  assert.deepEqual(calls[1].institutionContext, { institutionId: id(2) });
+  release(listingPage([listingRow()], 'next')); await retry;
+  assert.equal(model.getSnapshot().status, 'ready'); assert.equal(model.getSnapshot().data.length, 1);
+  assert.equal(model.getSnapshot().nextCursor, 'next'); model.dispose();
+});
+
+test('RF038 respuesta de reintento obsoleta no contamina el filtro nuevo', async () => {
+  const pending = []; let calls = 0;
+  const model = createReassignmentModel({ request: (_path, options) => {
+    if (++calls === 1) return Promise.reject(new ApiError(500));
+    return new Promise(resolve => { pending.push({ options, resolve }); });
+  } }, profile);
+  await model.consult(); const retry = model.consult(); model.setFilter('FAILED');
+  assert.equal(pending[0].options.signal.aborted, true);
+  pending[1].resolve(listingPage([listingRow({ id: id(30), status: 'FAILED' })]));
+  await new Promise(resolve => setImmediate(resolve));
+  pending[0].resolve(listingPage([listingRow()], 'old')); await retry;
+  assert.deepEqual(model.getSnapshot().data.map(row => row.id), [id(30)]);
+  assert.equal(model.getSnapshot().filter, 'FAILED'); assert.equal(model.getSnapshot().nextCursor, null); model.dispose();
 });

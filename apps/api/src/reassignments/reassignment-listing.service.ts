@@ -75,18 +75,33 @@ export class ReassignmentListingService {
         const anchor = await this.prisma.reassignment.findFirst({ where: { ...where, id: cursor.id }, select: listingSelect });
         if (!anchor || !isConsistent(anchor, context.institutionId)) throw new NotFoundException('Resource not found');
       }
-      const rows = await this.prisma.reassignment.findMany({
-        where,
-        select: listingSelect,
-        ...(cursor ? { cursor: { id: cursor.id }, skip: 1 } : {}),
-        take: query.limit + 1,
-        orderBy: [{ detectedAt: 'desc' }, { id: 'desc' }],
-      });
-      const scanned = rows.slice(0, query.limit);
-      const last = scanned.at(-1);
+      const consistent: ListingRecord[] = [];
+      const batchSize = query.limit + 1;
+      let scanCursor = cursor;
+      // The limit counts visible records. Historical inconsistencies must not consume
+      // page capacity or become public cursors that the next request would reject.
+      while (consistent.length < batchSize) {
+        const rows: ListingRecord[] = await this.prisma.reassignment.findMany({
+          where,
+          select: listingSelect,
+          ...(scanCursor ? { cursor: { id: scanCursor.id }, skip: 1 } : {}),
+          take: batchSize,
+          orderBy: [{ detectedAt: 'desc' }, { id: 'desc' }],
+        });
+        for (const row of rows) {
+          if (isConsistent(row, institutionId)) consistent.push(row);
+          if (consistent.length === batchSize) break;
+        }
+        const lastScanned = rows.at(-1);
+        if (consistent.length === batchSize || rows.length < batchSize || !lastScanned) break;
+        // Prisma resolves the timestamp in PostgreSQL, preserving microsecond precision.
+        scanCursor = { id: lastScanned.id };
+      }
+      const visible = consistent.slice(0, query.limit);
+      const last = visible.at(-1);
       return {
-        data: scanned.filter((row) => isConsistent(row, institutionId)).map(summary),
-        page: { nextCursor: rows.length > query.limit && last ? encodeReassignmentCursor(last) : null },
+        data: visible.map(summary),
+        page: { nextCursor: consistent.length > query.limit && last ? encodeReassignmentCursor(last) : null },
       };
     } catch (error) {
       if (error instanceof HttpException) throw error;
