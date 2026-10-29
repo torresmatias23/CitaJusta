@@ -320,6 +320,25 @@ El bootstrap crea los estados `ACTIVE`/`WITHDRAWN`/`FULFILLED` y `STANDARD` para
 - PUT y retirada usan `Serializable` con un reintento completo ante los conflictos ya reconocidos. PUT actualiza explícitamente `WaitlistEntry.updatedAt` a un instante mayor que el anterior, incluso al cambiar sólo hijos; no modifica `enteredAt`. La retirada efectiva también avanza `updatedAt`. Cualquier fallo revierte todas las escrituras.
 - Errores: `400` contrato inválido, `401` autenticación/usuario inválido, `404` espera no accesible o sede/relación inválida, `409` espera finalizada/conflicto persistente, `503` catálogo de retirada faltante/incompatible y `500` inesperado sin detalles internos.
 - HU-008 no interpreta los campos preexistentes `acceptsAnyTime`/`acceptsWeekend`, ni crea candidatos, ofertas o cambios en citas/cupos. La evaluación HU-009 descrita abajo conserva las preferencias y el snapshot `entryUpdatedAtSnapshot`.
+### Límites de preferencias de lista de espera
+
+Para evitar el procesamiento de colecciones excesivamente grandes,
+la API valida los siguientes límites:
+
+| Campo | Máximo |
+|---|---:|
+| `preferredDays` | 7 |
+| `timeRanges` | 1439 |
+| `preferredBranchIds` | 100 |
+
+Las solicitudes que exceden estos límites reciben HTTP 400.
+
+El límite de 100 sedes es una restricción técnica de seguridad,
+no un requisito funcional confirmado del Product Backlog.
+
+Estos límites no modifican los historiales ni los snapshots
+de las reasignaciones existentes.
+
 
 ### HU-022: ofertas propias en Web
 
