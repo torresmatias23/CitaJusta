@@ -63,6 +63,82 @@ Decisión de alcance del **15-10-2026**: HU-043 (WhatsApp Cloud API) fue descart
 | Funciones críticas de citas, lista de espera y reasignación | Implementadas, con inicio automático al cancelar un cupo reutilizable (HU-025) y expiración/continuación automática (HU-023) |
 | Documentación académica | Fase 2 incorpora guías grupales, diarios individuales, Arquitectura/UML/ER, Mockups y actualizaciones Scrum; documentos pendientes de validación y evidencia del sistema por consolidar |
 
+## Protección de autenticación: CJ-SEC-02
+
+Los siete endpoints públicos `POST /api/v1/auth/*` siguientes consumen una cuota
+antes de validar el DTO o ejecutar autenticación. Se cuentan intentos correctos,
+fallidos y cuerpos JSON válidos con DTO inválido; cambiar email, contraseña o token
+no reinicia la cuota. Al excederla se devuelve **429**, mensaje genérico,
+`Retry-After` en segundos y `Cache-Control: no-store`.
+
+| Operación | Intentos por ventana y origen | Justificación del valor inicial |
+| --- | --- | --- |
+| `login` | 20 / 5 minutos | Acota verificación Argon2 y fuerza bruta |
+| `register` | 5 / 15 minutos | Creación de cuentas y hashing costosos, uso infrecuente |
+| `google` | 20 / 5 minutos | Verificación externa y creación de sesiones |
+| `refresh` | 60 / minuto | Mayor frecuencia legítima de renovación, incluyendo varias pestañas |
+| `logout` | 60 / minuto | Revocación accesible con cuota independiente de login/refresh |
+| `forgot-password` | 10 / 15 minutos | Acota consultas y abuso de recuperación rotando correos |
+| `reset-password` | 10 / 15 minutos | Operación infrecuente con hashing al presentar token válido |
+
+Son valores operativos iniciales elegidos para este control, no requisitos de negocio
+aprobados; deberán revisarse con carga y uso legítimo observados. Se definen en
+`apps/api/src/auth/auth-rate-limit.policy.ts`. Las ventanas comienzan con el primer
+intento admitido; un rechazo no extiende el bloqueo. Una ventana fija permite
+ráfagas cerca de su límite temporal. `google/link` requiere Access Token y conserva
+su guard y contrato; no es un endpoint público.
+
+El origen es la IP del socket TCP, salvo cuando el socket corresponde exactamente
+a una IP resuelta del servicio `web` autorizado por `AUTH_RATE_LIMIT_TRUSTED_PROXY_HOST`.
+En ese caso, y sólo con una cabecera `X-Forwarded-For` que contiene una única IP
+válida, se utiliza esa IP. En Docker Compose, Nginx **sobrescribe** esa cabecera
+con `$remote_addr` y la API resuelve `web` a través de DNS de la red interna. No
+se confía globalmente en `trust proxy`, redes privadas, cookies, emails ni tokens.
+Una solicitud directa a la API ignora las cabeceras reenviadas. Si la resolución
+DNS falla, se usa la IP del socket y puede haber cuota compartida temporal hasta
+que el servicio se resuelva de nuevo. Las IP de Docker son dinámicas y se
+actualizan con una caché corta; el origen sólo es confiable bajo la topología
+Compose controlada. **No extrapolar este ajuste a otros despliegues ni a proxies
+adicionales sin revisar la cadena de confianza.** Un NAT o proxy exterior puede
+seguir agrupando clientes en `$remote_addr`. Véase la
+[documentación de Express](https://expressjs.com/en/guide/behind-proxies/).
+
+Se reutiliza `AccountRecoveryLimit` (`limites_recuperacion_cuenta`) sin cambios de
+esquema: aunque la columna conserva el nombre `email_hmac`, las nuevas claves son
+HMAC de operación y origen en un dominio distinto del HMAC de correo de recuperación.
+La subclave se deriva con HMAC y contexto exclusivo de `JWT_ACCESS_SECRET`; no se
+guardan IPs, emails, contraseñas ni tokens en los contadores. Las instancias deben
+compartir base de datos, secreto y políticas; rotar el secreto reinicia estas cuotas.
+El control funciona también cuando la recuperación por correo está deshabilitada.
+
+Un `INSERT ... ON CONFLICT DO UPDATE` parametrizado decide admisión e incrementa
+el contador atómicamente usando el reloj de PostgreSQL, sin caché en memoria.
+El contador se satura en límite + 1, y conserva la expiración y última admisión al
+rechazar. La limpieza acotada existente elimina ventanas vencidas; el runner se
+ejecuta incluso con entrega de correo deshabilitada. No se cambia el límite previo
+de recuperación por correo (por defecto 3/hora y 60 segundos entre solicitudes) ni
+su respuesta genérica 202. El 429 adicional depende del origen, no de la existencia
+de la cuenta. La [atomicidad del upsert](https://www.postgresql.org/docs/18/sql-insert.html)
+soporta cuotas compartidas; su validación ejecutable entre clientes requiere el E2E
+PostgreSQL aislado. Las pruebas HTTP con almacenamiento simulado no demuestran esa
+garantía por sí solas.
+
+Errores reconocidos de Prisma devuelven 503; errores inesperados, 500 sanitizado.
+Ninguno se convierte en 429 ni deja pasar la operación sin contabilización.
+El limitador no registra cuerpos, identificadores ni errores internos completos.
+Permanecen como riesgos: ataques distribuidos desde múltiples redes, saturación de
+PostgreSQL por volumen o contención y crecimiento de contadores superior a su limpieza.
+El guard se ejecuta después del parser HTTP; no sustituye protección de red ni límites
+del proxy. El registro conserva el 409 de correo existente: ese riesgo de enumeración
+preexistente requiere otro cambio de contrato y no queda resuelto por CJ-SEC-02.
+
+Validación sin base de datos: ejecutar `npm run build -w @citajusta/api` y
+`node --test apps/api/test/auth-rate-limit.test.mjs apps/api/test/auth-rate-limit.http.test.mjs`.
+Para validar cuotas, expiración y concurrencia reales, existe la suite
+`npm run e2e:docker -w @citajusta/api -- test auth-rate-limit`, que exige el preflight
+Docker aislado existente. No configura ni migra automáticamente la base.
+Sin ese entorno, E2E PostgreSQL queda **PENDIENTE**, no PASS.
+
 ## Tecnologías
 
 - Monorepo con npm workspaces.

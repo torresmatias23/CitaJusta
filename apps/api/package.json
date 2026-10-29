@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:e2e:auth-rate-limit": "node scripts/e2e-docker.mjs test auth-rate-limit",
     "test:e2e:attendance-confirmation": "node scripts/e2e-docker.mjs test attendance-confirmation",
     "test:e2e:profile-notifications": "node scripts/e2e-docker.mjs test profile-notifications",
     "test:e2e:account-recovery": "node scripts/e2e-docker.mjs test account-recovery",
