@@ -46,6 +46,59 @@ for (const [label, patch] of Object.entries({
 })) test(`preferences reject ${label}`, () => {
   assert.throws(() => parseWaitlistPreferences({ ...empty, ...patch }, {}), (e) => e.getStatus() === 400);
 });
+test('preferences enforce maximum of 7 preferred days', () => {
+  const valid = [1, 2, 3, 4, 5, 6, 7];
+
+  assert.equal(
+    parseWaitlistPreferences({ ...empty, preferredDays: valid }, {}).preferredDays.length,
+    7,
+  );
+
+  assert.throws(
+    () => parseWaitlistPreferences({ ...empty, preferredDays: [...valid, 1] }, {}),
+    (error) => error.getStatus() === 400,
+  );
+});
+
+test('preferences enforce maximum of 1439 time ranges', () => {
+  const clock = (minute) =>
+    `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+
+  const ranges = Array.from({ length: 1439 }, (_, index) => ({
+    start: clock(index),
+    end: clock(index + 1),
+  }));
+
+  assert.equal(
+    parseWaitlistPreferences({ ...empty, timeRanges: ranges }, {}).timeRanges.length,
+    1439,
+  );
+
+  assert.throws(
+    () => parseWaitlistPreferences({
+      ...empty,
+      timeRanges: [...ranges, { start: '00:00', end: '00:01' }],
+    }, {}),
+    (error) => error.getStatus() === 400,
+  );
+});
+
+test('preferences enforce maximum of 100 preferred branches', () => {
+  const branches = Array.from({ length: 100 }, () => randomUUID());
+
+  assert.equal(
+    parseWaitlistPreferences({ ...empty, preferredBranchIds: branches }, {}).preferredBranchIds.length,
+    100,
+  );
+
+  assert.throws(
+    () => parseWaitlistPreferences({
+      ...empty,
+      preferredBranchIds: [...branches, randomUUID()],
+    }, {}),
+    (error) => error.getStatus() === 400,
+  );
+});
 test('preferences reject partial body, query and invalid path UUID', () => {
   for (const fn of [() => parseWaitlistPreferences({}, {}), () => parseWaitlistPreferences(empty, { userId: principal.userId }), () => parseWaitlistEntryParams({ waitlistEntryId: 'bad' })]) {
     assert.throws(fn, (e) => e.getStatus() === 400);

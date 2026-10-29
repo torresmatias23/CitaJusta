@@ -10,9 +10,15 @@ const entryInput = z.object({
 const entryParams = z.object({ waitlistEntryId: z.string().uuid() }).strict();
 const time = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 const preferencesInput = z.object({
-  preferredDays: z.array(z.number().int().min(1).max(7)),
-  timeRanges: z.array(z.object({ start: time, end: time }).strict()),
-  preferredBranchIds: z.array(z.string().uuid().transform((id) => id.toLowerCase())),
+  preferredDays: z.array(z.number().int().min(1).max(7)).max(7),
+
+timeRanges: z.array(
+  z.object({ start: time, end: time }).strict(),
+).max(1439),
+
+preferredBranchIds: z.array(
+  z.string().uuid().transform((id) => id.toLowerCase()),
+).max(100),
   allowsOtherBranches: z.boolean(),
   acceptsAnyProfessional: z.boolean(),
 }).strict().superRefine((input, context) => {
