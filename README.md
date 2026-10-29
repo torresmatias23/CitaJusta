@@ -276,6 +276,19 @@ npm run --workspace @citajusta/api prisma:generate
 
 El cliente Prisma generado no se versiona. Sigue [SETUP.md](docs/development/SETUP.md) para preparar PostgreSQL, variables locales, migraciones, seed y proxy Web sin resets.
 
+### Override transitorio de Multer (CJ-SEC-04)
+
+El `package.json` raíz sustituye únicamente Multer de
+`@nestjs/platform-express@12.0.4` por `2.5.0` para corregir
+[GHSA-q7qp-rjg7-q26m](https://github.com/expressjs/multer/security/advisories/GHSA-q7qp-rjg7-q26m).
+NestJS fija originalmente `2.4.0`; instalar desde la raíz del monorepo para aplicar
+el override. No hay rutas multipart ni filtros de archivo en la aplicación actual.
+Al actualizar el adaptador NestJS, revisar este override y retirarlo cuando su
+dependencia resuelva una versión corregida, comprobando
+`npm ls multer @nestjs/platform-express --all`, auditoría y pruebas de compatibilidad.
+`node --test apps/api/test/multer.security.test.mjs` valida los interceptores y el
+caso de seguridad en procesos desechables locales, sin PostgreSQL ni archivos en disco.
+
 Catálogo demo: `npm run seed:dev -w @citajusta/api`. Diagnóstico de sólo lectura: `npm run check:dev -w @citajusta/api`. El seed preserva registros compatibles y provisiona STANDARD para la institución demo; no crea usuarios ni agenda. Registrar el usuario mediante la Web.
 
 Para la prueba manual HU-022 existe tooling opcional: configurar `REASSIGNMENT_DEMO_RECIPIENT_EMAIL` con una cuenta ACTIVE registrada y ejecutar `npm run seed:reassignment-demo -w @citajusta/api -- --scenario=reject` (después, `--scenario=accept`). Sólo PostgreSQL local de desarrollo; no emite credenciales ni usa tokens del destinatario. Crea servicios/agenda DEMO aislados y llega a PENDING mediante reserva, Waitlist y preferencias previas a la cancelación, que inicia automáticamente la reasignación HU-025. Una repetición devuelve la misma oferta; no revive estados ni borra historia. Instrucciones y política demo en [SETUP.md](docs/development/SETUP.md).
