@@ -20,6 +20,7 @@ const environmentSchema = z
       .enum(['development', 'test', 'production'])
       .default('development'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    AUTH_RATE_LIMIT_TRUSTED_PROXY_HOST: z.string().trim().regex(/^[a-z][a-z0-9-]{0,62}$/).optional(),
     GOOGLE_AUTH_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
     GOOGLE_CLIENT_ID: z.string().trim().optional(),
     GOOGLE_CALENDAR_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),

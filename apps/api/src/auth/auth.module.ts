@@ -6,9 +6,10 @@ import { AuthService } from './auth.service.js';
 import { AccessTokenGuard } from './guards/access-token.guard.js';
 import { GoogleTokenVerifier } from './google-token.verifier.js';
 import { AccountRecoveryModule } from './account-recovery.module.js';
+import { AuthRateLimitModule } from './auth-rate-limit.module.js';
 
 @Module({
-  imports: [DatabaseModule, JwtModule.register({}), AccountRecoveryModule],
+  imports: [DatabaseModule, JwtModule.register({}), AccountRecoveryModule, AuthRateLimitModule],
   controllers: [AuthController],
   providers: [AuthService, AccessTokenGuard, GoogleTokenVerifier],
   exports: [AccessTokenGuard, JwtModule],

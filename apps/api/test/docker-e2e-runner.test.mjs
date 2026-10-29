@@ -28,10 +28,11 @@ function dependencies({ pending = 0, locked = true } = {}) {
 test('runner arguments are explicit, allowlisted and never accept arbitrary files/commands', () => {
   assert.deepEqual(parseArguments([]), { action: 'check', suite: undefined });
   assert.deepEqual(parseArguments(['test', 'waitlist']), { action: 'test', suite: 'waitlist' });
+  assert.deepEqual(parseArguments(['test', 'auth-rate-limit']), { action: 'test', suite: 'auth-rate-limit' });
   for (const args of [['reset'], ['db', 'push'], ['test'], ['test', '../unsafe'], ['migrate', '--force'], ['test', 'reassignment-demo']]) {
     assert.throws(() => parseArguments(args), /Usage/);
   }
-  assert.equal(Object.keys(suites).length, 22);
+  assert.equal(Object.keys(suites).length, 23);
 });
 
 test('every backend E2E npm entry point uses the verified runner and an existing suite', async () => {
@@ -40,7 +41,7 @@ test('every backend E2E npm entry point uses the verified runner and an existing
     assert.equal(scripts[`test:e2e:${name}`], `node scripts/e2e-docker.mjs test ${name}`);
     assert.ok((await readFile(new URL(`e2e/${file}.e2e.test.mjs`, import.meta.url), 'utf8')).includes('loadApiEnvironment('));
   }
-  assert.equal(Object.keys(scripts).filter((name) => name.startsWith('test:e2e:')).length, 22);
+  assert.equal(Object.keys(scripts).filter((name) => name.startsWith('test:e2e:')).length, 23);
   assert.equal(devDependencies.prisma, '7.10.0'); assert.equal(dependencies['@prisma/client'], '7.10.0');
   assert.equal(dependencies['@prisma/adapter-pg'], '7.10.0');
 });
@@ -146,11 +147,11 @@ test('bootstrap runs only existing compiled catalog helpers after generation/bui
   assert.match(commands[2].args[0], /e2e-docker-bootstrap\.mjs$/);
 });
 
-test('all 22 suites run sequentially with per-process preflight, isolated cwd and controlled env', async () => {
+test('all 23 suites run sequentially with per-process preflight, isolated cwd and controlled env', async () => {
   const deps = dependencies(), env = { controlled: 'environment' };
   await executeE2EAction(parseArguments(['test', 'all']), env, deps);
   const commands = deps.calls.filter((call) => typeof call === 'object').slice(2);
-  assert.equal(commands.length, 22);
+  assert.equal(commands.length, 23);
   assert.deepEqual(commands.map(({ label }) => label), Object.keys(suites).map((name) => `E2E ${name}`));
   for (const command of commands) {
     assert.equal(command.args[0], '--import'); assert.match(command.args[1], /docker-preflight\.mjs$/);
