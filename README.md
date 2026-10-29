@@ -648,6 +648,38 @@ node --test apps/api/test/nager-date-holidays.test.mjs apps/api/test/availabilit
 
 ## Docker
 
+### Cabeceras HTTP y caché de datos sensibles (CJ-SEC-07)
+
+La API deshabilita `X-Powered-By` y entrega `X-Content-Type-Options: nosniff` y
+`Referrer-Policy: strict-origin-when-cross-origin`. Antes de ejecutar parsers y
+guards, aplica `Cache-Control: no-store` a `/api/v1` y sus subrutas, tanto en
+respuestas correctas como en errores. Las rutas actuales entregan/manipulan
+credenciales o requieren sesión: auth (incluidos Google y recuperación), perfil,
+citas, lista de espera, notificaciones, agenda, disponibilidad, catálogos y
+administración institucional, reasignaciones, reportes y auditoría. Una futura
+API pública cacheable requiere revisar explícitamente este alcance.
+
+Nginx establece las mismas cabeceras sin duplicar las del upstream y protege
+también errores propios del proxy bajo `/api/v1`. `/health` y los recursos
+públicos/estáticos no reciben `no-store`; `index.html` conserva `no-cache`
+(permite almacenamiento, pero exige revalidación). Las cabeceras de seguridad
+se definen en el servidor Nginx con `always`: agregar un `add_header` dentro de
+un `location` exige revisar la herencia para no perderlas.
+
+La configuración HTTP local **no constituye un despliegue público con TLS**.
+HTTPS y HSTS requieren un diseño de despliegue posterior. Este cambio no añade
+CSP ni cambia CORS, proxies, almacenamiento de tokens o contratos JSON.
+
+Validación local aislada, con persistencia/identidad simuladas donde corresponde:
+
+```powershell
+npm run build -w @citajusta/api
+node --test apps/api/test/http-security.test.mjs apps/api/test/auth-rate-limit.http.test.mjs docker/test/configuration.test.mjs
+```
+
+Las comprobaciones de configuración Nginx son estáticas y no sustituyen la
+validación de cabeceras y errores con el contenedor real.
+
 Dockerfiles multietapa y `compose.yaml` incorporados para el requisito de Capstone Fase 2: API NestJS, Web compilada servida por Nginx y PostgreSQL 18 en un volumen exclusivo. Desktop permanece nativo. Node 24.11.0/npm 11.6.1 y Prisma 7.10.0 se conservan; no hay cambios de dominio ni migraciones nuevas.
 
 Preparación y comandos completos en [SETUP — Docker local](docs/development/SETUP.md#docker-local-para-capstone-fase-2). Requiere crear `docker/.env` desde su plantilla con secretos locales propios. Web: `http://127.0.0.1:8080`; API: `http://localhost:3000/health`. Ambos puertos son configurables y se publican sólo en loopback; PostgreSQL no se publica. La Web conserva `/api/v1` mediante proxy inverso del mismo origen, sin modificar CORS ni contratos.

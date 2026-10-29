@@ -82,6 +82,13 @@ async function fixture(t) {
     async post(route, body, headers = {}) {
       const response = await fetch(`${origin}/api/v1/auth/${route}`, { method: 'POST',
         headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body), signal: AbortSignal.timeout(5000) });
+      // All real auth responses, including parser/validation/guard failures,
+      // retain the HTTP security policy without changing their JSON contract.
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.equal(response.headers.get('x-powered-by'), null);
+      assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(response.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
+      if (response.status !== 204) assert.match(response.headers.get('content-type'), /^application\/json\b/);
       return { status: response.status, headers: response.headers, body: response.status === 204 ? null : await response.json() };
     },
   };

@@ -80,3 +80,22 @@ test('Web API proxy preserves prefix, auth headers, health route and SPA navigat
   assert.match(nginx, /try_files \$uri \$uri\/ \/index.html/);
   assert.match(nginx, /access_log off/);
 });
+
+test('edge security headers cover errors and index without restricting public asset caching', () => {
+  const server = nginx.slice(nginx.indexOf('  server {'));
+  const serverHeaders = server.slice(0, server.indexOf('    location'));
+  assert.match(serverHeaders, /add_header X-Content-Type-Options "nosniff" always;/);
+  assert.match(serverHeaders, /add_header Referrer-Policy "strict-origin-when-cross-origin" always;/);
+  assert.match(serverHeaders, /add_header Cache-Control \$citajusta_cache_control always;/);
+  for (const name of ['X-Powered-By', 'X-Content-Type-Options', 'Referrer-Policy', 'Cache-Control']) {
+    assert.ok(serverHeaders.includes(`proxy_hide_header ${name};`));
+  }
+  // Any location-level add_header would suppress inherited security headers.
+  assert.doesNotMatch(server.slice(server.indexOf('    location')), /\badd_header\b/);
+  const cacheMap = /map \$uri \$citajusta_cache_control \{([^}]+)\}/.exec(nginx)?.[1];
+  assert.ok(cacheMap);
+  assert.match(cacheMap, /default "";/);
+  assert.ok(cacheMap.includes('~*^/api/v1(?:/|$) "no-store";'));
+  assert.match(cacheMap, /\/index\.html "no-cache";/);
+  assert.doesNotMatch(nginx, /Content-Security-Policy|Strict-Transport-Security/);
+});
