@@ -400,6 +400,100 @@ Validación enfocada: `npm run --workspace @citajusta/api test:e2e:reassignments
 - Desktop ofrece simultáneamente listado con estado y «Cargar más», «Reintentar carga» ante error inicial, y formulario «Consultar por UUID». El UUID no necesita estar en las filas cargadas ni coincidir con el filtro visual; siempre reutiliza el detalle protegido de HU-016. Cambiar contexto descarta el estado anterior y las respuestas obsoletas.
 - Esta entrega cubre sólo parte de RF-038. Unitarias/builds locales se validan por separado de E2E. La suite `npm run test:e2e:reassignments -w @citajusta/api` prepara regresiones e integración del cliente/modelo Desktop con NestJS real; requiere autorización e identidad PostgreSQL E2E verificada mediante el [runner protegido](docs/development/SETUP.md#postgresql-docker-exclusivo-para-e2e). Las nuevas pruebas no se consideran ejecutadas hasta registrar sus resultados. La validación de ventana/transporte nativo Tauri sigue pendiente y es distinta de esa integración automatizada.
 
+### RF-038: búsqueda institucional de usuarios y listas de espera
+
+RF-038: «Permitir búsqueda y filtros operativos sobre usuarios, citas, listas de
+espera y reasignaciones». Agenda y el listado de reasignaciones anterior se reutilizan.
+Este incremento incorpora sólo consultas backend; la integración y validación
+nativa Desktop, y la ejecución PostgreSQL de las nuevas E2E, siguen pendientes.
+
+| Ruta GET bajo `/api/v1` | Permiso específico | Query permitida |
+| --- | --- | --- |
+| `/users/administration` | `users.read` | `q`, `branchId`, `limit`, `cursor` |
+| `/waitlist/administration` | `waitlist.read` | `status`, `serviceId`, `userId`, `branchId`, `limit`, `cursor` |
+
+Ambas requieren Bearer, `AccessTokenGuard`, `AuthorizationContextGuard` y
+`PermissionsGuard`, con `x-institution-id` obligatorio incluso para GLOBAL.
+`x-branch-id` restringe la sede autorizada. `branchId` en query sólo puede reducir
+el alcance; no cambia el contexto ni permite otra sede a un rol BRANCH. Se rechazan
+`institutionId`, identidades del actor, parámetros desconocidos/repetidos y body
+funcional. No hay búsqueda global entre instituciones.
+
+Los permisos `users.read` (`module=users`, `action=read`) y `waitlist.read`
+(`module=waitlist`, `action=read`) son nuevos y separados, autorizados para RF-038.
+No se conceden por tener `agenda.read`, `reassignments.read` o permisos profesionales.
+No se insertan ni asignan automáticamente: una futura provisión autorizada deberá
+vincularlos mediante Permission/RolePermission/UserRole al ámbito apropiado usando
+el modelo RBAC existente. No se modifican guards, roles existentes ni bases en este
+incremento. Los roles DEMO actuales no obtienen estos permisos automáticamente.
+
+**Usuarios.** User es una identidad global, sin `institutionId` propio. La visibilidad
+exige al menos un vínculo coherente con el contexto: cita no eliminada, entrada de
+espera no eliminada, perfil profesional no eliminado o asignación de rol vigente y
+activa de alcance INSTITUTION/BRANCH. Un rol GLOBAL por sí solo no vincula al usuario
+buscado con todas las instituciones. En contexto de sede, el vínculo debe pertenecer
+a esa sede: las citas/esperas de otra sede o sin sede y los roles sólo institucionales
+no bastan; para profesionales se exige asociación de sede activa. Se excluyen usuarios
+eliminados lógicamente; cuentas inactivas con vínculos históricos pueden aparecer.
+La transferencia de una cita cambia su titular actual: no se deduce pertenencia a
+partir de titulares anteriores ni del historial de auditoría.
+
+`q` opcional busca sólo nombres/apellidos: texto recortado de 2 a 120 caracteres,
+palabras combinadas con AND, coincidencia parcial sin distinguir mayúsculas. `%`, `_`
+y `\` son literales, no comodines. No ofrece búsqueda por email/RUT/teléfono,
+normalización de tildes, relevancia ni búsqueda difusa. Sin `q`, lista únicamente
+usuarios vinculados al contexto. Orden estable `id ASC`, sin duplicar usuarios con
+varios vínculos. DTO: `{ id, firstNames, lastNames }`; no expone contactos, estado de
+cuenta, roles, hashes, sesiones ni identidades externas.
+
+**Espera.** Se consultan estados abiertos y finales del catálogo existente; `status`
+opcional es su código exacto (1–60 caracteres). Un código válido sin coincidencias
+devuelve una lista vacía. `serviceId` y `userId` son UUID opcionales. `userId` filtra
+solamente entradas ya autorizadas: un usuario ajeno o inexistente devuelve el mismo
+vacío, sin consultar su cuenta global. Servicio, prioridad y sede deben ser coherentes
+con la institución. En contexto institucional se incluyen entradas con `branchId=null`;
+en contexto de sede se excluyen, aunque acepten otras sedes o tengan preferencias allí.
+No se exponen preferencias privadas, observaciones, scoring, candidatos ni ofertas.
+Los catálogos inactivos no ocultan por sí solos registros históricos coherentes.
+Orden `enteredAt DESC, id DESC`; DTO:
+
+```text
+{ id, enteredAt, status: { code, name }, user: { id, firstNames, lastNames },
+  service: { id, name }, branch: { id, name } | null }
+```
+
+**Paginación y errores.** Ambas respuestas son `200 { data: [...], page: { nextCursor } }`.
+`limit` entero de 1 a 100, default 50. Reutilizar el cursor opaco sin modificarlo y
+manteniendo filtros/contexto; los cursores de usuarios y espera no son intercambiables.
+El ancla se valida dentro del mismo alcance antes de consultar la página. No existe
+snapshot entre peticiones: cambios/eliminación del ancla pueden exigir reiniciar sin
+cursor. Prisma resuelve el orden temporal en PostgreSQL sin truncar microsegundos.
+No se retorna un total global. `400`: input/contexto/cursor inválido; `401`: sesión no
+válida; `403`: permiso insuficiente; `404`: sede/servicio/ancla no accesible, inexistente
+o fuera del filtro; `500`: fallo inesperado sanitizado. El guard puede devolver `403`
+antes de validar ausencia de contexto. Todas son lecturas sin cambios de estado ni
+auditoría de negocio; conservan JSON y `Cache-Control: no-store`.
+
+Ejemplos ficticios (Bearer privado y contexto autorizado en headers):
+
+```http
+GET /api/v1/users/administration?q=Ana%20Perez&limit=25
+x-institution-id: 11111111-1111-4111-8111-111111111111
+
+GET /api/v1/waitlist/administration?status=ACTIVE&limit=25
+x-institution-id: 11111111-1111-4111-8111-111111111111
+x-branch-id: 22222222-2222-4222-8222-222222222222
+```
+
+Las rutas personales `/users/me`, `/waitlist` y preferencias/retiro no cambian.
+Pruebas aisladas: `node --test apps/api/test/institutional-search.test.mjs apps/api/test/institutional-search.http.test.mjs`
+después del build API. La prueba HTTP usa guards/JWT reales y almacenamiento simulado;
+no equivale a E2E PostgreSQL. Suite real preparada:
+`npm run test:e2e:institutional-search -w @citajusta/api`, exclusivamente mediante el
+runner que verifica identidad de `citajusta_e2e`. No ejecutar contra DEV/DEMO.
+El runner ahora incluye 24 suites. No se acredita su ejecución en este PC sin Docker.
+Prisma permanece en 7.10.0, sin cambios de esquema, migraciones ni dependencias.
+
 ### HU-012: administración institucional de sedes y servicios
 
 - `POST /api/v1/branches` (`branches.create`) y `PATCH /api/v1/branches/:branchId` (`branches.update`). Alta: `code`, `name`; opcionales: `addressLine1`, `addressLine2`, `municipality`, `region`, `country`, `latitude`, `longitude`, `phone`, `email`, `status` (`ACTIVE`/`INACTIVE`). PATCH admite esos mismos campos, al menos uno. Coordenadas numéricas con hasta siete decimales; DTO las devuelve como string decimal o null.
