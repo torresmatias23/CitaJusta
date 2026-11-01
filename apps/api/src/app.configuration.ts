@@ -1,5 +1,6 @@
 import { RequestMethod, type INestApplication } from '@nestjs/common';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { PrivacyExceptionFilter, requestBodyErrorHandler } from './common/http-error-privacy.js';
 
 export function configureApplication(app: INestApplication): void {
   const express: { disable(setting: string): void } = app.getHttpAdapter().getInstance();
@@ -17,6 +18,14 @@ export function configureApplication(app: INestApplication): void {
     response.setHeader('Cache-Control', 'no-store');
     next();
   });
+
+  // Same Express JSON/urlencoded parsers and default limits as Nest's init.
+  // Register now to place the sanitizing error middleware before Nest maps errors.
+  // Nest detects these parsers during init and does not register them twice.
+  const adapter = app.getHttpAdapter();
+  adapter.registerParserMiddleware('', false);
+  app.use(requestBodyErrorHandler);
+  app.useGlobalFilters(new PrivacyExceptionFilter(adapter));
 
   app.setGlobalPrefix('api/v1', {
     exclude: [{ path: 'health', method: RequestMethod.GET }],
