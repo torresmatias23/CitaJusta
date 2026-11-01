@@ -774,6 +774,21 @@ node --test apps/api/test/http-security.test.mjs apps/api/test/auth-rate-limit.h
 Las comprobaciones de configuración Nginx son estáticas y no sustituyen la
 validación de cabeceras y errores con el contenedor real.
 
+La frontera HTTP del backend también minimiza información en errores. Los parsers
+JSON y URL-encoded conservan sus límites y formatos existentes, pero responden con
+mensajes fijos para cuerpo inválido (400), demasiado grande (413) o codificación no
+admitida (415), sin reproducir fragmentos del cuerpo ni valores de headers. Los
+errores inesperados responden `500 { statusCode: 500, message: "Internal server error" }`
+y registran únicamente `Unhandled HTTP request failure`, sin excepción original,
+stack, SQL, URL, headers o payload. Esto limita el detalle disponible para diagnóstico:
+no habilitar logs de datos privados para compensarlo. Los `HttpException` controlados
+de la aplicación mantienen sus códigos y contratos JSON; deben seguir usando mensajes
+sanitizados. Este control no cubre logs independientes de proxies/proveedores ni
+define políticas de retención, eliminación o permisos nuevos.
+
+Regresión aislada, sin conexión a bases ni servicios externos:
+`node --test apps/api/test/http-error-privacy.test.mjs` después del build API.
+
 Dockerfiles multietapa y `compose.yaml` incorporados para el requisito de Capstone Fase 2: API NestJS, Web compilada servida por Nginx y PostgreSQL 18 en un volumen exclusivo. Desktop permanece nativo. Node 24.11.0/npm 11.6.1 y Prisma 7.10.0 se conservan; no hay cambios de dominio ni migraciones nuevas.
 
 Preparación y comandos completos en [SETUP — Docker local](docs/development/SETUP.md#docker-local-para-capstone-fase-2). Requiere crear `docker/.env` desde su plantilla con secretos locales propios. Web: `http://127.0.0.1:8080`; API: `http://localhost:3000/health`. Ambos puertos son configurables y se publican sólo en loopback; PostgreSQL no se publica. La Web conserva `/api/v1` mediante proxy inverso del mismo origen, sin modificar CORS ni contratos.
