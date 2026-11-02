@@ -6,10 +6,12 @@ import { UsersController } from './users.controller.js';
 import { UsersService } from './users.service.js';
 import { InstitutionalUsersController } from './institutional-users.controller.js';
 import { InstitutionalUsersService } from './institutional-users.service.js';
+import { PrivacyNoticeController, PublicPrivacyNoticeController } from './privacy-notice.controller.js';
+import { PrivacyNoticeService } from './privacy-notice.service.js';
 
 @Module({
   imports: [DatabaseModule, AuthModule, AuthorizationModule],
-  controllers: [UsersController, InstitutionalUsersController],
-  providers: [UsersService, InstitutionalUsersService],
+  controllers: [UsersController, InstitutionalUsersController, PrivacyNoticeController, PublicPrivacyNoticeController],
+  providers: [UsersService, InstitutionalUsersService, PrivacyNoticeService],
 })
 export class UsersModule {}

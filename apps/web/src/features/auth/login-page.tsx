@@ -8,6 +8,7 @@ import { useAuth } from './auth-provider';
 import { authErrorMessage, safeReturnTo } from './auth-session';
 import { GoogleButton } from './google-button';
 import { signInWithGoogle } from './google-identity';
+import { PrivacyLink } from '../privacy/privacy-page';
 
 export function LoginPage() {
   const { status, login, loginGoogle, error: sessionError, retrySession } = useAuth();
@@ -55,6 +56,7 @@ export function LoginPage() {
         <p>Busca atenciones y administra tus citas en un solo lugar.</p>
         {registered && <p role="status" className="form-success">Tu cuenta fue creada. Ahora puedes iniciar sesión.</p>}
         {passwordReset && <p role="status" className="form-success">Contraseña restablecida. Inicia sesión nuevamente.</p>}
+        <PrivacyLink />
         <form onSubmit={(event) => { void submit(event); }} aria-busy={pending}>
           <div className="form-field"><label htmlFor="login-email">Correo electrónico</label><input id="login-email" name="email" type="email" autoComplete="username" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} disabled={pending} /></div>
           <div className="form-field"><label htmlFor="login-password">Contraseña</label><input id="login-password" name="password" type="password" autoComplete="current-password" required maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} disabled={pending} /></div>

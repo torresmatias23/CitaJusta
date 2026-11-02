@@ -56,6 +56,7 @@ test('registration preserves local fields and explains Google only when configur
       const html = await f.render('register');
       for (const field of ['firstName', 'lastName', 'email', 'password']) assert.ok(html.includes(`name="${field}"`));
       assert.match(html, /Crear cuenta/); assert.match(html, /href="\/login"/);
+      assert.match(html, /href="\/privacidad"/); assert.doesNotMatch(html, /type="checkbox"/);
       if (clientId) {
         assert.match(html, /auth-divider/); assert.match(html, /También puedes crear o acceder a tu cuenta con Google/);
         assert.match(html, /Continuar con Google/); assert.equal(f.button.disabled, false);
@@ -64,6 +65,7 @@ test('registration preserves local fields and explains Google only when configur
       }
       const login = await f.render('login');
       assert.match(login, /name="email"/); assert.match(login, /name="password"/);
+      assert.match(login, /href="\/privacidad"/);
       assert.equal(login.includes('Continuar con Google'), Boolean(clientId));
     } finally { await f.close(); }
   }
