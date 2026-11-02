@@ -8,6 +8,7 @@ import { useAuth } from './auth-provider';
 import { authErrorMessage } from './auth-session';
 import { GoogleButton } from './google-button';
 import { googleClientId, signInWithGoogle } from './google-identity';
+import { PrivacyLink } from '../privacy/privacy-page';
 
 export function RegisterPage() {
   const { register, loginGoogle, status } = useAuth();
@@ -51,6 +52,7 @@ export function RegisterPage() {
         <p className="eyebrow">Comienza con CitaJusta</p>
         <h1 id="register-title">Crea tu cuenta</h1>
         <p>Una cuenta para gestionar tus atenciones con instituciones, empresas y profesionales.</p>
+        <PrivacyLink />
         <form onSubmit={(event) => { void submit(event); }} aria-busy={pending}>
           <div className="form-field"><label htmlFor="register-first-name">Nombre</label><input id="register-first-name" name="firstName" autoComplete="given-name" required maxLength={120} value={firstName} onChange={(event) => setFirstName(event.target.value)} disabled={pending} /></div>
           <div className="form-field"><label htmlFor="register-last-name">Apellido</label><input id="register-last-name" name="lastName" autoComplete="family-name" required maxLength={120} value={lastName} onChange={(event) => setLastName(event.target.value)} disabled={pending} /></div>

@@ -83,6 +83,7 @@ export function AccountView({ state, model, google }: { state: AccountState; mod
       <p>Tu cuenta está activa. Los roles y permisos se administran por separado y no cambian al editar tu perfil.</p>
       <h3>Acceso con Google</h3>{google}
       <h3>Recuperación de cuenta</h3><p>Si necesitas restablecer una contraseña local, solicita un enlace seguro.</p><Link to="/recuperar-cuenta" className="button button-outline">Recuperar cuenta</Link>
+      <h3>Información de privacidad</h3><p>Consulta el aviso y la confirmación de la versión actual. No es una autorización general de tratamiento.</p><Link to="/privacidad" className="button button-outline">Consultar información de privacidad</Link>
     </aside></div>
   </section>;
 }

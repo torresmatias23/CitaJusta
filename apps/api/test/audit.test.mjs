@@ -54,6 +54,19 @@ for (const actionCode of ['AGENDA_READER_PROVISIONED', 'INSTITUTIONAL_READER_PRO
     assert.equal(db.auditEvent.create.mock.callCount(), 1);
   });
 }
+test('privacy evidence is explicitly queried without adding unknown actions to legacy default listings', async () => {
+  const { db, service } = fixture();
+  await service.find(parseAuditQuery({}, undefined), context);
+  assert.deepEqual(db.auditEvent.findMany.mock.calls.at(-1).arguments[0].where.actionCode, { not: 'PRIVACY_NOTICE_ACKNOWLEDGED' });
+  for (const query of [{ action: 'PRIVACY_NOTICE_ACKNOWLEDGED' }, { resourceType: 'PRIVACY_NOTICE' }]) {
+    await service.find(parseAuditQuery(query, undefined), context);
+    const where = db.auditEvent.findMany.mock.calls.at(-1).arguments[0].where;
+    assert.equal(where.institutionId, context.institutionId);
+    assert.equal(where.actionCode, query.action);
+    assert.equal(where.resourceType, query.resourceType);
+  }
+});
+
 test('query has strict dates, filters, default 50 and max 100', () => {
   assert.equal(parseAuditQuery({}, undefined).limit, 50);
   assert.equal(parseAuditQuery({ limit: '100', from: '2026-01-01' }, {}).limit, 100);

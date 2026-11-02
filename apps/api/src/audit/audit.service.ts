@@ -39,7 +39,11 @@ export class AuditService {
       ...(context.institutionId ? { institutionId: context.institutionId } : {}),
       ...(branchId ? { branchId } : {}),
       ...(query.actorUserId ? { actorUserId: query.actorUserId } : {}),
-      ...(query.action ? { actionCode: query.action } : {}),
+      // Legacy consumers validate a closed action catalog. New privacy evidence
+      // is opt-in on this administrative endpoint; own-account status is separate.
+      ...(query.action ? { actionCode: query.action }
+        : query.resourceType === 'PRIVACY_NOTICE' ? {}
+          : { actionCode: { not: 'PRIVACY_NOTICE_ACKNOWLEDGED' } }),
       ...(query.resourceType ? { resourceType: query.resourceType } : {}),
       occurredAt: { ...(query.from ? { gte: institutionalDay(query.from, timeZone).gte } : {}),
         ...(query.to ? { lt: institutionalDay(query.to, timeZone).lt } : {}) },

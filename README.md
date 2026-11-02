@@ -139,6 +139,87 @@ Para validar cuotas, expiración y concurrencia reales, existe la suite
 Docker aislado existente. No configura ni migra automáticamente la base.
 Sin ese entorno, E2E PostgreSQL queda **PENDIENTE**, no PASS.
 
+## Información de privacidad y confirmación del aviso
+
+La Web incorpora `/privacidad`, pública y enlazada desde registro local, acceso
+(incluido Google), Mi cuenta y el pie de página. Describe las finalidades verificadas
+en el código: cuenta, citas, espera/ofertas, administración, seguridad, trazabilidad
+e integraciones existentes. Se presenta como información de funcionamiento, **no
+como una política legal aprobada ni una autorización general de tratamiento**.
+
+En cuentas nuevas, el enlace está disponible antes del registro local o Google.
+Ninguno de esos flujos registra aceptación ni añade campos al contrato de autenticación.
+Tras acceder, tanto cuentas nuevas como antiguas consultan su evidencia propia: si
+no existe confirmación para la versión actual, aparece un aviso no modal con acceso
+al texto completo. La navegación y las funciones esenciales siguen disponibles.
+Consultar el texto tampoco escribe evidencia. Sólo «Ya vi esta información» registra
+una confirmación explícita de haber visto el aviso; no demuestra comprensión ni
+equivale a consentimiento. Si no se pulsa, continuará pendiente en accesos posteriores.
+Una confirmación guardada evita repetir el aviso de esa versión en sesiones posteriores;
+el texto siempre puede volver a consultarse desde Mi cuenta. No se infiere aceptación
+para usuarios antiguos ni se guarda evidencia en localStorage/sessionStorage.
+
+| Ruta bajo `/api/v1` | Acceso | Contrato |
+| --- | --- | --- |
+| `GET /privacy-notice` | Público, sin acceso a BD | `{ data: { id, version, publishedOn, title, introduction, sections } }` |
+| `GET /users/me/privacy-notice` | JWT y sesión activa propios | `{ data: { notice, acknowledgedAt: string \| null } }` |
+| `POST /users/me/privacy-notice/acknowledgement` | JWT y sesión activa propios | Body exclusivo `{ versionId: UUID }`; `200 { data: { versionId, acknowledgedAt } }` |
+
+Las queries/campos desconocidos se rechazan con 400; versión distinta de la actual,
+409; sesión inválida, 401. La identidad deriva del token/sesión. No se admiten UUID
+de usuario, fechas del cliente, consentimientos ni cambios de identidad por headers
+institucionales. Es información de cuenta global propia, no una búsqueda entre tenants;
+no requiere ni asigna permisos institucionales. Se conservan `no-store` y errores
+sanitizados. Un fallo de consulta/registro permite continuar usando la aplicación y
+reintentar; el texto público se intenta cargar aunque falle el estado de cuenta.
+
+**Persistencia y versiones.** Se reutiliza `AuditEvent`, sin modificar esquema,
+migraciones, tablas ni filas User. El evento `PRIVACY_NOTICE_ACKNOWLEDGED`, recurso
+`PRIVACY_NOTICE`, guarda actor autenticado, UUID de versión, resultado y timestamp
+del servidor; no IP, user-agent, email, texto libre ni payload de consentimiento.
+Una transacción ReadCommitted bloquea únicamente la fila de identidad con
+`SELECT ... FOR UPDATE`, comprueba su vigencia y consulta/inserta la evidencia.
+Los duplicados conservan el primer timestamp. Las versiones anteriores permanecen.
+El registro canónico vive en `apps/api/src/users/privacy-notices.ts`: cada cambio de
+contenido debe añadir una entrada con UUID y versión nuevos, conservando las antiguas
+sin editar. La última entrada es la actual; desplegar la misma revisión en todas las
+instancias. La prueba de hash fija el contenido publicado inicial.
+
+Los clientes Desktop actuales validan un catálogo cerrado de auditoría. Para conservar
+su listado, los eventos nuevos se excluyen del listado administrativo predeterminado;
+siguen consultables explícitamente en `GET /audit/events?action=PRIVACY_NOTICE_ACKNOWLEDGED`
+o `?resourceType=PRIVACY_NOTICE`, con `audit.read` y los controles de contexto existentes.
+Al ser eventos sin institución, requieren el alcance GLOBAL apropiado para esa consulta;
+no se conceden privilegios nuevos. El endpoint propio no permite consultar a otro usuario.
+No se eliminan eventos ni se ocultan eventos de negocio preexistentes. Desktop no se modifica.
+
+**Decisiones pendientes.** Alcances §25 y RNF-042/044/046 describen finalidades y
+protecciones generales, pero no determinan responsable/canal, bases legales concretas
+por finalidad, plazos de conservación ni un texto aprobado de consentimiento. Debe
+resolverlo el equipo antes de activar tratamientos que requieran consentimiento o
+presentar una política formal. No se presume que las funciones esenciales tengan
+automáticamente una base contractual o una excepción legal. Las opciones de correo
+y espera continúan como preferencias funcionales; Google conserva sus flujos de
+autorización independientes. No se introduce marketing ni una casilla genérica.
+Consentimientos opcionales y su revocación no se activan en este incremento.
+La confirmación del aviso no sustituye esos mecanismos ni acredita cumplimiento legal.
+
+**Habilitación y DEMO.** Publicar conjuntamente API y Web desde esta revisión, con el
+esquema de auditoría existente. No hay migración, seed, backfill, cambio de secretos ni
+configuración `.env` nueva. No se ha desplegado ni escrito en DEV/DEMO. Sólo una acción
+explícita del usuario, después del despliegue, insertará su evento; las cuentas, citas,
+sesiones y preferencias se preservan. Antes de presentar, revisar el texto con el equipo
+y verificar visualmente acceso local/Google y cuenta con identidades ficticias.
+
+Pruebas específicas: `node --test apps/api/test/privacy-notice.test.mjs apps/api/test/privacy-notice.http.test.mjs`
+tras build API, y `node --test test/privacy-notice.test.mjs` desde `apps/web`.
+Las HTTP locales usan persistencia simulada. Se añadieron dos escenarios reales de
+concurrencia/historial a `npm run test:e2e:profile-notifications -w @citajusta/api`,
+exclusivamente mediante el runner con identidad PostgreSQL E2E verificada. **No se
+ejecutaron aquí**; no usar DEMO. Quedan pendientes esa validación y las interacciones
+en navegador real. No borrar eventos de confirmación mediante futuras políticas de
+retención sin definir cómo preservar su evidencia o volver a mostrar el aviso.
+
 ## Tecnologías
 
 - Monorepo con npm workspaces.

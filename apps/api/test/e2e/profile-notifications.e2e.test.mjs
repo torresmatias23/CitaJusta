@@ -69,6 +69,39 @@ test('RF-004 isolated PostgreSQL profile, preferences, outbox and concurrent sup
     const delivery = new EmailDeliveryService(prisma, deliveryConfig, sender);
     const user = await register('owner'), foreign = await register('other');
 
+    await t.test('privacy notice: real PostgreSQL concurrency keeps one confirmation without changing account or appointments', async () => {
+      const publicNotice = await request('GET', '/privacy-notice'); assert.equal(publicNotice.status, 200);
+      const versionId = publicNotice.body.data.id, path = '/users/me/privacy-notice';
+      assert.equal((await request('GET', path, user.token)).body.data.acknowledgedAt, null);
+      const snapshot = async () => ({
+        user: await prisma.user.findUniqueOrThrow({ where: { id: user.id } }),
+        sessions: await prisma.authSession.findMany({ where: { userId: user.id }, orderBy: { id: 'asc' } }),
+        appointments: await prisma.appointment.findMany({ where: { userId: user.id }, orderBy: { id: 'asc' } }),
+        waitlist: await prisma.waitlistEntry.findMany({ where: { userId: user.id }, orderBy: { id: 'asc' } }),
+      });
+      const before = await snapshot();
+      const replies = await Promise.all([1, 2, 3].map(() => request('POST', `${path}/acknowledgement`, user.token, { versionId })));
+      assert.ok(replies.every(reply => reply.status === 200));
+      assert.deepEqual(replies[0].body, replies[1].body); assert.deepEqual(replies[0].body, replies[2].body);
+      assert.equal(await prisma.auditEvent.count({ where: { actorUserId: user.id, actionCode: 'PRIVACY_NOTICE_ACKNOWLEDGED', resourceId: versionId } }), 1);
+      assert.deepEqual(await snapshot(), before);
+      assert.equal((await request('GET', path, user.token)).body.data.acknowledgedAt, replies[0].body.data.acknowledgedAt);
+      assert.equal((await request('GET', path, foreign.token)).body.data.acknowledgedAt, null);
+    });
+    await t.test('privacy notice: old evidence survives new confirmation; actor injection and anonymous writes fail', async () => {
+      const path = '/users/me/privacy-notice', versionId = (await request('GET', '/privacy-notice')).body.data.id;
+      const previousVersion = randomUUID();
+      await AuditService.record(prisma, { actorType: 'USER', actorUserId: foreign.id, actionCode: 'PRIVACY_NOTICE_ACKNOWLEDGED',
+        resourceType: 'PRIVACY_NOTICE', resourceId: previousVersion, outcome: 'SUCCESS' });
+      const historical = await prisma.auditEvent.findFirstOrThrow({ where: { actorUserId: foreign.id, resourceId: previousVersion } });
+      assert.equal((await request('GET', path, foreign.token)).body.data.acknowledgedAt, null);
+      assert.equal((await request('POST', `${path}/acknowledgement`, undefined, { versionId })).status, 401);
+      assert.equal((await request('POST', `${path}/acknowledgement`, user.token, { versionId, userId: foreign.id })).status, 400);
+      assert.equal((await request('POST', `${path}/acknowledgement`, foreign.token, { versionId: previousVersion })).status, 409);
+      assert.equal((await request('POST', `${path}/acknowledgement`, foreign.token, { versionId })).status, 200);
+      assert.deepEqual(await prisma.auditEvent.findUniqueOrThrow({ where: { id: historical.id } }), historical);
+    });
+
     await t.test('additive columns are nonnullable with true defaults and new accounts preserve identity', async () => {
       const columns = await prisma.$queryRaw`SELECT column_name, is_nullable, column_default FROM information_schema.columns WHERE table_name='usuarios' AND column_name IN ('emails_citas_habilitados','emails_ofertas_habilitados')`;
       assert.equal(columns.length, 2); assert.ok(columns.every(column => column.is_nullable === 'NO' && column.column_default === 'true'));

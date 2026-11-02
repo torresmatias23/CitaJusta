@@ -13,6 +13,7 @@ import { HomePage } from '../features/home/home-page';
 import { WaitlistPage } from '../features/waitlist/waitlist-page';
 import { OffersPage } from '../features/offers/offers-page';
 import { NotificationsPage } from '../features/notifications/notifications-page';
+import { PrivacyPage } from '../features/privacy/privacy-page';
 
 export function AppRoutes() {
   return (
@@ -24,6 +25,7 @@ export function AppRoutes() {
         <Route path="recuperar-cuenta" element={<ForgotPasswordPage />} />
         <Route path="restablecer-contrasena" element={<ResetPasswordPage />} />
         <Route path="registro" element={<RegisterPage />} />
+        <Route path="privacidad" element={<PrivacyPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="cuenta" element={<AccountPage />} />
