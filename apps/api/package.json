@@ -22,6 +22,7 @@
     "seed:desktop-catalog-admin": "npm run build && node scripts/seed-desktop-catalog-admin.mjs",
     "seed:desktop-professional-admin": "npm run build && node scripts/seed-desktop-professional-admin.mjs",
     "seed:desktop-agenda-reader": "npm run build && node scripts/seed-desktop-agenda-reader.mjs",
+    "seed:desktop-institutional-reader": "npm run build && node scripts/seed-desktop-institutional-reader.mjs",
     "seed:desktop-reassignment-supervisor": "npm run build && node scripts/seed-desktop-reassignment-supervisor.mjs",
     "seed:desktop-reports-reader": "npm run build && node scripts/seed-desktop-reports-reader.mjs",
     "seed:desktop-audit-reader": "npm run build && node scripts/seed-desktop-audit-reader.mjs",
