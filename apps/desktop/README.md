@@ -572,3 +572,100 @@ Provisiona exclusivamente `reports.read` (`module=reports`, `action=read`) media
 Es idempotente, conserva roles ajenos y rechaza colisiones incompatibles. No crea
 usuarios, credenciales ni actividad de reportes. Tras ejecutarlo, iniciar sesión
 y aplicar el contexto demo en Sedes y servicios. No se ejecuta automáticamente.
+## RF-038 — Consultas institucionales de usuarios y lista de espera
+
+En **Operación → Usuarios** y **Operación → Lista de espera**, Desktop utiliza
+`session.api` y el contexto seleccionado en **Sedes y servicios**. Ambas pantallas
+son de sólo lectura y requieren una sesión verificada e institución seleccionada.
+
+| Pantalla | GET bajo `/api/v1` | Permiso | Filtros |
+| --- | --- | --- | --- |
+| Usuarios | `/users/administration` | `users.read` | Nombre/apellido (`q`, opcional, 2–120 caracteres) y sede |
+| Lista de espera | `/waitlist/administration` | `waitlist.read` | Código de estado (hasta 60 caracteres), servicio, usuario y sede |
+
+La sede contextual queda fija. Los filtros de servicio/usuario usan UUID; `userId`
+filtra la solicitud, no cambia el actor autenticado. Los estados provienen del
+catálogo backend, no de un enum inventado en Desktop. Sin filtros se consulta el
+conjunto autorizado, incluidos registros históricos que la API permita mostrar.
+Un registro sin sede no implica compatibilidad con cualquier sede.
+
+Páginas de hasta 50 registros en el orden de la API, con **Cargar más** y cursor
+opaco. Cambiar filtros descarta resultados y páginas anteriores; desmontar/cambiar
+identidad, contexto o permisos aborta e invalida respuestas tardías. Fallos de
+paginación conservan las filas cargadas y permiten reintentar. Los catálogos de
+sedes son ayudas opcionales y su fallo no bloquea una consulta sin ese filtro.
+Sólo se muestran UUID/nombres y datos operativos del DTO; no contactos, credenciales,
+prioridad ni snapshots de ranking. Ingreso se muestra como ISO UTC explícito.
+
+### Habilitación posterior de permisos — requiere autorización
+
+La interfaz **no provisiona permisos ni asigna roles**. Los roles DEMO de Agenda
+y lectura institucional existentes no incluyen automáticamente `users.read` ni
+`waitlist.read`. No utilizar seeds DEV contra Docker DEMO ni ampliar esos roles
+para evitar un 403.
+
+Antes de habilitar una cuenta: aprobar UUID/correo de la misma cuenta ACTIVE,
+institución/sede y permisos mínimos; verificar respaldo, identidad real PostgreSQL,
+marcador Docker e historial de migraciones sin pendientes mediante los controles
+existentes. Después, preparar/revisar un procedimiento dedicado que cree o reutilice
+un rol lector **INSTITUTION** (o, para una sede, un rol **BRANCH** con grant de sede
+específicamente aprobado), preserve
+roles ajenos y credenciales, rechace colisiones, exija confirmación exacta y audite
+atómicamente en Serializable. La ejecución y cualquier asignación requieren
+autorización explícita independiente. Ese procedimiento Docker DEMO sigue pendiente;
+el tooling siguiente es exclusivamente DEV y no lo sustituye.
+
+Para validación local de RF-038 existe `seed:desktop-institutional-reader`.
+Reutiliza las protecciones de los seeds Desktop: exige `NODE_ENV=development`, URL
+PostgreSQL local `citajusta_dev` (o `citajusta_dev_<sufijo>`), nombre real de base
+coincidente e institución demo ACTIVE compatible. Rechaza DEMO, E2E y destinos remotos.
+La cuenta debe existir, estar ACTIVE y no eliminada; sólo acepta
+`matias.desktop.test@example.test`. No crea usuarios ni cambia credenciales.
+
+Desde la raíz, **comprobación previa de sólo lectura**:
+
+```powershell
+$env:NODE_ENV = 'development'
+$env:DESKTOP_INSTITUTIONAL_READER_EMAIL = 'matias.desktop.test@example.test'
+npm run seed:desktop-institutional-reader -w @citajusta/api -- --check
+```
+
+Usa la conexión local de `apps/api/.env` o `DATABASE_URL` del proceso, sin mostrarla
+ni modificarla. Reutiliza `users.read` y `waitlist.read` con
+`module=users/waitlist`, `action=read`; si faltan, informa que se crearían
+exclusivamente esos permisos durante `--apply`. Rechaza colisiones de código,
+UUID determinístico o par módulo/acción sin reparar el catálogo.
+Revisa el UUID de cuenta que informa, la base, la institución
+`d1000000-0000-4000-8000-000000000001` y el número de asignaciones previas
+(ocho en el escenario esperado; no es una condición que permita tocar esos roles).
+
+**Sólo tras autorización**, con las mismas variables y conexión verificadas:
+
+```powershell
+npm run seed:desktop-institutional-reader -w @citajusta/api -- --apply
+```
+
+Crea/reutiliza exclusivamente `DEMO_DESKTOP_INSTITUTIONAL_READER`, alcance
+`INSTITUTION`, `isSystem=false`, con esos dos permisos y un grant de la cuenta
+en esa institución, `branchId=null`. Revalida todo en la transacción Serializable;
+preserva los ocho roles previos y sus grants. Rechaza identidad, permisos o grants
+incompatibles, incluso asignaciones del nuevo rol a otra cuenta/institución.
+Sólo inserta registros dedicados ausentes; repetirlo no cambia timestamps ni crea
+duplicados. Sin argumentos equivale a `--check`, que fuerza READ ONLY en PostgreSQL.
+No se ha ejecutado el aprovisionamiento como parte de la implementación.
+
+Una vez autorizado/provisionado por el procedimiento revisado, volver a iniciar
+sesión, aplicar el contexto y comprobar los permisos devueltos por `/users/me`.
+Un permiso sin el otro sólo habilita su respectiva pantalla.
+
+Para ejecutar las pruebas específicas, desde `apps/desktop`:
+
+```powershell
+node --test test/institutional-search.test.mjs test/institutional-search-ui.test.mjs
+```
+
+Los tests de contrato/modelo usan transporte simulado y los de vista renderizado
+SSR; no acreditan interacción nativa Tauri. La suite backend existente se ejecuta
+únicamente con `npm run e2e:docker -w @citajusta/api -- test institutional-search`,
+después de que `check` verifique la base E2E aislada. No migrar ni sembrar otra base
+para ejecutar estas pruebas.
