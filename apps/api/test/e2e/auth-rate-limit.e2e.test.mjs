@@ -1,12 +1,13 @@
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../dist/database/prisma.service.js';
 import { AuthRateLimitService } from '../../dist/auth/auth-rate-limit.service.js';
 import { authRateLimitPolicies } from '../../dist/auth/auth-rate-limit.policy.js';
 import { AccountRecoveryCrypto } from '../../dist/auth/account-recovery.crypto.js';
+import { BookingRateLimitService } from '../../dist/appointments/booking-rate-limit.service.js';
 import { assertE2EFixtureDatabase } from '../../scripts/e2e-docker-environment.mjs';
 import { loadApiEnvironment } from './local-environment.mjs';
 
@@ -30,11 +31,13 @@ async function fixture(t) {
   });
   for (const client of clients) await assertE2EFixtureDatabase(client);
   verified = true;
-  const limiters = clients.map(client => new AuthRateLimitService({ $queryRaw: query => {
+  const databases = clients.map(client => ({ $queryRaw: query => {
     keys.add(query.values[0]);
     return client.$queryRaw(query);
-  } }, config));
-  return { db: clients[0], limiters, keys, config };
+  } }));
+  const limiters = databases.map(db => new AuthRateLimitService(db, config));
+  const bookingLimiters = databases.map(db => new BookingRateLimitService(db, config));
+  return { db: clients[0], limiters, bookingLimiters, keys, config };
 }
 
 test('PostgreSQL: every policy admits its exact quota and rejects subsequent attempts', options, async t => {
@@ -92,4 +95,47 @@ test('PostgreSQL: operation/network isolation, IPv6 /64 quota, and existing emai
   assert.equal((await limiter.consume('register', '2001:db8:1:3::1')).allowed, true);
   assert.equal((await limiter.consume('register', '192.0.2.13')).allowed, true);
   assert.deepEqual(await db.accountRecoveryLimit.findUniqueOrThrow({ where: { emailHmac } }), existing);
+});
+
+test('PostgreSQL booking: ten admissions, eleventh denied and independent user quota', options, async t => {
+  const { bookingLimiters: [limiter] } = await fixture(t), userId = randomUUID();
+  for (let i = 0; i < 10; i++) assert.equal((await limiter.consume(userId)).allowed, true);
+  const rejected = await limiter.consume(userId);
+  assert.equal(rejected.allowed, false); assert.ok(rejected.retryAfterSeconds >= 1 && rejected.retryAfterSeconds <= 60);
+  assert.equal((await limiter.consume(randomUUID())).allowed, true);
+});
+test('PostgreSQL booking: two independent clients admit exactly ten under concurrency', options, async t => {
+  const { bookingLimiters, db, keys } = await fixture(t), userId = randomUUID();
+  const decisions = await Promise.all(Array.from({ length: 40 }, (_, i) => bookingLimiters[i % 2].consume(userId)));
+  assert.equal(decisions.filter(d => d.allowed).length, 10); assert.equal(decisions.filter(d => !d.allowed).length, 30);
+  assert.equal(keys.size, 1);
+  const row = await db.accountRecoveryLimit.findUniqueOrThrow({ where: { emailHmac: [...keys][0] } });
+  assert.equal(row.requestCount, 11);
+});
+test('PostgreSQL booking: rejection preserves timestamps; an expired window resets from database time', options, async t => {
+  const { bookingLimiters: [limiter], db, keys } = await fixture(t), userId = randomUUID();
+  for (let i = 0; i < 10; i++) await limiter.consume(userId);
+  const emailHmac = [...keys][0], before = await db.accountRecoveryLimit.findUniqueOrThrow({ where: { emailHmac } });
+  assert.equal((await limiter.consume(userId)).allowed, false);
+  const after = await db.accountRecoveryLimit.findUniqueOrThrow({ where: { emailHmac } });
+  assert.deepEqual(after.expiresAt, before.expiresAt); assert.deepEqual(after.lastAcceptedAt, before.lastAcceptedAt);
+  await db.$executeRaw`UPDATE "limites_recuperacion_cuenta"
+SET "ventana_inicio_at" = (statement_timestamp() AT TIME ZONE 'UTC') - interval '61 seconds',
+    "expira_at" = (statement_timestamp() AT TIME ZONE 'UTC') - interval '1 second'
+WHERE "email_hmac" = ${emailHmac}`;
+  const decision = await limiter.consume(userId);
+  assert.equal(decision.allowed, true); assert.ok(decision.retryAfterSeconds >= 59 && decision.retryAfterSeconds <= 60);
+  assert.equal((await db.accountRecoveryLimit.findUniqueOrThrow({ where: { emailHmac } })).requestCount, 1);
+});
+test('PostgreSQL booking: authentication and recovery counters are unchanged by exhausted booking quota', options, async t => {
+  const { bookingLimiters: [booking], limiters: [auth], db, keys, config } = await fixture(t);
+  const recoveryKey = new AccountRecoveryCrypto(config).emailHmac('booking-rate-fixture@example.test');
+  keys.add(recoveryKey);
+  const recovery = await db.accountRecoveryLimit.create({ data: { emailHmac: recoveryKey, requestCount: 2,
+    windowStartedAt: new Date(), lastAcceptedAt: new Date(), expiresAt: new Date(Date.now() + 3600_000) } });
+  const userId = randomUUID();
+  for (let i = 0; i < 11; i++) await booking.consume(userId);
+  assert.equal((await auth.consume('login', '192.0.2.21')).allowed, true);
+  assert.equal(keys.size, 3);
+  assert.deepEqual(await db.accountRecoveryLimit.findUniqueOrThrow({ where: { emailHmac: recoveryKey } }), recovery);
 });

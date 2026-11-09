@@ -18,6 +18,7 @@ import type { AuthorizedRequest } from '../authorization/types/authorization-con
 import { AttendanceConfirmationService } from './attendance-confirmation.service.js';
 import type { AuthenticatedRequest } from '../auth/types/authenticated-principal.js';
 import { AppointmentsService } from './appointments.service.js';
+import { BookingRateLimitGuard } from './booking-rate-limit.guard.js';
 import { AppointmentCalendarService } from './appointment-calendar.service.js';
 import {
   parseBookingInput,
@@ -62,6 +63,7 @@ export class AppointmentsController {
   }
 
   @Post()
+  @UseGuards(BookingRateLimitGuard)
   reserve(@Body() body: unknown, @Req() request: AuthenticatedRequest) {
     if (!request.principal) throw new UnauthorizedException('Unauthorized');
     const { agendaSlotId } = parseBookingInput(body);
