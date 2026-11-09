@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 import { test } from 'node:test';
 import { NestFactory } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
+import { assertE2EFixtureDatabase } from '../../scripts/e2e-docker-environment.mjs';
 import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
 import {
   FIXTURE_EMAIL_PREFIX, ids, cleanupCheckpointFixtures,
@@ -23,13 +25,25 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
   const app = await NestFactory.create(AppModule, { logger: false });
   let prisma;
   let cleanupEnabled = false;
+  const bookingKeys = new Set();
   try {
     configureApplication(app);
     await app.listen(getE2ePort(), '127.0.0.1');
     const baseUrl = `http://127.0.0.1:${app.getHttpServer().address().port}`;
     prisma = app.get(PrismaService);
+    await assertE2EFixtureDatabase(prisma);
     await cleanupCheckpointFixtures(prisma);
     cleanupEnabled = true;
+    const bookingKey = createHmac('sha256', app.get(ConfigService).getOrThrow('JWT_ACCESS_SECRET'))
+      .update('citajusta/booking-rate-limit/key/v1').digest();
+    // Each domain scenario starts independently of prior requests' rate budget.
+    // Only HMACs derived from users registered by this fixture may be deleted.
+    async function resetBookingQuotas() {
+      if (!bookingKeys.size) return;
+      await assertE2EFixtureDatabase(prisma);
+      await prisma.accountRecoveryLimit.deleteMany({ where: { emailHmac: { in: [...bookingKeys] } } });
+    }
+    t.beforeEach(resetBookingQuotas);
 
     async function post(path, body, token, extraHeaders = {}) {
       const response = await fetch(`${baseUrl}${path}`, {
@@ -56,6 +70,8 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
       assert.equal(registered.status, 201, 'Fixture registration');
       const login = await post('/api/v1/auth/login', { email: body.email, password: body.password });
       assert.equal(login.status, 200, 'Fixture login');
+      bookingKeys.add(createHmac('sha256', bookingKey)
+        .update(JSON.stringify(['citajusta/booking-rate-limit/v1', 'create', registered.body.id.toLowerCase()])).digest('hex'));
       return { id: registered.body.id, token: login.body.accessToken };
     }
     const first = await register();
@@ -109,6 +125,23 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
       assert.deepEqual(await prisma.appointmentStatus.findUnique({ where: { code: 'CANCELADA' } }), cancelledStatus);
     });
 
+    await t.test('RNF-009: exhausted quota returns 429 before any slot, appointment, history or notification changes', async () => {
+      for (let i = 0; i < 10; i++) assert.equal((await post('/api/v1/appointments', {}, first.token)).status, 400);
+      const snapshot = () => Promise.all([
+        slot(), appointments(),
+        prisma.appointmentHistory.findMany({ where: { appointment: { userId: first.id } }, orderBy: { id: 'asc' } }),
+        prisma.notification.findMany({ where: { recipientUserId: first.id }, orderBy: { id: 'asc' } }),
+      ]);
+      const before = await snapshot();
+      const response = await fetch(`${baseUrl}/api/v1/appointments`, { method: 'POST',
+        headers: { authorization: `Bearer ${first.token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ agendaSlotId: ids.slotAvailable }) });
+      assert.equal(response.status, 429);
+      const retry = Number(response.headers.get('retry-after')); assert.ok(Number.isInteger(retry) && retry >= 1 && retry <= 60);
+      assert.equal((await response.json()).message, 'Too many booking requests. Try again later.');
+      assert.deepEqual(await snapshot(), before);
+    });
+
     await t.test('endpoint requires authentication and rejects body identity and origin', async () => {
       assert.equal((await post('/api/v1/appointments', { agendaSlotId: ids.slotAvailable })).status, 401);
       assert.equal((await post('/appointments', { agendaSlotId: ids.slotAvailable }, first.token)).status, 404);
@@ -147,6 +180,8 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
         ['availability', { id: ids.availabilityMain }, { attentionPointId: ids.attentionPointInactive }, { attentionPointId: ids.attentionPointActive }],
       ];
       for (const [model, where, invalid, restore] of scenarios) {
+        // These eleven independent domain cases must not exhaust one user's quota.
+        await resetBookingQuotas();
         await prisma[model].update({ where, data: invalid });
         try { assert.equal((await book(ids.slotAvailable)).status, 404, `Invalid ${model} relation`); }
         finally { await prisma[model].update({ where, data: restore }); }
@@ -620,6 +655,9 @@ test('HU-004/HU-005/HU-006 real HTTP and PostgreSQL appointments', { timeout: 12
   } finally {
     try {
       if (prisma && cleanupEnabled) {
+        await assertE2EFixtureDatabase(prisma);
+        await prisma.accountRecoveryLimit.deleteMany({ where: { emailHmac: { in: [...bookingKeys] } } });
+        assert.equal(await prisma.accountRecoveryLimit.count({ where: { emailHmac: { in: [...bookingKeys] } } }), 0);
         await cleanupCheckpointFixtures(prisma);
         await assertCheckpointIsClean(prisma);
       }

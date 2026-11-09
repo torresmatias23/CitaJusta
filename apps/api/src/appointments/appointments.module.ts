@@ -9,10 +9,13 @@ import { AttendanceService } from './attendance.service.js';
 import { AppointmentCalendarService } from './appointment-calendar.service.js';
 import { GoogleCalendarAdapter } from './google-calendar.adapter.js';
 import { AttendanceConfirmationService } from './attendance-confirmation.service.js';
+import { BookingRateLimitGuard } from './booking-rate-limit.guard.js';
+import { BookingRateLimitService } from './booking-rate-limit.service.js';
 
 @Module({
   imports: [DatabaseModule, AuthModule, AuthorizationModule],
   controllers: [AppointmentsController, AttendanceController],
-  providers: [AppointmentsService, AttendanceService, AppointmentCalendarService, GoogleCalendarAdapter, AttendanceConfirmationService],
+  providers: [AppointmentsService, AttendanceService, AppointmentCalendarService, GoogleCalendarAdapter, AttendanceConfirmationService,
+    BookingRateLimitService, BookingRateLimitGuard],
 })
 export class AppointmentsModule {}
