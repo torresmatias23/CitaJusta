@@ -74,3 +74,60 @@ npm run e2e:docker -w @citajusta/api -- test appointments
 Exigen identidad Docker E2E verificada (`citajusta_e2e`), migraciones compatibles y
 las protecciones existentes. No usan `.env` de DEV ni preparan automáticamente la
 base. Si Docker no está disponible, registrar E2E como pendiente/SKIP, nunca PASS.
+
+## RNF-024 — Límites de consultas públicas de disponibilidad
+
+Aplican a ambos GET bajo `/api/v1`:
+
+- `/branches/:branchId/services/:serviceId/availability`
+- `/branches/:branchId/services/:serviceId/professionals/:professionalId/availability`
+
+El rango `from`/`to` requiere timestamps con zona y `from < to`. Se admite como
+máximo **31 × 24 horas reales (744 horas)**, calculadas entre instantes UTC después
+de interpretar sus offsets. Una diferencia mayor, incluso de un milisegundo,
+devuelve **400** antes de las consultas de contexto/cupos. También se comprueba
+al entrar al servicio para impedir que una llamada interna omita la validación.
+El rango solicitado se valida antes de recortar la parte pasada.
+
+Las búsquedas Web de 7/14/30 días siguen siendo compatibles, al igual que fechas
+específicas de 23/24/25 horas por horario de verano. Treinta y un días civiles
+que sumen 745 horas por un cambio de offset exceden el máximo: se evalúan instantes,
+no meses ni etiquetas del calendario.
+
+El techo inicial es **5.000 candidatos** tras los filtros SQL existentes, con
+`take: 5001` para detectar exceso. Al recibir el candidato 5.001 se devuelve
+**400**, sin `data` parcial, con el mensaje:
+`Availability query too broad. Reduce the date range or select a professional.`
+Reducir el rango o consultar por profesional permite acotar la búsqueda.
+
+Este límite se comprueba **antes de los filtros defensivos en memoria**. Con
+hasta 5.000 candidatos se evalúan todos y se devuelven todos los válidos, incluso
+si están después de registros descartados. Con más candidatos se rechaza toda
+la consulta: puede ocurrir aunque el número final de cupos válidos fuese menor
+por datos incoherentes. No se continúa leyendo páginas ilimitadas ni se devuelve
+un listado truncado que aparente ser completo. No hay paginación en este contrato.
+
+Ambos valores son decisiones operativas ajustables en
+`src/availability/availability-query.limits.ts`, no umbrales académicos aprobados.
+El techo limita filas materializadas; no garantiza un coste máximo de escaneo,
+latencia o capacidad bajo carga. Medir rendimiento y revisar índices/umbral
+requiere evidencia adicional.
+
+El DTO `{ data: [...] }` y el orden `startsAt ASC, id ASC` se conservan para
+consultas normales. No cambia el aislamiento por institución/sede/servicio/
+profesional ni la política compartida `availability.policy.ts`. Las lecturas no
+materializan cupos ni modifican estado o `lockVersion`. Las consultas administrativas
+Desktop y las reglas de reservas/cancelación/reasignación quedan fuera del cambio.
+
+Validación desde la raíz:
+
+```powershell
+npm run build -w @citajusta/api
+node --test apps/api/test/availability.catalog.test.mjs
+npm run e2e:docker -w @citajusta/api -- check
+npm run e2e:docker -w @citajusta/api -- test checkpoint
+```
+
+El checkpoint verifica límites por HTTP/PostgreSQL en ambas rutas, orden con
+empates, ausencia de escrituras de las consultas y limpieza de su fixture de
+capacidad. Sólo se ejecuta contra `citajusta_e2e` verificada por el runner.

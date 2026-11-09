@@ -13,6 +13,7 @@ import {
   slotIds,
 } from './fixture.mjs';
 import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
+import { assertE2EFixtureDatabase } from '../../scripts/e2e-docker-environment.mjs';
 
 async function request(baseUrl, endpoint, options = {}) {
   const headers = { ...options.headers };
@@ -182,7 +183,7 @@ function queryRange(from, to) {
 test(
   'backend E2E checkpoint uses real Nest HTTP, Prisma and local PostgreSQL',
   { timeout: 120_000 },
-  async () => {
+  async (t) => {
     let app;
     let prisma;
     let cleanupEnabled = false;
@@ -759,6 +760,75 @@ test(
         'Availability from mayor o igual a to',
         reversedRangeEndpoint,
       );
+
+      const publicAvailabilityPaths = [
+        `/api/v1/branches/${ids.branchA1}/services/${ids.serviceA}/availability`,
+        `/api/v1/branches/${ids.branchA1}/services/${ids.serviceA}/professionals/${ids.professionalA}/availability`,
+      ];
+      await t.test('RNF-024 HTTP/PostgreSQL accepts Web intervals and exact 31 days, rejects excess without writes', async () => {
+        const before = await prisma.agendaSlot.findMany({ where: { availabilityId: ids.availabilityMain }, orderBy: { id: 'asc' } });
+        const from = new Date(availabilityRange.from);
+        for (const path of publicAvailabilityPaths) {
+          for (const days of [7, 14, 30, 31]) {
+            const endpoint = `${path}?${queryRange(from.toISOString(), new Date(from.getTime() + days * 86_400_000).toISOString())}`;
+            expectStatus(await request(baseUrl, endpoint, { accessToken: currentPair.accessToken }), 200, 'RNF024 valid range', endpoint);
+          }
+          for (const milliseconds of [31 * 86_400_000 + 1, 32 * 86_400_000]) {
+            const endpoint = `${path}?${queryRange(from.toISOString(), new Date(from.getTime() + milliseconds).toISOString())}`;
+            const rejected = await request(baseUrl, endpoint, { accessToken: currentPair.accessToken });
+            expectStatus(rejected, 400, 'RNF024 excessive range', endpoint); assert.equal(rejected.body.data, undefined);
+          }
+        }
+        assert.deepEqual(await prisma.agendaSlot.findMany({ where: { availabilityId: ids.availabilityMain }, orderBy: { id: 'asc' } }), before);
+      });
+
+      await t.test('RNF-024 PostgreSQL result boundary, deterministic ties and explicit overflow in both public queries', async () => {
+        await assertE2EFixtureDatabase(prisma);
+        const source = await prisma.agendaSlot.findUniqueOrThrow({ where: { id: ids.slotAvailable } });
+        // Synthetic capacity fixture, scoped to this checkpoint's owned availability.
+        const bulk = Array.from({ length: 5000 }, (_, i) => ({ id: randomUUID(), availabilityId: ids.availabilityMain,
+          startsAt: new Date(source.startsAt.getTime() + (i < 2 ? 1 : i + 1)),
+          endsAt: new Date(source.endsAt.getTime() + i + 1), status: 'AVAILABLE' }));
+        const insertedIds = [];
+        assert.equal(await prisma.agendaSlot.count({ where: { id: { in: bulk.map(row => row.id) } } }), 0);
+        try {
+          await prisma.agendaSlot.createMany({ data: bulk.slice(0, 4999) });
+          insertedIds.push(...bulk.slice(0, 4999).map(row => row.id));
+          const slotSnapshot = await prisma.agendaSlot.findMany({ where: { availabilityId: ids.availabilityMain }, orderBy: { id: 'asc' } });
+          const domainCounts = () => Promise.all([
+            prisma.appointment.count({ where: { institutionId: ids.institutionA } }),
+            prisma.appointmentHistory.count({ where: { appointment: { institutionId: ids.institutionA } } }),
+            prisma.notification.count({ where: { institutionId: ids.institutionA } }),
+          ]);
+          const beforeCounts = await domainCounts();
+          for (const path of publicAvailabilityPaths) {
+            const endpoint = `${path}?${range}`;
+            const atLimit = await request(baseUrl, endpoint, { accessToken: currentPair.accessToken });
+            expectStatus(atLimit, 200, 'RNF024 exactly 5000', endpoint);
+            assert.equal(atLimit.body.data.length, 5000);
+            assert.deepEqual(new Set(atLimit.body.data.map(row => row.id)), new Set([source.id, ...insertedIds]));
+            const sorted = [...atLimit.body.data].sort((a, b) => a.startsAt < b.startsAt ? -1 : a.startsAt > b.startsAt ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+            assert.deepEqual(atLimit.body.data, sorted);
+          }
+          assert.deepEqual(await prisma.agendaSlot.findMany({ where: { availabilityId: ids.availabilityMain }, orderBy: { id: 'asc' } }), slotSnapshot);
+          await prisma.agendaSlot.create({ data: bulk[4999] }); insertedIds.push(bulk[4999].id);
+          const afterInsert = await prisma.agendaSlot.findMany({ where: { availabilityId: ids.availabilityMain }, orderBy: { id: 'asc' } });
+          for (const path of publicAvailabilityPaths) {
+            const endpoint = `${path}?${range}`;
+            const rejected = await request(baseUrl, endpoint, { accessToken: currentPair.accessToken });
+            expectStatus(rejected, 400, 'RNF024 5001 candidates', endpoint); assert.equal(rejected.body.data, undefined);
+            assert.equal(rejected.body.message, 'Availability query too broad. Reduce the date range or select a professional.');
+          }
+          assert.deepEqual(await prisma.agendaSlot.findMany({ where: { availabilityId: ids.availabilityMain }, orderBy: { id: 'asc' } }), afterInsert);
+          assert.deepEqual(await domainCounts(), beforeCounts);
+        } finally {
+          await assertE2EFixtureDatabase(prisma);
+          const owned = await prisma.agendaSlot.findMany({ where: { id: { in: insertedIds } }, select: { availabilityId: true } });
+          assert.ok(owned.every(row => row.availabilityId === ids.availabilityMain));
+          await prisma.agendaSlot.deleteMany({ where: { id: { in: insertedIds }, availabilityId: ids.availabilityMain } });
+          assert.equal(await prisma.agendaSlot.count({ where: { id: { in: insertedIds } } }), 0);
+        }
+      });
 
       const logoutEndpoint = '/api/v1/auth/logout';
       const logout = await request(baseUrl, logoutEndpoint, {

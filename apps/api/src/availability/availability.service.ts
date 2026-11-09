@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service.js';
 import {
   BranchStatus,
@@ -6,7 +6,8 @@ import {
   ProfessionalStatus,
   SlotStatus,
 } from '../generated/prisma/client.js';
-import type { AvailabilityRange } from './schemas/availability-query.schemas.js';
+import { assertAvailabilityRange, type AvailabilityRange } from './schemas/availability-query.schemas.js';
+import { availabilityQueryLimits } from './availability-query.limits.js';
 import {
   availableAvailabilityWhere,
   type AvailabilityContext,
@@ -86,6 +87,7 @@ export class AgendaAvailabilityService {
     serviceId: string,
     range: AvailabilityRange,
   ) {
+    assertAvailabilityRange(range);
     const context = await this.findAvailableContext(branchId, serviceId);
 
     return this.queryAvailableSlots(context, range);
@@ -97,6 +99,7 @@ export class AgendaAvailabilityService {
     professionalId: string,
     range: AvailabilityRange,
   ) {
+    assertAvailabilityRange(range);
     const context = await this.findAvailableContext(branchId, serviceId);
     await this.requireCompatibleProfessional(context, professionalId);
 
@@ -282,6 +285,7 @@ export class AgendaAvailabilityService {
         availability: availableAvailabilityWhere(context, professionalId),
       },
       orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+      take: availabilityQueryLimits.maxCandidates + 1,
       select: {
         id: true,
         startsAt: true,
@@ -348,6 +352,12 @@ export class AgendaAvailabilityService {
         },
       },
     });
+
+    // Bound raw candidates before defensive filtering. Never return a partial list:
+    // discarded rows must not hide potentially valid slots beyond this read budget.
+    if (slots.length > availabilityQueryLimits.maxCandidates) {
+      throw new BadRequestException('Availability query too broad. Reduce the date range or select a professional.');
+    }
 
     return {
       data: slots

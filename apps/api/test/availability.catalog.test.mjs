@@ -5,6 +5,8 @@ import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { AvailabilityController } from '../dist/availability/availability.controller.js';
 import { AgendaAvailabilityService } from '../dist/availability/availability.service.js';
 import { AccessTokenGuard } from '../dist/auth/guards/access-token.guard.js';
+import { parseAvailabilityRange } from '../dist/availability/schemas/availability-query.schemas.js';
+import { availabilityQueryLimits } from '../dist/availability/availability-query.limits.js';
 
 function hasStatus(status) {
   return (error) =>
@@ -442,6 +444,7 @@ test('aggregate availability returns only reservable materialized slots safely',
     { startsAt: 'asc' },
     { id: 'asc' },
   ]);
+  assert.equal(query.take, 5001);
   assert.equal(query.select.lockVersion, undefined);
   assert.equal(query.select.versionLock, undefined);
   assert.equal(query.select.createdAt, undefined);
@@ -651,4 +654,122 @@ test('professional availability scopes the query and response to the requested p
     slotQuery.where.availability.professional.id,
     professionalId,
   );
+  assert.equal(slotQuery.take, 5001);
 });
+
+for (const days of [7, 14, 30, 31]) {
+  test(`RNF-024 accepts a real ${days}-day interval in both public controllers`, () => {
+    const from = new Date('2040-01-01T00:00:00.000Z');
+    const to = new Date(from.getTime() + days * 86_400_000);
+    const range = { from: from.toISOString(), to: to.toISOString() };
+    const parsed = parseAvailabilityRange(range);
+    assert.equal(parsed.to - parsed.from, days * 86_400_000);
+    const general = mock.fn(), professional = mock.fn();
+    const controller = new AvailabilityController({ findAvailableSlots: general, findAvailableSlotsByProfessional: professional });
+    const params = { branchId: randomUUID(), serviceId: randomUUID(), professionalId: randomUUID() };
+    controller.findAvailableSlots(params, range); controller.findAvailableSlotsByProfessional(params, range);
+    assert.deepEqual(general.mock.calls[0].arguments[2], parsed);
+    assert.deepEqual(professional.mock.calls[0].arguments[3], parsed);
+  });
+}
+
+test('RNF-024 offsets use actual instants, including DST and the exact 31-day boundary', () => {
+  for (const range of [
+    { from: '2040-01-01T00:00:00-03:00', to: '2040-02-01T00:00:00-03:00' },
+    { from: '2026-03-08T00:00:00-05:00', to: '2026-03-09T00:00:00-04:00' }, // 23-hour day
+    { from: '2026-11-01T00:00:00-04:00', to: '2026-11-02T00:00:00-05:00' }, // 25-hour day
+    { from: '2026-03-01T12:00:00-05:00', to: '2026-04-01T12:00:00-04:00' }, // 31 days minus one hour
+    { from: '2026-10-02T12:00:00-04:00', to: '2026-11-01T12:00:00-05:00' }, // 30 days plus one hour
+  ]) assert.doesNotThrow(() => parseAvailabilityRange(range));
+  assert.throws(() => parseAvailabilityRange({
+    from: '2026-10-02T12:00:00-04:00', to: '2026-11-02T12:00:00-05:00', // 31 days plus one hour
+  }), hasStatus(400));
+  // The labels look 31 days apart, but different offsets add 15 minutes.
+  assert.throws(() => parseAvailabilityRange({ from: '2040-01-01T00:00:00+03:00', to: '2040-02-01T00:00:00+02:45' }), hasStatus(400));
+});
+
+test('RNF-024 rejects excess by one millisecond, invalid dates, offsets and inverted instants before delegation', () => {
+  const general = mock.fn(), professional = mock.fn();
+  const controller = new AvailabilityController({ findAvailableSlots: general, findAvailableSlotsByProfessional: professional });
+  const params = { branchId: randomUUID(), serviceId: randomUUID(), professionalId: randomUUID() };
+  const invalid = [
+    { from: '2040-01-01T00:00:00.000Z', to: '2040-02-01T00:00:00.001Z' },
+    { from: '2040-01-01T00:00:00Z', to: '2040-02-02T00:00:00Z' },
+    { from: '2026-02-29T00:00:00Z', to: '2026-03-01T00:00:00Z' },
+    { from: '2026-02-30T00:00:00Z', to: '2026-03-01T00:00:00Z' },
+    { from: '2026-01-01T00:00:00+99:99', to: '2026-01-02T00:00:00Z' },
+    { from: '2026-01-01T00:00:00', to: '2026-01-02T00:00:00Z' },
+    { from: '2026-01-01T10:00:00-03:00', to: '2026-01-01T11:00:00+03:00' },
+    { from: '2026-01-02T00:00:00Z', to: '2026-01-01T00:00:00Z' },
+    { from: '2026-01-01T00:00:00Z', to: '2026-01-01T00:00:00Z' },
+  ];
+  for (const range of invalid) {
+    assert.throws(() => controller.findAvailableSlots(params, range), hasStatus(400));
+    assert.throws(() => controller.findAvailableSlotsByProfessional(params, range), hasStatus(400));
+  }
+  assert.equal(general.mock.callCount(), 0); assert.equal(professional.mock.callCount(), 0);
+});
+
+test('RNF-024 direct service calls validate the range before any context or slot database query', async () => {
+  const called = mock.fn();
+  const service = new AgendaAvailabilityService({ serviceBranch: { findFirst: called }, professional: { findFirst: called }, agendaSlot: { findMany: called } });
+  for (const range of [
+    { from: new Date(0), to: new Date(availabilityQueryLimits.maxRangeMs + 1) },
+    { from: new Date('invalid'), to: new Date() },
+    { from: new Date(), to: new Date(0) },
+    { from: new Date(0), to: new Date(0) },
+  ]) {
+    await assert.rejects(service.findAvailableSlots(randomUUID(), randomUUID(), range), hasStatus(400));
+    await assert.rejects(service.findAvailableSlotsByProfessional(randomUUID(), randomUUID(), randomUUID(), range), hasStatus(400));
+  }
+  assert.equal(called.mock.callCount(), 0);
+});
+
+function limitedAvailabilityFixture(count, configure = rows => rows) {
+  const context = { branchId: randomUUID(), serviceId: randomUUID() }, range = futureRange();
+  const professional = professionalRecord(context), base = slotRecord(context, range.from, { availability: { professionalId: professional.id, professional } });
+  const rows = configure(Array.from({ length: count }, (_, index) => ({ ...base, id: randomUUID(), startsAt: new Date(range.from.getTime() + index) })));
+  const before = structuredClone(rows);
+  const findMany = mock.fn(async query => {
+    assert.equal(query.take, 5001);
+    assert.deepEqual(query.orderBy, [{ startsAt: 'asc' }, { id: 'asc' }]);
+    assert.equal(query.where.availability.branch.institutionId, institutionA);
+    assert.equal(query.where.availability.branchId, context.branchId);
+    assert.equal(query.where.availability.serviceId, context.serviceId);
+    assert.equal(query.where.availability.professional.institutionId, institutionA);
+    return rows.slice(0, query.take);
+  });
+  // Deliberately expose only read operations. A write or transaction call would fail.
+  const service = new AgendaAvailabilityService({
+    serviceBranch: { findFirst: async () => serviceBranchRecord(context.branchId, context.serviceId) },
+    professional: { findFirst: async () => professional }, agendaSlot: { findMany },
+  });
+  return { rows, before, findMany, run: byProfessional => byProfessional
+    ? service.findAvailableSlotsByProfessional(context.branchId, context.serviceId, professional.id, range)
+    : service.findAvailableSlots(context.branchId, context.serviceId, range) };
+}
+
+for (const byProfessional of [false, true]) {
+  const kind = byProfessional ? 'professional' : 'general';
+  test(`RNF-024 ${kind}: exactly 5000 candidates retain the complete controlled DTO without writes`, async () => {
+    const f = limitedAvailabilityFixture(5000), result = await f.run(byProfessional);
+    assert.equal(result.data.length, 5000); assert.deepEqual(result.data.map(r => r.id), f.rows.map(r => r.id));
+    assert.deepEqual(Object.keys(result), ['data']); assert.deepEqual(Object.keys(result.data[0]), ['id', 'startsAt', 'endsAt', 'professional']);
+    assert.equal(JSON.stringify(result).includes('lockVersion'), false); assert.deepEqual(f.rows, f.before);
+    assert.equal(f.findMany.mock.callCount(), 1);
+  });
+  test(`RNF-024 ${kind}: 5001 candidates fail as 400 instead of returning a truncated success`, async () => {
+    const f = limitedAvailabilityFixture(5002);
+    await assert.rejects(f.run(byProfessional), error => error.getStatus() === 400 && !('data' in error.getResponse()));
+    assert.equal(f.findMany.mock.callCount(), 1); assert.deepEqual(f.rows, f.before);
+  });
+  test(`RNF-024 ${kind}: post-filter discards do not hide a valid last candidate within the budget`, async () => {
+    const f = limitedAvailabilityFixture(5000, rows => rows.map((row, i) => i === 4999 ? row : { ...row, endsAt: row.startsAt }));
+    const result = await f.run(byProfessional);
+    assert.deepEqual(result.data.map(r => r.id), [f.rows[4999].id]); assert.deepEqual(f.rows, f.before);
+  });
+  test(`RNF-024 ${kind}: post-filtering cannot turn a candidate overflow into misleading partial results`, async () => {
+    const f = limitedAvailabilityFixture(5001, rows => rows.map((row, i) => i < 5000 ? { ...row, status: 'BLOCKED' } : row));
+    await assert.rejects(f.run(byProfessional), hasStatus(400)); assert.deepEqual(f.rows, f.before);
+  });
+}
