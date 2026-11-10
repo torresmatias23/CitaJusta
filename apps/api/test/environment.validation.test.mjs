@@ -12,10 +12,36 @@ const validEnvironment = {
   JWT_REFRESH_SECRET: jwtRefreshSecret,
 };
 
+test('CORS defaults to no cross-origin grants in development, test and production', () => {
+  for (const NODE_ENV of ['development', 'test', 'production']) {
+    assert.deepEqual(validateEnvironment({ ...validEnvironment, NODE_ENV }).CORS_ORIGINS, []);
+    assert.deepEqual(validateEnvironment({ ...validEnvironment, NODE_ENV, CORS_ORIGINS: '  ' }).CORS_ORIGINS, []);
+  }
+});
+test('CORS exact origin list trims separators, deduplicates and retains explicit protocol/host/port', () => {
+  const CORS_ORIGINS = 'https://web.example.test, http://localhost:5173,https://web.example.test,http://127.0.0.1:5173,http://[::1]:5173';
+  assert.deepEqual(validateEnvironment({ ...validEnvironment, CORS_ORIGINS }).CORS_ORIGINS,
+    ['https://web.example.test', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://[::1]:5173']);
+});
+test('CORS rejects wildcard, paths, credentials, fragments, invalid separators and non-origin values without echoing input', () => {
+  for (const CORS_ORIGINS of ['*', 'https://*.example.test', 'null', 'file://local', 'tauri://localhost',
+    'javascript:alert(1)', 'https://user:PRIVATE@example.test', 'https://web.example.test/',
+    'https://web.example.test/path', 'https://web.example.test?secret=PRIVATE', 'https://web.example.test#PRIVATE',
+    'https://web.example.test,', ',https://web.example.test', 'https://one.test,,https://two.test',
+    'https://one.test https://two.test', 'https://one.test;https://two.test', 'https://web.example.test:99999',
+    'https://web.example.test:443', 'HTTPS://WEB.EXAMPLE.TEST', 'https://web.example.test\r\nX-Fake: PRIVATE',
+  ]) {
+    assert.throws(() => validateEnvironment({ ...validEnvironment, CORS_ORIGINS }), error => {
+      assert.match(error.message, /CORS_ORIGINS/); assert.doesNotMatch(error.message, /PRIVATE/); return true;
+    });
+  }
+});
+
 test('environment validation applies safe defaults', () => {
   assert.deepEqual(validateEnvironment(validEnvironment), {
     NODE_ENV: 'development',
     PORT: 3000,
+    CORS_ORIGINS: [],
     ACCOUNT_RECOVERY_ENABLED: false,
     ACCOUNT_RECOVERY_TTL_MINUTES: 30,
     ACCOUNT_RECOVERY_WINDOW_MINUTES: 60,
@@ -53,6 +79,7 @@ test('environment validation accepts and coerces valid values', () => {
     {
       NODE_ENV: 'test',
       PORT: 4100,
+      CORS_ORIGINS: [],
       ACCOUNT_RECOVERY_ENABLED: false,
       ACCOUNT_RECOVERY_TTL_MINUTES: 30,
       ACCOUNT_RECOVERY_WINDOW_MINUTES: 60,

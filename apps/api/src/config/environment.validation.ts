@@ -20,6 +20,9 @@ const environmentSchema = z
       .enum(['development', 'test', 'production'])
       .default('development'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    CORS_ORIGINS: z.string().default('').refine(value => value.trim() === '' || value.split(',').every(part => isCorsOrigin(part.trim())), {
+      message: 'must be a comma-separated list of exact HTTP(S) origins without wildcard, path or credentials',
+    }).transform(value => value.trim() === '' ? [] : [...new Set(value.split(',').map(part => part.trim()))]),
     AUTH_RATE_LIMIT_TRUSTED_PROXY_HOST: z.string().trim().regex(/^[a-z][a-z0-9-]{0,62}$/).optional(),
     GOOGLE_AUTH_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
     GOOGLE_CLIENT_ID: z.string().trim().optional(),
@@ -122,6 +125,14 @@ const environmentSchema = z
   }));
 
 export type Environment = z.infer<typeof environmentSchema>;
+
+export function isCorsOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && url.origin === value &&
+      !value.includes('*') && !url.username && !url.password;
+  } catch { return false; }
+}
 
 export function isGoogleCalendarOrigin(value: string): boolean {
   try {

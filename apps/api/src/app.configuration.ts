@@ -2,7 +2,7 @@ import { RequestMethod, type INestApplication } from '@nestjs/common';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { PrivacyExceptionFilter, requestBodyErrorHandler } from './common/http-error-privacy.js';
 
-export function configureApplication(app: INestApplication): void {
+export function configureApplication(app: INestApplication, corsOrigins: string[] = []): void {
   const express: { disable(setting: string): void } = app.getHttpAdapter().getInstance();
   express.disable('x-powered-by');
 
@@ -10,6 +10,8 @@ export function configureApplication(app: INestApplication): void {
   app.use((_request: IncomingMessage, response: ServerResponse, next: () => void) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    response.setHeader('X-Frame-Options', 'DENY');
+    response.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
     next();
   });
   // Current versioned routes handle credentials or require authentication,
@@ -17,6 +19,17 @@ export function configureApplication(app: INestApplication): void {
   app.use('/api/v1', (_request: IncomingMessage, response: ServerResponse, next: () => void) => {
     response.setHeader('Cache-Control', 'no-store');
     next();
+  });
+
+  // Explicit allowlist; no arbitrary Origin reflection, cookies or automatic localhost grants.
+  // Register before parsers so malformed JSON retains the same CORS policy.
+  app.enableCors({
+    origin: corsOrigins,
+    credentials: false,
+    methods: ['GET', 'POST', 'PUT', 'PATCH'],
+    allowedHeaders: ['Accept', 'Authorization', 'Content-Type', 'X-Institution-Id', 'X-Branch-Id', 'X-Requested-With'],
+    exposedHeaders: ['Retry-After'],
+    optionsSuccessStatus: 204,
   });
 
   // Same Express JSON/urlencoded parsers and default limits as Nest's init.
