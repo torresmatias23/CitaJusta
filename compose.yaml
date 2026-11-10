@@ -34,6 +34,7 @@ services:
     environment:
       <<: *database-environment
       PORT: "3000"
+      CORS_ORIGINS: ${DOCKER_CORS_ORIGINS:-}
       JWT_ACCESS_SECRET: ${DOCKER_JWT_ACCESS_SECRET:?Completa DOCKER_JWT_ACCESS_SECRET en docker/.env}
       JWT_REFRESH_SECRET: ${DOCKER_JWT_REFRESH_SECRET:?Completa DOCKER_JWT_REFRESH_SECRET en docker/.env}
       AUTH_RATE_LIMIT_TRUSTED_PROXY_HOST: "web"

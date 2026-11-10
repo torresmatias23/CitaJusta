@@ -66,11 +66,12 @@ function assertSecurity(response, cacheControl = 'no-store', json = true) {
   assert.equal(response.headers.get('x-powered-by'), null);
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(response.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
+  assert.equal(response.headers.get('x-frame-options'), 'DENY');
   assert.equal(response.headers.get('cache-control'), cacheControl);
   if (json) assert.match(response.headers.get('content-type'), /^application\/json\b/);
   assert.equal(response.headers.get('access-control-allow-origin'), null);
   // Express's existing HTML final handler supplies its own restrictive CSP.
-  assert.equal(response.headers.get('content-security-policy'), json ? null : "default-src 'none'");
+  assert.equal(response.headers.get('content-security-policy'), json ? "frame-ancestors 'none'" : "default-src 'none'");
   assert.equal(response.headers.get('strict-transport-security'), null);
 }
 

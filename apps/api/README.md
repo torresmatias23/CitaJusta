@@ -131,3 +131,98 @@ npm run e2e:docker -w @citajusta/api -- test checkpoint
 El checkpoint verifica límites por HTTP/PostgreSQL en ambas rutas, orden con
 empates, ausencia de escrituras de las consultas y limpieza de su fixture de
 capacidad. Sólo se ejecuta contra `citajusta_e2e` verificada por el runner.
+
+## RNF-008 — CORS explícito por ambiente
+
+`CORS_ORIGINS` es una lista de orígenes HTTP(S) exactos, separados por comas.
+Por defecto está vacía en **development, test y production**: no autoriza lecturas
+cross-origin. El proxy del mismo origen `/api/v1`, las peticiones sin Origin y
+el transporte nativo Desktop no necesitan una concesión CORS.
+
+Ejemplos de configuración explícita (no se copian automáticamente):
+
+```dotenv
+# Desarrollo con Web en otro origen; localhost y 127.0.0.1 son distintos.
+CORS_ORIGINS=http://127.0.0.1:5173,http://localhost:5173
+# Despliegue público: sustituir por el origen HTTPS real, sin ruta ni slash final.
+# CORS_ORIGINS=https://web.example.test
+```
+
+En Docker Compose, `DOCKER_CORS_ORIGINS` de `docker/.env` alimenta `CORS_ORIGINS`
+de la API. Vacío mantiene el flujo de mismo origen Web/Nginx sin ampliar accesos.
+No se cambia ningún `.env` real ni se agrega localhost por detectar un ambiente.
+No reiniciar DEMO automáticamente para aplicar estas variables.
+
+Zod rechaza comodines, orígenes opacos (`null`, `file:`, `tauri:`), credenciales,
+rutas (incluido `/` final), query, fragmento, separadores vacíos y URLs inválidas.
+Los orígenes deben estar en formato canónico: protocolo/host en minúsculas,
+puertos no predeterminados explícitos y sin `:80`/`:443` redundantes. Se permiten
+espacios alrededor de cada elemento y se eliminan duplicados. Los errores de
+configuración no imprimen los valores recibidos.
+
+La API devuelve `Access-Control-Allow-Origin` únicamente para el origen exacto
+permitido, con `Vary: Origin`; nunca `*`. Usa `credentials: false` y no devuelve
+`Access-Control-Allow-Credentials`. Métodos permitidos: GET, POST, PUT y PATCH.
+Encabezados: Accept, Authorization, Content-Type, X-Institution-Id, X-Branch-Id y
+X-Requested-With. Expone Retry-After para que el cliente pueda leer los límites.
+OPTIONS devuelve 204 sin pasar por guards/cuotas. Un preflight no autorizado puede
+responder 204, pero sin ACAO (o sin el método/encabezado solicitado): el navegador
+no lo autoriza. No es una respuesta de autorización del dominio.
+
+CORS se registra después de las cabeceras base y antes del parser; respuestas
+normales, JSON malformado, 400/401/404/429/500 mantienen su política. Un origen
+rechazado no recibe ACAO; la solicitud puede seguir siendo atendida por el servidor.
+CORS **no sustituye JWT, sesión, RBAC, tenant, controles contra IDOR ni rate limiting**.
+
+Google Calendar conserva su validación independiente de Origin y X-Requested-With:
+autorizar un origen en CORS no autoriza el intercambio Calendar. Al usar otro origen
+Web deben configurarse ambos controles explícitamente. Desktop con plugin-http no
+depende de CORS; no se modifica su CSP ni se autoriza automáticamente su esquema.
+
+## RNF-010 — Cabeceras y protección contra framing
+
+API y Nginx añaden `X-Frame-Options: DENY` y
+`Content-Security-Policy: frame-ancestors 'none'`. Se conservan nosniff,
+`Referrer-Policy: strict-origin-when-cross-origin`, ausencia de X-Powered-By y
+Cache-Control no-store para `/api/v1`. Health y recursos públicos conservan su
+política de caché previa; el index/SPA de Nginx usa no-cache.
+
+La CSP sólo impide que otros sitios enmarquen CitaJusta. No agrega default-src,
+script-src, connect-src, frame-src ni políticas COOP/COEP que pudieran afectar
+Google Identity Services, Calendar o mapas. No es una CSP integral contra XSS.
+El handler HTML final de Express, fuera de las rutas API, conserva su propia CSP
+`default-src 'none'`; allí X-Frame-Options DENY sigue impidiendo el framing.
+
+Nginx oculta las copias upstream de las cabeceras que administra (incluidas CSP y
+X-Frame-Options) y emite una sola copia con `add_header ... always` a nivel server,
+sin redefinir add_header en locations. Conserva ACAO/Vary/Retry-After de la API;
+no replica su lógica CORS. Cubre proxy, health, index, SPA, assets y errores propios.
+Los errores generados por Nginx antes de llegar a Nest no tienen necesariamente
+cabeceras CORS y un navegador cross-origin puede no leer su detalle.
+
+No se habilita HSTS sobre HTTP local. Un despliegue público necesita HTTPS real,
+certificados, redirección y una política HSTS revisada en su terminador TLS.
+Estos controles no acreditan certificación, cumplimiento legal ni cierre de una
+evaluación dedicada de seguridad.
+
+Validación enfocada desde la raíz:
+
+```powershell
+npm run build -w @citajusta/api
+node --test --test-isolation=none apps/api/test/environment.validation.test.mjs apps/api/test/http-security.test.mjs apps/api/test/cors-security.http.test.mjs docker/test/configuration.test.mjs
+```
+
+Prueba Nginx opcional, sin bases ni cambios en contenedores existentes:
+
+```powershell
+$env:CITAJUSTA_NGINX_TEST = '1'
+# Una imagen Nginx ya almacenada; no descarga imágenes.
+$env:CITAJUSTA_NGINX_TEST_IMAGE = 'citajusta-capstone-web:latest'
+node --test docker/test/http-security.runtime.test.mjs
+```
+
+Usa el config real con un upstream simulado dentro de un contenedor temporal,
+puerto publicado sólo en loopback y archivos públicos ficticios. Comprueba sintaxis
+Nginx, errores 200/400/401/404/429/500, errores propios 413, cabeceras sin duplicados,
+SPA/assets/health y elimina sólo su contenedor y directorio temporal. No sustituye
+pruebas de navegador reales con Google/mapas ni del terminador HTTPS de producción.

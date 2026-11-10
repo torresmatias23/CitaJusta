@@ -842,8 +842,9 @@ se definen en el servidor Nginx con `always`: agregar un `add_header` dentro de
 un `location` exige revisar la herencia para no perderlas.
 
 La configuración HTTP local **no constituye un despliegue público con TLS**.
-HTTPS y HSTS requieren un diseño de despliegue posterior. Este cambio no añade
-CSP ni cambia CORS, proxies, almacenamiento de tokens o contratos JSON.
+HTTPS y HSTS requieren un diseño de despliegue posterior. RNF-008/RNF-010 añaden
+CORS explícito y protección contra framing, descritos en el [README de la API](apps/api/README.md#rnf-008--cors-explícito-por-ambiente).
+Se conserva el almacenamiento de tokens y los contratos JSON.
 
 Validación local aislada, con persistencia/identidad simuladas donde corresponde:
 

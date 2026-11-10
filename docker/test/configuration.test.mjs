@@ -86,8 +86,10 @@ test('edge security headers cover errors and index without restricting public as
   const serverHeaders = server.slice(0, server.indexOf('    location'));
   assert.match(serverHeaders, /add_header X-Content-Type-Options "nosniff" always;/);
   assert.match(serverHeaders, /add_header Referrer-Policy "strict-origin-when-cross-origin" always;/);
+  assert.match(serverHeaders, /add_header X-Frame-Options "DENY" always;/);
+  assert.match(serverHeaders, /add_header Content-Security-Policy "frame-ancestors 'none'" always;/);
   assert.match(serverHeaders, /add_header Cache-Control \$citajusta_cache_control always;/);
-  for (const name of ['X-Powered-By', 'X-Content-Type-Options', 'Referrer-Policy', 'Cache-Control']) {
+  for (const name of ['X-Powered-By', 'X-Content-Type-Options', 'Referrer-Policy', 'Cache-Control', 'X-Frame-Options', 'Content-Security-Policy']) {
     assert.ok(serverHeaders.includes(`proxy_hide_header ${name};`));
   }
   // Any location-level add_header would suppress inherited security headers.
@@ -97,5 +99,13 @@ test('edge security headers cover errors and index without restricting public as
   assert.match(cacheMap, /default "";/);
   assert.ok(cacheMap.includes('~*^/api/v1(?:/|$) "no-store";'));
   assert.match(cacheMap, /\/index\.html "no-cache";/);
-  assert.doesNotMatch(nginx, /Content-Security-Policy|Strict-Transport-Security/);
+  assert.doesNotMatch(nginx, /Strict-Transport-Security|default-src|script-src|connect-src/);
+  assert.equal((nginx.match(/add_header X-Frame-Options /g) ?? []).length, 1);
+  assert.equal((nginx.match(/add_header Content-Security-Policy /g) ?? []).length, 1);
+});
+
+test('Compose exposes an explicit opt-in CORS list without authorizing any default origin', () => {
+  assert.ok(compose.includes('CORS_ORIGINS: ${DOCKER_CORS_ORIGINS:-}'));
+  assert.match(read('docker/.env.example'), /^DOCKER_CORS_ORIGINS=$/m);
+  assert.doesNotMatch(nginx, /add_header Access-Control-/);
 });
