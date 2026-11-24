@@ -1,8 +1,9 @@
 import { cancelWithBlockedSlot } from './manual-release.fixture.mjs';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 import { test } from 'node:test';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
 import { FIXTURE_EMAIL_PREFIX, ids, cleanupReportsFixtures, createReportsFixtures, assertReportsClean } from './reports.fixture.mjs';
@@ -14,7 +15,7 @@ test('HU-019 reports: real PostgreSQL aggregates, authorization, isolation and n
     import('../../dist/database/waitlist.bootstrap.js'), import('../../dist/database/appointment-status.bootstrap.js'),
   ]);
   const app = await NestFactory.create(AppModule, { logger: false });
-  let prisma; let cleanupEnabled = false;
+  let prisma; let cleanupEnabled = false; let registerQuota;
   const ownedPermissions = []; const ownedStatuses = []; const ownedWaitlistStatuses = [];
   const users = []; const slots = []; const appointments = []; const processes = []; const entries = [];
   try {
@@ -27,7 +28,14 @@ test('HU-019 reports: real PostgreSQL aggregates, authorization, isolation and n
         ...(body ? { body: JSON.stringify(body) } : {}) });
       return { status: result.status, body: await result.json() };
     }
+    // Fixture users are created through the real endpoint; the registration quota (RNF-009)
+    // is covered by the auth-rate-limit suite, so only this run's own counter is reset.
+    const authKey = createHmac('sha256', app.get(ConfigService).getOrThrow('JWT_ACCESS_SECRET'))
+      .update('citajusta/auth-rate-limit/key/v1').digest();
+    registerQuota = createHmac('sha256', authKey)
+      .update(JSON.stringify(['citajusta/auth-rate-limit/v1', 'register', '127.0.0.1'])).digest('hex');
     async function register() {
+      await prisma.accountRecoveryLimit.deleteMany({ where: { emailHmac: registerQuota } });
       const credentials = { email: `${FIXTURE_EMAIL_PREFIX}${randomUUID()}@example.com`, password: `E2e-${randomUUID()}-Aa1!` };
       const result = await request('POST', '/auth/register', undefined, { ...credentials, firstName: 'Reports', lastName: 'Fixture' });
       assert.equal(result.status, 201); users.push(result.body.id);
@@ -310,6 +318,7 @@ test('HU-019 reports: real PostgreSQL aggregates, authorization, isolation and n
         await prisma.agendaSlot.deleteMany({ where: { id: { in: slots } } });
         await prisma.priority.deleteMany({ where: { institutionId: ids.institutionA, code: 'STANDARD' } });
         await cleanupReportsFixtures(prisma);
+        if (registerQuota) await prisma.accountRecoveryLimit.deleteMany({ where: { emailHmac: registerQuota } });
         await prisma.permission.deleteMany({ where: { id: { in: ownedPermissions } } });
         await prisma.appointmentStatus.deleteMany({ where: { id: { in: ownedStatuses } } });
         await prisma.waitlistStatus.deleteMany({ where: { id: { in: ownedWaitlistStatuses } } });
