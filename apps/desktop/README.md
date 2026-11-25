@@ -572,6 +572,29 @@ Provisiona exclusivamente `reports.read` (`module=reports`, `action=read`) media
 Es idempotente, conserva roles ajenos y rechaza colisiones incompatibles. No crea
 usuarios, credenciales ni actividad de reportes. Tras ejecutarlo, iniciar sesión
 y aplicar el contexto demo en Sedes y servicios. No se ejecuta automáticamente.
+
+## Panel de gestión (HU-037, Fase 3)
+
+Análisis → Panel de gestión consulta `GET /api/v1/reports/dashboard` con el mismo
+permiso `reports.read` y contexto que Reportes. Abre con los últimos 30 días ya
+consultados y ofrece períodos rápidos (7, 30 y 90 días, mes en curso) además de
+Desde/Hasta y filtros de sede, servicio y profesional. Un contexto con sede la
+mantiene fija. Las respuestas se validan estrictamente y una consulta antigua nunca
+reemplaza a una más reciente.
+
+Orden de lectura pensado para decidir:
+
+1. **Recomendaciones**: prioridad alta, media o informativa escrita en texto (no sólo color) y una acción sugerida.
+2. **Indicadores clave**: citas, asistencia, inasistencia, cancelación, recuperación de cupos, ocupación y personas en espera.
+3. **Actividad diaria/semanal**: líneas de citas, cancelaciones e inasistencias con leyenda, tooltip y tabla de datos.
+4. **Estado de las citas** y **uso de la agenda** en barras segmentadas con leyenda y valores.
+5. **Servicios con más demanda** (inasistencia y personas en espera), **profesionales** y **lista de espera actual** por prioridad.
+
+Todos los valores los calcula la API; Desktop sólo da formato es-CL. Los gráficos
+son SVG propios, sin dependencias nuevas, con una paleta validada para daltonismo.
+Reportes conserva su vista tabular original. Para preparar la cuenta lectora se
+reutiliza `seed:desktop-reports-reader` (sección anterior).
+
 ## RF-038 — Consultas institucionales de usuarios y lista de espera
 
 En **Operación → Usuarios** y **Operación → Lista de espera**, Desktop utiliza

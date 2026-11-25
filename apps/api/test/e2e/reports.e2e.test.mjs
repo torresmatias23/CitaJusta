@@ -1,8 +1,9 @@
 import { cancelWithBlockedSlot } from './manual-release.fixture.mjs';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 import { test } from 'node:test';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { loadApiEnvironment, assertSafeLocalDatabaseUrl, getE2ePort } from './local-environment.mjs';
 import { FIXTURE_EMAIL_PREFIX, ids, cleanupReportsFixtures, createReportsFixtures, assertReportsClean } from './reports.fixture.mjs';
@@ -14,7 +15,7 @@ test('HU-019 reports: real PostgreSQL aggregates, authorization, isolation and n
     import('../../dist/database/waitlist.bootstrap.js'), import('../../dist/database/appointment-status.bootstrap.js'),
   ]);
   const app = await NestFactory.create(AppModule, { logger: false });
-  let prisma; let cleanupEnabled = false;
+  let prisma; let cleanupEnabled = false; let registerQuota;
   const ownedPermissions = []; const ownedStatuses = []; const ownedWaitlistStatuses = [];
   const users = []; const slots = []; const appointments = []; const processes = []; const entries = [];
   try {
@@ -27,7 +28,14 @@ test('HU-019 reports: real PostgreSQL aggregates, authorization, isolation and n
         ...(body ? { body: JSON.stringify(body) } : {}) });
       return { status: result.status, body: await result.json() };
     }
+    // Fixture users are created through the real endpoint; the registration quota (RNF-009)
+    // is covered by the auth-rate-limit suite, so only this run's own counter is reset.
+    const authKey = createHmac('sha256', app.get(ConfigService).getOrThrow('JWT_ACCESS_SECRET'))
+      .update('citajusta/auth-rate-limit/key/v1').digest();
+    registerQuota = createHmac('sha256', authKey)
+      .update(JSON.stringify(['citajusta/auth-rate-limit/v1', 'register', '127.0.0.1'])).digest('hex');
     async function register() {
+      await prisma.accountRecoveryLimit.deleteMany({ where: { emailHmac: registerQuota } });
       const credentials = { email: `${FIXTURE_EMAIL_PREFIX}${randomUUID()}@example.com`, password: `E2e-${randomUUID()}-Aa1!` };
       const result = await request('POST', '/auth/register', undefined, { ...credentials, firstName: 'Reports', lastName: 'Fixture' });
       assert.equal(result.status, 201); users.push(result.body.id);
@@ -158,6 +166,42 @@ test('HU-019 reports: real PostgreSQL aggregates, authorization, isolation and n
       assert.equal((await get({ branchId: ids.branchA2 }, officer.token, scope)).status, 404);
       assert.deepEqual((await get({}, foreign.token, { 'x-institution-id': ids.institutionB })).body.data, single);
       for (const filter of [{ branchId: ids.branchB1 }, { serviceId: ids.serviceB }, { professionalId: ids.professionalB }]) assert.equal((await get(filter)).status, 404);
+    });
+    await t.test('HU-037 dashboard: same scope and totals as indicators, plus status, capacity, rankings and insights', async () => {
+      const dashboard = (filters = {}, token = admin.token, scope = headers) =>
+        request('GET', `/reports/dashboard?${new URLSearchParams({ ...period, ...filters })}`, token, undefined, scope);
+      assert.equal((await dashboard({}, null)).status, 401);
+      assert.equal((await dashboard({}, source.token)).status, 403);
+      for (const filters of [{ from: '2025-02-30' }, { branchId: 'bad' }, { userId: source.id }]) assert.equal((await dashboard(filters)).status, 400);
+      const result = await dashboard(); assert.equal(result.status, 200);
+      const { data } = result.body; const { period: _period, ...totals } = total;
+      assert.deepEqual(data.period, period); assert.deepEqual(data.indicators, totals);
+      assert.equal(data.granularity, 'day'); assert.equal(data.trend.length, 1); assert.equal(data.trend[0].start, period.from);
+      assert.deepEqual(data.trend.map(({ scheduled, cancelled, noShows }) => ({ scheduled, cancelled, noShows })), [{
+        scheduled: total.appointments.scheduled, cancelled: total.appointments.cancelled, noShows: total.appointments.noShows }]);
+      assert.deepEqual(data.appointmentStatus, { total: 6, booked: 4, attended: 0, noShows: 1, cancelled: 1, other: 0 });
+      assert.equal(data.rates.noShowRatePct, 100); assert.equal(data.rates.cancellationRatePct, 16.67);
+      assert.deepEqual(data.services.map(({ id, scheduled, noShows, waiting }) => ({ id, scheduled, noShows, waiting })),
+        [{ id: ids.serviceA, scheduled: 5, noShows: 1, waiting: 0 }, { id: ids.serviceA2, scheduled: 1, noShows: 0, waiting: 0 }]);
+      assert.deepEqual(data.professionals.map(({ id, scheduled, name }) => ({ id, scheduled, name })),
+        [{ id: ids.professionalA, scheduled: 5, name: 'Reports Fixture' }, { id: ids.professionalA2, scheduled: 1, name: 'Reports Fixture' }]);
+      assert.ok(data.capacity.total >= data.appointmentStatus.total); assert.equal(data.capacity.reserved, data.capacity.total);
+      assert.equal(data.rates.occupancyPct, 100);
+      assert.deepEqual(data.waitlist, { active: 0, averageWaitDays: 0, oldestWaitDays: 0, byPriority: [] });
+      assert.ok(data.insights.length > 0 && data.insights.every((insight) => insight.code && insight.title && insight.action));
+      assert.doesNotMatch(JSON.stringify(data), /@example.com|password|token/i);
+      const branch = (await dashboard({ branchId: ids.branchA2 })).body.data;
+      assert.deepEqual(branch.appointmentStatus, { total: 1, booked: 1, attended: 0, noShows: 0, cancelled: 0, other: 0 });
+      assert.deepEqual(branch.capacity, { total: 1, reserved: 1, available: 0, inProcess: 0, expired: 0 });
+      assert.deepEqual(branch.services.map((service) => service.id), [ids.serviceA2]);
+      const scope = { ...headers, 'x-branch-id': ids.branchA1 };
+      assert.equal((await dashboard({}, officer.token, scope)).body.data.appointmentStatus.total, 5);
+      assert.equal((await dashboard({ branchId: ids.branchA2 }, officer.token, scope)).status, 404);
+      const foreignData = (await dashboard({}, foreign.token, { 'x-institution-id': ids.institutionB })).body.data;
+      assert.equal(foreignData.appointmentStatus.total, 1); assert.deepEqual(foreignData.services.map((service) => service.id), [ids.serviceB]);
+      for (const filter of [{ branchId: ids.branchB1 }, { serviceId: ids.serviceB }, { professionalId: ids.professionalB }]) assert.equal((await dashboard(filter)).status, 404);
+      const long = (await dashboard({ from: '2025-01-01', to: '2025-06-30' })).body.data;
+      assert.equal(long.granularity, 'week'); assert.equal(long.trend.reduce((sum, bucket) => sum + bucket.scheduled, 0), long.appointmentStatus.total);
     });
     await t.test('institutional midnight is inclusive and next midnight exclusive', async () => {
       const previous = (await get({ from: '2025-01-14', to: '2025-01-14' })).body.data;
@@ -292,6 +336,12 @@ test('HU-019 reports: real PostgreSQL aggregates, authorization, isolation and n
       assert.deepEqual(report.slots, { released: 1, recovered: 1, recoveryRatePct: 100 });
       assert.equal(report.appointments.cancelled, 1);
       assert.deepEqual(report.offers, { sent: 2, accepted: 1, rejected: 1, expired: 0 });
+      const board = (await request('GET', `/reports/dashboard?${new URLSearchParams({ from: today, to: today })}`, admin.token, undefined, headers)).body.data;
+      const active = await prisma.waitlistEntry.count({ where: { institutionId: ids.institutionA, deletedAt: null, status: { isFinal: false } } });
+      assert.ok(active > 0); assert.equal(board.waitlist.active, active);
+      assert.equal(board.waitlist.byPriority.reduce((sum, row) => sum + row.count, 0), active);
+      assert.equal(board.services.find((service) => service.id === ids.serviceA).waiting, active);
+      assert.deepEqual(board.indicators.slots, report.slots); assert.deepEqual(board.indicators.offers, report.offers);
     });
   } finally {
     try {
@@ -310,6 +360,7 @@ test('HU-019 reports: real PostgreSQL aggregates, authorization, isolation and n
         await prisma.agendaSlot.deleteMany({ where: { id: { in: slots } } });
         await prisma.priority.deleteMany({ where: { institutionId: ids.institutionA, code: 'STANDARD' } });
         await cleanupReportsFixtures(prisma);
+        if (registerQuota) await prisma.accountRecoveryLimit.deleteMany({ where: { emailHmac: registerQuota } });
         await prisma.permission.deleteMany({ where: { id: { in: ownedPermissions } } });
         await prisma.appointmentStatus.deleteMany({ where: { id: { in: ownedStatuses } } });
         await prisma.waitlistStatus.deleteMany({ where: { id: { in: ownedWaitlistStatuses } } });
