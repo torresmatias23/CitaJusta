@@ -2,7 +2,7 @@ export const navigation = [
   { label: 'Espacio institucional', items: ['Inicio'] },
   { label: 'Catálogo', items: ['Sedes y servicios', 'Profesionales'] },
   { label: 'Operación', items: ['Usuarios', 'Agenda', 'Asistencia', 'Lista de espera', 'Reasignaciones'] },
-  { label: 'Análisis', items: ['Reportes', 'Auditoría'] },
+  { label: 'Análisis', items: ['Panel de gestión', 'Reportes', 'Auditoría'] },
 ] as const;
 export type ModuleName = typeof navigation[number]['items'][number] | 'Instituciones';
 
