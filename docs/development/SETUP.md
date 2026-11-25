@@ -375,6 +375,7 @@ y sin fechas de vencimiento. Permisos exactos, sin wildcard ni GLOBAL:
 | --- | --- | --- |
 | Reasignaciones (UUID de proceso conocido) | `GET /api/v1/reassignments/:reassignmentId` | `reassignments.read` |
 | Reportes | `GET /api/v1/reports/indicators` | `reports.read` |
+| Panel de gestión | `GET /api/v1/reports/dashboard` | `reports.read` (mismo permiso) |
 | Auditoría | `GET /api/v1/audit/events` | `audit.read` |
 
 Asistencia reutiliza `GET /api/v1/agenda` y el permiso **ya existente** `agenda.read`.
