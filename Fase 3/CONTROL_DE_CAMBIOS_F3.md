@@ -78,3 +78,29 @@ Este complemento **no reescribe** los resultados ni los estados RNF del corte F3
 **Límites de esta edición:** solo se actualiza el índice/control documental y se adjunta el Modelo ER F3.3 ya elaborado. No se verificó aquí el esquema PostgreSQL del repositorio actual, una nueva ejecución de tests, la publicación de OpenAPI, el empaquetado Tauri ni la entrega académica.
 
 **Integración:** conservar respaldo del Modelo ER anterior; revisar `git status -sb` y rama antes de copiar cambios. No hacer commit/push sin autorización del equipo.
+
+## Complemento técnico · 24/11/2026
+
+### Conciliación de modelos y tablas físicas
+
+Inventario ejecutado sobre la base aislada E2E (`citajusta-e2e`, PostgreSQL 18.7) con las migraciones de `main` aplicadas, comparando `information_schema.tables` con los `@@map` de `apps/api/prisma/schema.prisma`:
+
+| Objeto | Cantidad | Observación |
+| --- | ---: | --- |
+| Modelos Prisma | 44 | Cada modelo mapea exactamente una tabla física; no hay modelos sin tabla. |
+| Tablas base en `public` | 45 | 44 del dominio + `_prisma_migrations` (control interno de Prisma, no es tabla de negocio). |
+| Tipos ENUM | 20 | También se declaran con `@@map`; no son tablas. |
+| Claves foráneas | 91 | — |
+| Índices | 171 | Incluye claves primarias y `UNIQUE`. |
+| Migraciones aplicadas | 14 | Igual a las carpetas de `prisma/migrations`. |
+
+Conclusión: el esquema actual tiene **44 tablas de negocio**. La cifra de 42 modelos corresponde al corte de octubre usado para el Modelo ER. Las 46 tablas físicas reportadas después provienen de una base distinta: la base local de desarrollo conserva objetos de la migración experimental HU-043 retirada (ver `docs/development/DECISIONS.md`). Esa base no se inventarió en este corte, por lo que su diferencia no se atribuye a tablas faltantes del esquema.
+
+### Reportería para la toma de decisiones (reunión 19/11)
+
+| Fecha/corte | Fuente | Resultado documentado |
+| --- | --- | --- |
+| 24/11/2026 | PR #257, merge `6124678` | `GET /api/v1/reports/dashboard` y Desktop → Análisis → Panel de gestión: recomendaciones con umbrales fijos, KPIs, tendencia, estado de citas, uso de agenda, rankings y lista de espera. |
+| 24/11/2026 | Ejecución local de suites | API unitarias 1107/1107, Web 172/172, Desktop 236/236, client-core 6/6, E2E reports 16/16 sobre PostgreSQL 18 Docker; `tsc` y `vite build` Desktop PASS. |
+
+El E2E de reportes fallaba antes con `429` en el registro de usuarios de prueba (7 registros contra el límite de 5 por 15 minutos de CJ-SEC-02). Se corrigió en la propia prueba, que restablece la cuota de su ejecución, sin relajar el límite productivo.
