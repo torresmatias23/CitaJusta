@@ -64,7 +64,7 @@ Video final de CitaJusta, conservado fuera del repositorio como material de apoy
 - **Presentación del 03/12:** guion de demo y guía de preguntas en `Evidencias Grupales/`.
 - **Base de datos:** conciliación verificada de 44 modelos y 45 tablas físicas (44 + `_prisma_migrations`) en `CONTROL_DE_CAMBIOS_F3.md`.
 - **Pruebas ejecutadas:** API 1107/1107, Web 172/172, Desktop 236/236, client-core 6/6 y E2E reports 16/16.
-- **Diarios de reflexión:** 2 de 3 incorporados; falta el de Bastián.
+- **Diarios de reflexión:** 2 de 3 incorporados; falta el de Bastian Sepúlveda (`SEPULVEDA_BASTIAN`).
 
 Consulte `CONTROL_DE_CAMBIOS_F3.md` para la distinción entre revisión F3.2 histórica y cierre F3.3, y `Evidencias Proyecto/Evidencias de documentación/REGISTRO_TECNICO_F3_20261109.md` para los resultados de pruebas fechados.
 
