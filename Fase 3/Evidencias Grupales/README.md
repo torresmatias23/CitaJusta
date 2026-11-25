@@ -12,6 +12,9 @@ Reunir la evidencia de cierre, validación y presentación del proyecto CitaJust
 | Flyer de difusión | [Material Grafico/Flyer_CitaJusta.png](<Material Grafico/Flyer_CitaJusta.png>) | Incorporado |
 | Tríptico (caras exterior e interior) | [Material Grafico/](<Material Grafico/>) | Incorporado |
 | Reunión de coordinación final 19/11/2026 | [Reunion 19-11-2026/](<Reunion 19-11-2026/README.md>) | Incorporada |
+| Guion de la demo (2 casos de uso, ≈ 4 min) | [Guion_Demo_Presentacion_Fase3.md](<Guion_Demo_Presentacion_Fase3.md>) | Incorporado |
+| Guía de preguntas para la defensa | [Guia_Preguntas_Defensa_Fase3.md](<Guia_Preguntas_Defensa_Fase3.md>) | Incorporada |
+| Reportería / Panel de gestión | [Reporteria_Panel_de_Gestion_F3.md](<../Evidencias Proyecto/Evidencias de sistema/Aplicación/Reporteria_Panel_de_Gestion_F3.md>) | Implementada (PR #257) |
 
 ## Pendiente
 
