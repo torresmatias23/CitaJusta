@@ -13,7 +13,7 @@ Diarios de reflexión de Fase 3 correspondientes a cada integrante del equipo.
 ### Evidencias Grupales
 
 - Presentación final del proyecto en español.
-- Material gráfico de difusión (flyer y tríptico).
+- Material gráfico de difusión (flyer, tríptico e imágenes del Panel de gestión para el video, con datos de ejemplo).
 - Registro de la reunión de coordinación final del 19/11/2026.
 - Guion de la demo con dos casos de uso (Web y Desktop) y guía de preguntas para la defensa.
 - Planilla oficial de evaluación Fase 3, cuando sea proporcionada.

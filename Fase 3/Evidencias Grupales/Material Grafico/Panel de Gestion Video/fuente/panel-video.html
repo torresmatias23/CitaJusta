@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920">
+<title>Panel de gestión · CitaJusta</title>
+<!--
+  Panel de gestión de CitaJusta en formato 16:9 (1920 x 1080) para video.
+  Escenas (se eligen con el # de la URL):
+    #completo     panel completo comprimido en una pantalla
+    #decisiones   recomendaciones + indicadores clave
+    #tendencia    actividad diaria + estado de las citas
+    #operacion    uso de la agenda, lista de espera, servicios y profesionales
+  Datos: datos de ejemplo, revisados para que todas las cifras sean coherentes entre sí
+  (citas por estado, actividad diaria, cupos, ofertas, servicios y profesionales).
+-->
+<style>
+:root{
+  --brand:#00787b; --brand-strong:#006a6d; --brand-soft:#e2f2f1;
+  --ink:#172b50; --ink-2:#3c4a66; --muted:#66728a;
+  --line:#e3e9f0; --line-2:#d5dde7;
+  --surface:#ffffff; --canvas:#f2f6f9; --track:#e9eef3;
+  --s1:#257de0; --s2:#f47230; --s3:#00b894; --other:#c3c2b7;
+  --good:#0aac23; --warning:#fbb315; --critical:#dc3c3d;
+  --danger-soft:#fdeeee; --danger-ink:#b3262f; --info-soft:#e9f2fd; --info-ink:#1f5fae;
+  --grid:#edf1f5; --axis:#c3ccd7;
+  --shadow:0 1px 2px #172b5008, 0 6px 20px #172b5009;
+  font-size:15px;
+}
+html[data-scene="decisiones"]{font-size:24px}
+html[data-scene="tendencia"]{font-size:19px}
+html[data-scene="operacion"]{font-size:23px}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  width:1920px; height:1080px; overflow:hidden;
+  background:var(--canvas); color:var(--ink);
+  font-family:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  line-height:1.4; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+h1,h2,h3,p,dl,dd{margin:0}
+svg.i{width:1em; height:1em; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none}
+
+/* ---------- Barra de la aplicación (tamaño fijo en todas las escenas) ---------- */
+.appbar{height:72px; display:flex; align-items:center; gap:20px; padding:0 40px; background:#fff; border-bottom:1px solid var(--line); font-size:14px}
+.logo{width:116px; height:64px; display:block}
+.appbar-sep{width:1px; height:30px; background:var(--line-2)}
+.crumbs{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:15px}
+.crumbs strong{color:var(--ink); font-weight:600}
+.crumbs svg{font-size:16px}
+.appbar-right{margin-left:auto; display:flex; align-items:center; gap:16px}
+.presets{display:flex; padding:4px; background:#edf2f6; border-radius:10px}
+.presets span{padding:7px 15px; border-radius:7px; color:var(--ink-2); font-weight:500}
+.presets .on{background:#fff; color:var(--brand-strong); font-weight:650; box-shadow:0 1px 3px #172b5020}
+.sample-chip{display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border-radius:999px; background:#fff6df; color:#7a5200; font-size:12.5px; font-weight:600; border:1px solid #f1d996}
+.sample-chip svg{font-size:14px}
+
+/* ---------- Estructura ---------- */
+main{height:1008px; padding:1.5rem 40px 1.7rem; display:grid; gap:1rem; min-height:0}
+.row{display:grid; gap:1rem; min-height:0}
+.stack{display:grid; gap:1rem; grid-template-rows:1fr 1fr; min-height:0}
+
+.page-head{display:flex; align-items:flex-end; justify-content:space-between; gap:2rem}
+.page-head h1{font-size:1.7rem; font-weight:700; letter-spacing:-.02em; line-height:1.15}
+.page-head .sub{color:var(--muted); font-size:.95rem; margin-top:.2rem}
+.period{display:flex; align-items:center; gap:.5rem; color:var(--muted); font-size:.9rem; white-space:nowrap}
+.period svg{color:var(--brand); font-size:1.05rem}
+.period b{color:var(--ink); font-weight:600}
+
+.card{background:var(--surface); border:1px solid var(--line); border-radius:.95rem; box-shadow:var(--shadow); padding:1rem 1.25rem 1.1rem; min-width:0; min-height:0; display:flex; flex-direction:column}
+.card-head{display:flex; align-items:baseline; justify-content:space-between; gap:1rem; margin-bottom:.75rem}
+.card-head h2{font-size:1.05rem; font-weight:650; letter-spacing:-.01em; white-space:nowrap}
+.card-head .meta{color:var(--muted); font-size:.82rem; text-align:right}
+.hint{color:var(--muted); font-size:.8rem; margin-top:auto; padding-top:.6rem}
+.hint b{color:var(--ink-2); font-weight:600}
+
+/* ---------- Recomendaciones ---------- */
+.recos-list{display:grid; grid-template-columns:1fr 1fr; gap:1rem}
+.reco{position:relative; overflow:hidden; border:1px solid var(--line); border-radius:.75rem; padding:.85rem 1.1rem .9rem 1.4rem; background:#fbfcfe; display:flex; flex-direction:column; gap:.3rem}
+.reco::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--accent)}
+.reco.high{--accent:var(--critical)}
+.reco.info{--accent:var(--s1)}
+.reco-title{display:flex; align-items:center; gap:.7rem}
+.reco h3{font-size:1.12rem; font-weight:650; letter-spacing:-.01em}
+.reco .detail{color:var(--muted); font-size:.9rem}
+.action{margin-top:.35rem; display:flex; gap:.5rem; align-items:center; font-size:.9rem; padding:.5rem .75rem; background:#fff; border:1px solid var(--line); border-radius:.55rem}
+.action svg{color:var(--brand); font-size:1.05rem}
+.action b{color:var(--brand-strong); font-weight:650}
+.reco-fig{display:none}
+.center{display:flex; flex-direction:column; gap:1.1rem; min-height:0}
+.badge{display:inline-flex; align-items:center; gap:.35rem; padding:.18rem .6rem; border-radius:999px; font-size:.74rem; font-weight:650; white-space:nowrap}
+.badge svg{font-size:.9rem}
+.badge.danger{background:var(--danger-soft); color:var(--danger-ink)}
+.badge.info{background:var(--info-soft); color:var(--info-ink)}
+
+/* ---------- Indicadores clave ---------- */
+.kpis{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:.9rem}
+.kpi{position:relative; background:#fff; border:1px solid var(--line); border-radius:.95rem; box-shadow:var(--shadow); padding:.85rem 1rem .9rem; display:flex; flex-direction:column; gap:.4rem; min-width:0}
+.kpi-top{display:flex; align-items:center; gap:.55rem; min-height:1.9rem}
+.kpi-ic{width:1.9rem; height:1.9rem; border-radius:.55rem; background:var(--brand-soft); color:var(--brand); display:grid; place-items:center; font-size:1rem; flex:none}
+.kpi dt{font-size:.8rem; font-weight:600; color:var(--muted); line-height:1.2}
+.kpi dd{font-size:2rem; font-weight:700; letter-spacing:-.02em; line-height:1.05; margin-top:.1rem}
+.kpi dd small{font-size:.55em; font-weight:650; margin-left:.15em; color:var(--ink-2); letter-spacing:0}
+.meter{height:.36rem; background:var(--track); border-radius:999px; overflow:hidden}
+.meter span{display:block; height:100%; background:var(--brand); border-radius:999px}
+.meter.blank{background:transparent}
+.kpi p{font-size:.78rem; color:var(--muted)}
+.kpi.alert{border-color:#f1c4c6}
+.kpi.alert .kpi-ic{background:var(--danger-soft); color:var(--critical)}
+.kpi.alert .meter span{background:var(--critical)}
+.kpi .flag{position:absolute; top:.7rem; right:.75rem; font-size:.68rem; padding:.12rem .5rem}
+
+/* ---------- Gráfico de actividad ---------- */
+.plot{position:relative; flex:1; min-height:0}
+.plot svg{position:absolute; inset:0; width:100%; height:100%; overflow:visible}
+.gridline{stroke:var(--grid); stroke-width:1}
+.baseline{stroke:var(--axis); stroke-width:1}
+.tick{fill:var(--muted); font-variant-numeric:tabular-nums}
+.strip-label{fill:var(--ink-2); font-weight:600}
+.strip-val{fill:var(--ink); font-variant-numeric:tabular-nums}
+.strip-sep{stroke:var(--line); stroke-width:1}
+
+/* ---------- Barras segmentadas ---------- */
+.seg{display:flex; gap:2px; height:1.55rem; border-radius:4px; overflow:hidden; background:#fff; margin-bottom:.8rem}
+.seg span{min-width:3px}
+.seg-legend{list-style:none; padding:0; margin:0; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.45rem 1.2rem; font-size:.86rem}
+.seg-legend li{display:flex; align-items:center; gap:.45rem; min-width:0; white-space:nowrap}
+.seg-legend i{width:.75rem; height:.75rem; border-radius:3px; flex:none}
+.seg-legend b{margin-left:auto; font-weight:700; font-variant-numeric:tabular-nums}
+.seg-legend em{font-style:normal; color:var(--muted); font-variant-numeric:tabular-nums; min-width:3.2em; text-align:right}
+
+/* ---------- Tablas ---------- */
+table{width:100%; border-collapse:collapse; font-size:.88rem}
+th,td{text-align:left; padding:.55rem .5rem; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap}
+th:first-child,td:first-child{padding-left:0}
+th:last-child,td:last-child{padding-right:0}
+thead th{color:var(--muted); font-size:.72rem; font-weight:650; text-transform:uppercase; letter-spacing:.05em; border-bottom-color:var(--line-2); padding-top:0}
+tbody th{font-weight:600}
+tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
+.r{text-align:right}
+.bar{display:inline-block; width:4.5rem; height:.5rem; background:var(--track); border-radius:999px; margin-right:.6rem; vertical-align:middle; overflow:hidden}
+.bar span{display:block; height:100%; background:var(--s1); border-radius:0 4px 4px 0}
+
+/* ---------- Lista de espera ---------- */
+.wait-stats{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem}
+.wait-stats dt{font-size:.78rem; color:var(--muted)}
+.wait-stats dd{font-size:1.45rem; font-weight:700; letter-spacing:-.01em; font-variant-numeric:tabular-nums}
+.wait-stats dd small{font-size:.6em; font-weight:600; color:var(--ink-2); margin-left:.2em}
+.prio{display:flex; justify-content:space-between; align-items:center; margin-top:.7rem; padding:.45rem .7rem; border-radius:.5rem; background:var(--canvas); font-size:.86rem}
+.prio span{color:var(--ink-2)}
+
+/* ---------- Escenas ---------- */
+[data-scene="completo"] main{grid-template-rows:auto auto auto minmax(0,1fr) auto}
+[data-scene="completo"] .r-main{grid-template-columns:7fr 5fr}
+[data-scene="completo"] .r-detail{grid-template-columns:1fr 1fr 1fr}
+
+[data-scene="decisiones"] main,[data-scene="operacion"] main{grid-template-rows:auto minmax(0,1fr)}
+[data-scene="decisiones"] .reco{display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:1.4rem; align-items:center; padding:1.1rem 1.3rem 1.1rem 1.6rem}
+[data-scene="decisiones"] .reco-fig{display:flex; flex-direction:column; align-items:flex-start; padding-right:1.4rem; border-right:1px solid var(--line); min-width:6.2rem}
+[data-scene="decisiones"] .reco-fig b{font-size:2.7rem; font-weight:700; letter-spacing:-.03em; line-height:1}
+[data-scene="decisiones"] .reco-fig b small{font-size:.5em; margin-left:.12em; color:var(--ink-2)}
+[data-scene="decisiones"] .reco-fig span{font-size:.72rem; color:var(--muted); margin-top:.3rem; white-space:nowrap}
+[data-scene="decisiones"] .reco.high .reco-fig b{color:var(--danger-ink)}
+[data-scene="decisiones"] .reco-body{display:flex; flex-direction:column; gap:.35rem; min-width:0}
+[data-scene="decisiones"] .reco h3{font-size:1.15rem}
+[data-scene="decisiones"] .kpis{grid-template-columns:repeat(12,minmax(0,1fr)); gap:.9rem}
+[data-scene="decisiones"] .kpi{grid-column:span 3; padding:.85rem 1.1rem .9rem}
+[data-scene="decisiones"] .kpi:nth-child(n+5){grid-column:span 4}
+[data-scene="decisiones"] .kpi dd{font-size:2.2rem}
+[data-scene="decisiones"] .kpi dt{font-size:.8rem}
+[data-scene="decisiones"] .kpi p{font-size:.74rem}
+
+[data-scene="tendencia"] main{grid-template-rows:auto minmax(0,1fr) auto}
+[data-scene="tendencia"] .seg-legend{grid-template-columns:repeat(5,minmax(0,1fr))}
+
+[data-scene="operacion"] .row{grid-template-columns:1fr 1fr}
+[data-scene="operacion"] .seg-legend{grid-template-columns:repeat(4,minmax(0,1fr))}
+[data-scene="operacion"] .wait-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+</style>
+</head>
+<body>
+<header class="appbar">
+  <img class="logo" src="logo-citajusta.png" alt="CitaJusta">
+  <span class="appbar-sep"></span>
+  <nav class="crumbs" aria-label="Ubicación"><span>Análisis</span><svg class="i" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg><strong>Panel de gestión</strong></nav>
+  <div class="appbar-right">
+    <div class="presets" role="group" aria-label="Período"><span class="on">Últimos 7 días</span><span>Últimos 30 días</span><span>Últimos 90 días</span></div>
+    <span class="sample-chip"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Datos de ejemplo</span>
+  </div>
+</header>
+<main></main>
+
+<script>
+/* ---------- Datos de ejemplo (coherentes entre sí) ---------- */
+const DATA = {
+  period: '01-11-2026 al 07-11-2026',
+  recos: [
+    { fig: '25', figUnit: '%', figLabel: 'de inasistencia', tone: 'high', badge: 'Prioridad alta', title: 'Inasistencia de 25 %', detail: '3 de 12 citas cerradas.', action: 'Exigir confirmación anticipada de asistencia.' },
+    { fig: '5', figLabel: 'personas en espera', tone: 'info', badge: 'Informativo', title: '5 personas esperan un cupo', detail: 'Mayor demanda en Kinesiología.', action: 'Priorizar cupos de Kinesiología.' },
+  ],
+  kpis: [
+    { label: 'Citas del período', value: '20', meter: 45, note: '9 atendidas', icon: 'calendar' },
+    { label: 'Asistencia', value: '75', unit: '%', meter: 75, note: '9 de 12 citas cerradas', icon: 'check' },
+    { label: 'Inasistencia', value: '25', unit: '%', meter: 25, note: '3 de 12 citas cerradas', icon: 'userx', alert: true },
+    { label: 'Cancelación', value: '15', unit: '%', meter: 15, note: '3 de 20 citas', icon: 'xcircle' },
+    { label: 'Recuperación de cupos', value: '33,3', unit: '%', meter: 33.3, note: '1 de 3 cupos liberados', icon: 'refresh' },
+    { label: 'Ocupación de agenda', value: '85', unit: '%', meter: 85, note: '17 de 20 cupos', icon: 'grid' },
+    { label: 'Personas en espera', value: '5', note: 'Espera promedio 3,3 días', icon: 'users' },
+  ],
+  trend: {
+    days: ['dom 1', 'lun 2', 'mar 3', 'mié 4', 'jue 5', 'vie 6', 'sáb 7'],
+    series: [
+      { name: 'Citas', color: '#257de0', values: [0, 4, 3, 4, 3, 2, 4] },
+      { name: 'Cancelaciones', color: '#f47230', values: [1, 0, 1, 0, 1, 0, 0] },
+      { name: 'Inasistencias', color: '#00b894', values: [0, 1, 0, 1, 0, 1, 0] },
+    ],
+  },
+  estado: { total: '20 citas', items: [
+    ['Agendadas', 4, '20 %', 'var(--s1)'],
+    ['Atendidas', 9, '45 %', 'var(--good)'],
+    ['Inasistencias', 3, '15 %', 'var(--warning)'],
+    ['Canceladas', 3, '15 %', 'var(--critical)'],
+    ['Otros estados', 1, '5 %', 'var(--other)'],
+  ]},
+  agenda: { total: '20 cupos', items: [
+    ['Reservados', 17, '85 %', 'var(--s1)'],
+    ['En reasignación', 1, '5 %', 'var(--s2)'],
+    ['Disponibles', 1, '5 %', 'var(--s3)'],
+    ['Expirados', 1, '5 %', 'var(--other)'],
+  ]},
+  // [nombre, citas, inasistencia, canceladas, en espera]
+  servicios: [
+    ['Kinesiología', 14, '33,3 %', 2, 5],
+    ['Nutrición', 4, '0 %', 1, 0],
+    ['Psicología', 2, '0 %', 0, 0],
+  ],
+  // [nombre, citas, inasistencia, canceladas]
+  profesionales: [
+    ['Ana Pérez', 14, '33,3 %', 2],
+    ['Carlos Muñoz', 4, '0 %', 1],
+    ['Valentina Rojas', 2, '0 %', 0],
+  ],
+};
+
+const ICONS = {
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  check: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  userx: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 8 5 5M22 8l-5 5"/>',
+  xcircle: '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>',
+  refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  bulb: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6M10 22h4"/>',
+};
+const icon = (name) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+
+/* ---------- Componentes ---------- */
+const head = () => `
+  <div class="page-head">
+    <div>
+      <h1>Panel de gestión</h1>
+      <p class="sub">Asistencia, uso de la agenda y lista de espera, con recomendaciones para decidir dónde actuar.</p>
+    </div>
+    <p class="period">${icon('calendar')} Período <b>${DATA.period}</b> (inclusive)</p>
+  </div>`;
+
+const recos = () => `
+  <section class="card recos">
+    <div class="card-head"><h2>Recomendaciones para decidir</h2><span class="meta">${DATA.recos.length} recomendaciones activas</span></div>
+    <div class="recos-list">
+      ${DATA.recos.map((r) => `
+        <article class="reco ${r.tone}">
+          <div class="reco-fig"><b>${r.fig}${r.figUnit ? `<small>${r.figUnit}</small>` : ''}</b><span>${r.figLabel}</span></div>
+          <div class="reco-body">
+          <div class="reco-title"><h3>${r.title}</h3>
+            <span class="badge ${r.tone === 'high' ? 'danger' : 'info'}">${icon(r.tone === 'high' ? 'alert' : 'info')}${r.badge}</span></div>
+          <p class="detail">${r.detail}</p>
+          <p class="action">${icon('bulb')}<span><b>Acción sugerida:</b> ${r.action}</span></p>
+          </div>
+        </article>`).join('')}
+    </div>
+  </section>`;
+
+const kpis = () => `
+  <dl class="kpis" aria-label="Indicadores clave">
+    ${DATA.kpis.map((k) => `
+      <div class="kpi${k.alert ? ' alert' : ''}">
+        ${k.alert ? `<span class="badge danger flag">${icon('alert')}Alta</span>` : ''}
+        <div class="kpi-top"><span class="kpi-ic">${icon(k.icon)}</span><dt>${k.label}</dt></div>
+        <dd>${k.value}${k.unit ? `<small>${k.unit}</small>` : ''}</dd>
+        <div class="meter${k.meter == null ? ' blank' : ''}">${k.meter == null ? '' : `<span style="width:${k.meter}%"></span>`}</div>
+        <p>${k.note}</p>
+      </div>`).join('')}
+  </dl>`;
+
+const trend = () => `
+  <section class="card trend">
+    <div class="card-head"><h2>Actividad diaria</h2><span class="meta">Citas por fecha de atención; cancelaciones e inasistencias por fecha de registro</span></div>
+    <div class="plot" id="trend-plot" role="img" aria-label="Actividad diaria del período"></div>
+  </section>`;
+
+const segmented = (title, d, hint = '') => `
+  <section class="card">
+    <div class="card-head"><h2>${title}</h2><span class="meta">${d.total}</span></div>
+    <div class="seg">${d.items.map(([, v, , c]) => `<span style="flex-grow:${v};background:${c}"></span>`).join('')}</div>
+    <ul class="seg-legend">${d.items.map(([n, v, p, c]) => `<li><i style="background:${c}"></i>${n}<b>${v}</b><em>${p}</em></li>`).join('')}</ul>
+    ${hint}
+  </section>`;
+const estado = () => segmented('Estado de las citas', DATA.estado,
+  '<p class="hint"><b>Citas cerradas:</b> 12 (9 atendidas y 3 inasistencias).</p>');
+const agenda = () => segmented('Uso de la agenda', DATA.agenda,
+  '<p class="hint"><b>Ofertas de reasignación:</b> 10 enviadas: 1 aceptada, 3 rechazadas, 5 expiradas y 1 pendiente.</p>');
+
+const tableBar = (v, max) => `<span class="bar"><span style="width:${(v / max * 100).toFixed(1)}%"></span></span>${v}`;
+const servicios = () => {
+  const max = Math.max(...DATA.servicios.map((r) => r[1]));
+  return `
+  <section class="card">
+    <div class="card-head"><h2>Servicios con más demanda</h2></div>
+    <table>
+      <thead><tr><th>Servicio</th><th>Citas</th><th class="r">Inasistencia</th><th class="r">Canceladas</th><th class="r">En espera</th></tr></thead>
+      <tbody>${DATA.servicios.map(([n, c, i, x, e]) => `<tr><th>${n}</th><td>${tableBar(c, max)}</td><td class="r">${i}</td><td class="r">${x}</td><td class="r">${e}</td></tr>`).join('')}</tbody>
+    </table>
+  </section>`;
+};
+
+const profesionales = () => {
+  const max = Math.max(...DATA.profesionales.map((r) => r[1]));
+  return `
+  <section class="card">
+    <div class="card-head"><h2>Profesionales</h2></div>
+    <table>
+      <thead><tr><th>Profesional</th><th>Citas</th><th class="r">Inasistencia</th><th class="r">Canceladas</th></tr></thead>
+      <tbody>${DATA.profesionales.map(([n, c, i, x]) => `<tr><th>${n}</th><td>${tableBar(c, max)}</td><td class="r">${i}</td><td class="r">${x}</td></tr>`).join('')}</tbody>
+    </table>
+  </section>`;
+};
+
+const espera = (wide = false) => `
+  <section class="card">
+    <div class="card-head"><h2>Lista de espera actual</h2></div>
+    <dl class="wait-stats">
+      <div><dt>Personas esperando</dt><dd>5</dd></div>
+      <div><dt>Espera promedio</dt><dd>3,3<small>días</small></dd></div>
+      <div><dt>Espera más larga</dt><dd>9,5<small>días</small></dd></div>
+      ${wide ? '<div><dt>Por prioridad</dt><dd>5<small>estándar</small></dd></div>' : ''}
+    </dl>
+    ${wide ? '' : '<div class="prio"><span>Prioridad estándar</span><b>5</b></div>'}
+    <p class="hint">Estado actual, no limitado al período ni al profesional.</p>
+  </section>`;
+
+const SCENES = {
+  completo: () => `${head()}${recos()}${kpis()}
+    <div class="row r-main">${trend()}<div class="stack">${estado()}${agenda()}</div></div>
+    <div class="row r-detail">${servicios()}${profesionales()}${espera()}</div>`,
+  decisiones: () => `${head()}<div class="center">${recos()}${kpis()}</div>`,
+  tendencia: () => `${head()}${trend()}${estado()}`,
+  operacion: () => `${head()}<div class="center">${agenda()}${espera(true)}
+    <div class="row">${servicios()}${profesionales()}</div></div>`,
+};
+
+/* ---------- Gráfico: columnas agrupadas + tabla de valores alineada ---------- */
+function drawTrend(el) {
+  const { days, series } = DATA.trend;
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const W = el.clientWidth, H = el.clientHeight;
+  const fs = rem * 0.8;
+  const rowH = rem * 1.6;
+  const labelW = rem * 7.6;
+  const plotL = labelW, plotR = W;
+  const plotT = rem * 0.5;
+  const stripH = series.length * rowH;
+  const xLabH = rem * 1.9;
+  const plotB = H - stripH - xLabH - rem * 0.4;
+  const yMax = 5, ticks = [0, 1, 2, 3, 4, 5];
+  const y = (v) => plotB - (v / yMax) * (plotB - plotT);
+  const gw = (plotR - plotL) / days.length;
+  const gap = 2;
+  const bw = Math.min((gw * 0.62 - gap * 2) / 3, rem * 2.2);
+  const groupW = bw * 3 + gap * 2;
+  const r = 4;
+  const colX = (i) => plotL + gw * i + gw / 2;
+  const barPath = (x, h) => {
+    if (h <= 0) return '';
+    const rr = Math.min(r, h, bw / 2), yb = plotB, yt = plotB - h;
+    return `M${x},${yb}V${yt + rr}Q${x},${yt} ${x + rr},${yt}H${x + bw - rr}Q${x + bw},${yt} ${x + bw},${yt + rr}V${yb}Z`;
+  };
+
+  let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  ticks.forEach((t) => {
+    if (t > 0) s += `<line class="gridline" x1="${plotL}" x2="${plotR}" y1="${y(t)}" y2="${y(t)}"/>`;
+    s += `<text class="tick" x="${plotL - rem * 0.7}" y="${y(t) + fs * 0.35}" text-anchor="end" font-size="${fs}">${t}</text>`;
+  });
+  days.forEach((d, i) => {
+    const x0 = colX(i) - groupW / 2;
+    series.forEach((se, k) => {
+      const h = plotB - y(se.values[i]);
+      s += `<path d="${barPath(x0 + k * (bw + gap), h)}" fill="${se.color}"/>`;
+    });
+    s += `<text class="tick" x="${colX(i)}" y="${plotB + xLabH * 0.62}" text-anchor="middle" font-size="${fs}">${d}</text>`;
+  });
+  s += `<line class="baseline" x1="${plotL}" x2="${plotR}" y1="${plotB}" y2="${plotB}"/>`;
+
+  const stripT = plotB + xLabH;
+  series.forEach((se, k) => {
+    const ry = stripT + k * rowH;
+    const cy = ry + rowH / 2;
+    s += `<line class="strip-sep" x1="0" x2="${plotR}" y1="${ry}" y2="${ry}"/>`;
+    s += `<rect x="0" y="${cy - rem * 0.36}" width="${rem * 0.72}" height="${rem * 0.72}" rx="3" fill="${se.color}"/>`;
+    s += `<text class="strip-label" x="${rem * 1.15}" y="${cy + fs * 0.36}" font-size="${fs}">${se.name}</text>`;
+    se.values.forEach((v, i) => {
+      s += `<text class="strip-val" x="${colX(i)}" y="${cy + fs * 0.36}" text-anchor="middle" font-size="${fs * 1.02}">${v}</text>`;
+    });
+  });
+  s += `</svg>`;
+  el.innerHTML = s;
+}
+
+/* ---------- Montaje ---------- */
+const scene = SCENES[location.hash.slice(1)] ? location.hash.slice(1) : 'completo';
+document.documentElement.dataset.scene = scene;
+document.querySelector('main').innerHTML = SCENES[scene]();
+const plot = document.getElementById('trend-plot');
+if (plot) drawTrend(plot);
+</script>
+</body>
+</html>
