@@ -11,6 +11,7 @@ Reunir la evidencia de cierre, validación y presentación del proyecto CitaJust
 | Presentación final en español | [CitaJusta_Presentacion_Final_Fase3_2026.pptx](<CitaJusta_Presentacion_Final_Fase3_2026.pptx>) | Incorporada |
 | Flyer de difusión | [Material Grafico/Flyer_CitaJusta.png](<Material Grafico/Flyer_CitaJusta.png>) | Incorporado |
 | Tríptico (caras exterior e interior) | [Material Grafico/](<Material Grafico/>) | Incorporado |
+| Imágenes del Panel de gestión para el video (versión gráfica, datos de ejemplo) | [Material Grafico/Panel de Gestion Video/](<Material Grafico/Panel de Gestion Video/README.md>) | Incorporadas |
 | Reunión de coordinación final 19/11/2026 | [Reunion 19-11-2026/](<Reunion 19-11-2026/README.md>) | Incorporada |
 | Guion de la demo (2 casos de uso, ≈ 4 min) | [Guion_Demo_Presentacion_Fase3.md](<Guion_Demo_Presentacion_Fase3.md>) | Incorporado |
 | Guía de preguntas para la defensa | [Guia_Preguntas_Defensa_Fase3.md](<Guia_Preguntas_Defensa_Fase3.md>) | Incorporada |
